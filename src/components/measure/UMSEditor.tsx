@@ -1549,7 +1549,7 @@ function ValueSetModal({ valueSet, measureId, onClose }: { valueSet: ValueSetRef
 
 // Standard Value Set Browser modal
 function StandardValueSetBrowser({
-  measureId,
+  measureId: _measureId,
   existingOids,
   onImport,
   onClose,

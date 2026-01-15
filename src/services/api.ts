@@ -11,10 +11,6 @@
 // Backend API URL - will be set via environment variable in production
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-interface ApiOptions {
-  headers?: Record<string, string>;
-}
-
 /**
  * Check if backend is available
  */

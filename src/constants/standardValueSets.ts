@@ -414,7 +414,7 @@ export function searchStandardValueSets(query: string): StandardValueSet[] {
  */
 export function isCodeInValueSets(
   code: string,
-  system: string,
+  _system: string,
   valueSets: StandardValueSet[]
 ): { found: boolean; valueSet?: StandardValueSet; matchedCode?: StandardValueSet['codes'][0] } {
   const normalizedCode = code.toUpperCase().replace(/\./g, '');

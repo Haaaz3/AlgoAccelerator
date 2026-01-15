@@ -24,7 +24,6 @@ import {
   getValueSetByOID,
   getCRCScreeningNumeratorValueSets,
   getCRCScreeningExclusionValueSets,
-  STANDARD_VALUE_SETS_BY_MEASURE,
   type StandardValueSet,
 } from '../constants/standardValueSets';
 

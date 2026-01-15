@@ -11,16 +11,8 @@
  */
 
 import type { UniversalMeasureSpec } from '../types/ums';
-import type {
-  TestPatient,
-  PatientDiagnosis,
-  PatientEncounter,
-  PatientProcedure,
-  PatientObservation,
-  PatientMedication,
-  PatientImmunization,
-} from './measureEvaluator';
-import { ICD10CM, CPT, LOINC, RXNORM, CVX, HCPCS, SNOMEDCT } from '../constants/fhirCodeSystems';
+import type { TestPatient } from './measureEvaluator';
+import { ICD10CM, CPT, LOINC, RXNORM, CVX } from '../constants/fhirCodeSystems';
 
 /**
  * Static test patients with comprehensive clinical data

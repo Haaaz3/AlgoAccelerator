@@ -165,7 +165,7 @@ export const useSettingsStore = create<SettingsState>()(
         anthropicApiKey: state.anthropicApiKey,
       }),
       // Migration to handle old data format
-      migrate: (persistedState: any, version: number) => {
+      migrate: (persistedState: any, _version: number) => {
         if (persistedState.anthropicApiKey && !persistedState.apiKeys?.anthropic) {
           return {
             ...persistedState,

@@ -12,7 +12,7 @@ const CODE_FORMAT_INFO: Record<CodeOutputFormat, { label: string; icon: typeof C
 };
 
 // Test patients with complex EMR data - named after Dune & Hyperion characters
-const DEMO_TRACES: PatientValidationTrace[] = [
+const _DEMO_TRACES: PatientValidationTrace[] = [
   // ===== PATIENT 1: Paul Atreides - Not in Numerator (no qualifying BP readings) =====
   {
     patientId: 'pt-001',
@@ -1342,7 +1342,7 @@ export function ValidationTraceViewer() {
   }, [measure?.id]); // Re-run when measure changes
 
   // Handle patient selection
-  const handleSelectPatient = (trace: PatientValidationTrace, index: number) => {
+  const handleSelectPatient = (trace: PatientValidationTrace, _index: number) => {
     setSelectedTrace(trace);
     // Find the patient by matching the trace's patientId
     const patient = testPatients.find(p => p.id === trace.patientId);
@@ -1398,7 +1398,7 @@ export function ValidationTraceViewer() {
   };
 
   // Reset a patient to original data
-  const resetPatientToOriginal = (patientId: string) => {
+  const _resetPatientToOriginal = (patientId: string) => {
     const editedPatients = loadEditedPatients();
     delete editedPatients[patientId];
     saveEditedPatientsToStorage(editedPatients);

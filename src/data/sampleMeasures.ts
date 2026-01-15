@@ -2,7 +2,7 @@
  * Sample Measures for Testing
  */
 
-import type { UniversalMeasureSpec, ValueSetReference } from '../types/ums';
+import type { UniversalMeasureSpec } from '../types/ums';
 
 /**
  * Sample CRC Screening Measure (CMS130)

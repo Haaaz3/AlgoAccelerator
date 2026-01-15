@@ -14,15 +14,12 @@ import type {
   ValidationNode,
   ValidationFact,
   CodeReference,
-  ValueSetReference,
   TimingRequirement,
 } from '../types/ums';
 import {
-  STANDARD_VALUE_SETS_BY_MEASURE,
   getCRCScreeningNumeratorValueSets,
   getCRCScreeningExclusionValueSets,
   isCodeInValueSets,
-  type StandardValueSet,
 } from '../constants/standardValueSets';
 
 // ============================================================================
@@ -118,7 +115,7 @@ export function evaluatePatient(
   const denomExclPop = measure.populations.find(p => p.type === 'denominator_exclusion');
   const denomExcepPop = measure.populations.find(p => p.type === 'denominator_exception');
   const numerPop = measure.populations.find(p => p.type === 'numerator');
-  const numerExclPop = measure.populations.find(p => p.type === 'numerator_exclusion');
+  const _numerExclPop = measure.populations.find(p => p.type === 'numerator_exclusion');
 
   // Evaluate each population
   const ipResult = ipPop
@@ -142,7 +139,7 @@ export function evaluatePatient(
     }
   }
 
-  const exceptionResult = denomExcepPop && denomResult.met && !exclusionResult.met
+  const _exceptionResult = denomExcepPop && denomResult.met && !exclusionResult.met
     ? evaluatePopulation(patient, denomExcepPop, measure, mpStart, mpEnd)
     : { met: false, nodes: [] };
 
@@ -817,7 +814,7 @@ function normalizeCodeSystem(system: string): string {
  */
 function checkCommonExclusions(
   patient: TestPatient,
-  measure: UniversalMeasureSpec
+  _measure: UniversalMeasureSpec
 ): { met: boolean; nodes: ValidationNode[] } {
   const nodes: ValidationNode[] = [];
 
@@ -929,7 +926,7 @@ function checkCommonExclusions(
  */
 function checkCRCScreeningNumerator(
   patient: TestPatient,
-  mpStart: string,
+  _mpStart: string,
   mpEnd: string
 ): { met: boolean; nodes: ValidationNode[]; screeningType?: string } {
   const nodes: ValidationNode[] = [];
@@ -1048,8 +1045,6 @@ function checkTiming(
   const mpEndDate = new Date(mpEnd);
 
   for (const timing of timingRequirements) {
-    let refDate: Date;
-
     switch (timing.relativeTo) {
       case 'measurement_period':
         // Check if within measurement period
