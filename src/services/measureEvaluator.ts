@@ -550,6 +550,20 @@ function evaluateDiagnosis(
   return { met, facts };
 }
 
+// Common outpatient/office visit CPT codes for fallback matching
+const COMMON_OFFICE_VISIT_CODES = [
+  // Office/Outpatient Visit - New Patient
+  '99201', '99202', '99203', '99204', '99205',
+  // Office/Outpatient Visit - Established Patient
+  '99211', '99212', '99213', '99214', '99215',
+  // Preventive Visit - New Patient
+  '99381', '99382', '99383', '99384', '99385', '99386', '99387',
+  // Preventive Visit - Established Patient
+  '99391', '99392', '99393', '99394', '99395', '99396', '99397',
+  // Telehealth
+  '99441', '99442', '99443',
+];
+
 function evaluateEncounter(
   patient: TestPatient,
   element: DataElement,
@@ -561,9 +575,24 @@ function evaluateEncounter(
   let met = false;
 
   const codesToMatch = getCodesFromElement(element, measure);
+  const descLower = element.description.toLowerCase();
+
+  // Determine if this is a generic "office visit" or "outpatient" encounter requirement
+  const isGenericOfficeVisit = codesToMatch.length === 0 ||
+    descLower.includes('office visit') ||
+    descLower.includes('outpatient') ||
+    descLower.includes('qualifying encounter') ||
+    descLower.includes('qualifying visit') ||
+    descLower.includes('face-to-face') ||
+    descLower.includes('preventive');
 
   for (const enc of patient.encounters) {
-    const codeMatches = matchCode(enc.code, enc.system, codesToMatch);
+    let codeMatches = matchCode(enc.code, enc.system, codesToMatch);
+
+    // Fallback: if no specific codes or generic office visit, accept common visit codes
+    if (!codeMatches && isGenericOfficeVisit) {
+      codeMatches = COMMON_OFFICE_VISIT_CODES.includes(enc.code);
+    }
 
     if (codeMatches) {
       const timingOk = checkTiming(enc.date, element.timingRequirements, mpStart, mpEnd);

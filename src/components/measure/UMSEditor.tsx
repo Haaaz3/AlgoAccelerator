@@ -812,14 +812,51 @@ function NodeDetailPanel({
     ? (currentMeasure?.valueSets.find(vs => vs.id === node?.valueSet?.id) || allValueSets.find(vs => vs.id === node?.valueSet?.id) || node.valueSet)
     : undefined;
 
-  // Helper to extract age range from description
-  const parseAgeRange = (desc: string): { min: number; max: number } | null => {
-    const match = desc.match(/(?:age[d]?\s*)?(\d+)\s*[-–to]+\s*(\d+)/i);
-    if (match) return { min: parseInt(match[1]), max: parseInt(match[2]) };
+  // Helper to extract age range from description or additionalRequirements
+  const parseAgeRange = (): { min: number; max: number; source: 'description' | 'additionalRequirements' | 'thresholds'; index?: number } | null => {
+    // First check thresholds (most authoritative)
+    if (node.thresholds?.ageMin !== undefined || node.thresholds?.ageMax !== undefined) {
+      return {
+        min: node.thresholds.ageMin ?? 0,
+        max: node.thresholds.ageMax ?? 120,
+        source: 'thresholds'
+      };
+    }
+
+    // Then check description
+    const descMatch = node.description.match(/(?:age[d]?\s*)?(\d+)\s*[-–to]+\s*(\d+)/i);
+    if (descMatch) {
+      return { min: parseInt(descMatch[1]), max: parseInt(descMatch[2]), source: 'description' };
+    }
+
+    // Also check for "age X at end" or "turns X" patterns in description
+    const turnsMatch = node.description.match(/(?:turns?|age)\s*(\d+)/i);
+    if (turnsMatch) {
+      const age = parseInt(turnsMatch[1]);
+      return { min: age, max: age, source: 'description' };
+    }
+
+    // Finally check additionalRequirements
+    if (node.additionalRequirements) {
+      for (let i = 0; i < node.additionalRequirements.length; i++) {
+        const req = node.additionalRequirements[i];
+        const reqMatch = req.match(/(?:age[d]?\s*)?(\d+)\s*[-–to]+\s*(\d+)/i);
+        if (reqMatch) {
+          return { min: parseInt(reqMatch[1]), max: parseInt(reqMatch[2]), source: 'additionalRequirements', index: i };
+        }
+        // Also check for single age patterns
+        const singleAgeMatch = req.match(/(?:turns?|age)\s*(\d+)/i);
+        if (singleAgeMatch) {
+          const age = parseInt(singleAgeMatch[1]);
+          return { min: age, max: age, source: 'additionalRequirements', index: i };
+        }
+      }
+    }
+
     return null;
   };
 
-  const ageRange = parseAgeRange(node.description);
+  const ageRange = parseAgeRange();
 
   // Save handlers
   const saveDescription = () => {
@@ -831,9 +868,32 @@ function NodeDetailPanel({
   };
 
   const saveAgeRange = (min: number, max: number) => {
-    const newDesc = node!.description.replace(/(\d+)\s*[-–to]+\s*(\d+)/, `${min}-${max}`);
-    if (newDesc !== node?.description) {
-      updateDataElement(measureId, nodeId, { description: newDesc }, 'threshold_changed', `Age range changed to ${min}-${max}`);
+    if (!ageRange) return;
+
+    if (ageRange.source === 'thresholds') {
+      // Update thresholds directly
+      updateDataElement(measureId, nodeId, {
+        thresholds: { ...node.thresholds, ageMin: min, ageMax: max }
+      }, 'threshold_changed', `Age range changed to ${min}-${max}`);
+    } else if (ageRange.source === 'additionalRequirements' && ageRange.index !== undefined) {
+      // Update the specific additionalRequirement
+      const updated = [...(node.additionalRequirements || [])];
+      updated[ageRange.index] = updated[ageRange.index].replace(/(\d+)\s*[-–to]+\s*(\d+)/, `${min}-${max}`);
+      // Also handle single age patterns
+      if (updated[ageRange.index] === node.additionalRequirements![ageRange.index]) {
+        updated[ageRange.index] = `Age ${min}-${max} years`;
+      }
+      updateDataElement(measureId, nodeId, { additionalRequirements: updated }, 'threshold_changed', `Age range changed to ${min}-${max}`);
+    } else {
+      // Update description
+      let newDesc = node!.description.replace(/(\d+)\s*[-–to]+\s*(\d+)/, `${min}-${max}`);
+      // Also handle "turns X" or "age X" patterns
+      if (newDesc === node?.description) {
+        newDesc = node!.description.replace(/(?:turns?|age)\s*\d+/i, `age ${min}-${max}`);
+      }
+      if (newDesc !== node?.description) {
+        updateDataElement(measureId, nodeId, { description: newDesc }, 'threshold_changed', `Age range changed to ${min}-${max}`);
+      }
     }
     setEditingField(null);
   };
