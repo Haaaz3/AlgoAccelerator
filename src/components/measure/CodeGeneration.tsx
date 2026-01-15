@@ -201,8 +201,48 @@ export function CodeGeneration() {
   );
 }
 
-// Helper to extract age range from descriptions
+// Helper to extract age range from population data elements and constraints
 function extractAgeRange(populations: any[]): { min: number; max: number } | null {
+  // First, look for explicit age constraints in data elements
+  const findAgeConstraints = (node: any): { min?: number; max?: number } | null => {
+    if (!node) return null;
+
+    // Check if this node has age constraints
+    if (node.constraints) {
+      const c = node.constraints;
+      if (c.minAge !== undefined || c.maxAge !== undefined) {
+        return { min: c.minAge, max: c.maxAge };
+      }
+    }
+
+    // Check children
+    if (node.children) {
+      for (const child of node.children) {
+        const result = findAgeConstraints(child);
+        if (result) return result;
+      }
+    }
+
+    // Check criteria
+    if (node.criteria) {
+      return findAgeConstraints(node.criteria);
+    }
+
+    return null;
+  };
+
+  // Search through populations for age constraints
+  for (const pop of populations) {
+    const constraints = findAgeConstraints(pop);
+    if (constraints && (constraints.min !== undefined || constraints.max !== undefined)) {
+      return {
+        min: constraints.min ?? 0,
+        max: constraints.max ?? 999
+      };
+    }
+  }
+
+  // Fallback: look for age patterns in text descriptions
   for (const pop of populations) {
     const searchText = JSON.stringify(pop);
     const match = searchText.match(/(?:age[d]?\s*)?(\d+)\s*[-–to]+\s*(\d+)/i);
@@ -210,6 +250,7 @@ function extractAgeRange(populations: any[]): { min: number; max: number } | nul
       return { min: parseInt(match[1]), max: parseInt(match[2]) };
     }
   }
+
   return null;
 }
 

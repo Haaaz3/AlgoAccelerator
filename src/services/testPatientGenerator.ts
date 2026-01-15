@@ -1399,6 +1399,43 @@ const STATIC_TEST_PATIENTS: TestPatient[] = [
       { code: '141', system: CVX, display: 'Influenza', date: '2025-11-12', status: 'completed' },
     ],
   },
+
+  // ============================================================================
+  // Patient 36: Diana Vreeland - Young female with cervical cancer screening (NUMERATOR MET)
+  // ============================================================================
+  {
+    id: 'pt-036',
+    name: 'Diana Vreeland',
+    demographics: {
+      birthDate: '2001-07-22',  // 24 years old - within 20-65 age range
+      gender: 'female',
+      race: 'White',
+      ethnicity: 'Not Hispanic or Latino',
+    },
+    diagnoses: [],  // Healthy patient with no chronic conditions
+    encounters: [
+      { code: '99395', system: CPT, display: 'Preventive visit, 18-39 years', date: '2026-03-15', type: 'outpatient' },
+      { code: '99213', system: CPT, display: 'Office visit, established patient', date: '2026-08-22', type: 'outpatient' },
+    ],
+    procedures: [
+      // Cervical cytology (Pap test) - qualifies for cervical cancer screening numerator
+      { code: '88141', system: CPT, display: 'Cytopathology, cervical or vaginal, requiring interpretation by physician', date: '2026-03-15' },
+      { code: '88142', system: CPT, display: 'Cytopathology, cervicovaginal, automated thin layer', date: '2026-03-15' },
+    ],
+    observations: [
+      { code: '8480-6', system: LOINC, display: 'Systolic blood pressure', date: '2026-03-15', value: 110, unit: 'mm[Hg]' },
+      { code: '8462-4', system: LOINC, display: 'Diastolic blood pressure', date: '2026-03-15', value: 70, unit: 'mm[Hg]' },
+      // Cervical cytology result - normal
+      { code: '10524-7', system: LOINC, display: 'Cytology report of Cervix specimen', date: '2026-03-15', valueString: 'NILM (Negative for Intraepithelial Lesion or Malignancy)' },
+      { code: '8302-2', system: LOINC, display: 'Body height', date: '2026-03-15', value: 168, unit: 'cm' },
+      { code: '29463-7', system: LOINC, display: 'Body weight', date: '2026-03-15', value: 62, unit: 'kg' },
+    ],
+    medications: [],  // No medications
+    immunizations: [
+      { code: '62', system: CVX, display: 'HPV vaccine, quadrivalent', date: '2019-09-15', status: 'completed' },
+      { code: '141', system: CVX, display: 'Influenza, seasonal, injectable', date: '2025-10-20', status: 'completed' },
+    ],
+  },
 ];
 
 /**
@@ -1407,7 +1444,7 @@ const STATIC_TEST_PATIENTS: TestPatient[] = [
  */
 export function generateTestPatients(
   _measure: UniversalMeasureSpec,
-  count: number = 35
+  count: number = 36
 ): TestPatient[] {
   // Return up to 'count' static patients
   return STATIC_TEST_PATIENTS.slice(0, Math.min(count, STATIC_TEST_PATIENTS.length));
