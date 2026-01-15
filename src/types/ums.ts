@@ -84,7 +84,7 @@ export interface DateRange {
 
 export interface DataElement {
   id: string;
-  type: 'diagnosis' | 'encounter' | 'procedure' | 'observation' | 'medication' | 'demographic' | 'assessment';
+  type: 'diagnosis' | 'encounter' | 'procedure' | 'observation' | 'medication' | 'demographic' | 'assessment' | 'immunization';
   description: string;
   valueSet?: ValueSetReference;
   directCodes?: CodeReference[];

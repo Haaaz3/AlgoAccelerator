@@ -334,6 +334,12 @@ function evaluateDataElement(
       facts.push(...medResult.facts);
       break;
 
+    case 'immunization':
+      const immResult = evaluateImmunization(patient, element, measure, mpStart, mpEnd);
+      met = immResult.met;
+      facts.push(...immResult.facts);
+      break;
+
     case 'assessment':
     default:
       // Generic assessment - check if any matching data exists
@@ -804,6 +810,145 @@ function evaluateMedication(
   return { met, facts };
 }
 
+// Common childhood immunization CVX codes mapped by vaccine type
+const IMMUNIZATION_CVX_CODES: Record<string, string[]> = {
+  // DTaP (Diphtheria, Tetanus, Pertussis)
+  'dtap': ['20', '50', '106', '107', '110', '120', '130', '132', '146', '170', '187'],
+  'diphtheria': ['20', '50', '106', '107', '110', '120', '130', '132', '146', '170', '187'],
+  'tetanus': ['20', '50', '106', '107', '110', '120', '130', '132', '146', '170', '187'],
+  'pertussis': ['20', '50', '106', '107', '110', '120', '130', '132', '146', '170', '187'],
+  // IPV (Polio)
+  'ipv': ['10', '89', '110', '120', '130', '132', '146', '170'],
+  'polio': ['10', '89', '110', '120', '130', '132', '146', '170'],
+  // MMR
+  'mmr': ['03', '94'],
+  'measles': ['03', '05', '94'],
+  'mumps': ['03', '07', '94'],
+  'rubella': ['03', '06', '94'],
+  // Hib
+  'hib': ['17', '46', '47', '48', '49', '50', '51', '120', '132', '146', '170', '148'],
+  'haemophilus': ['17', '46', '47', '48', '49', '50', '51', '120', '132', '146', '170', '148'],
+  // Hepatitis B
+  'hepb': ['08', '42', '43', '44', '45', '51', '102', '104', '110', '132', '146', '189'],
+  'hepatitis b': ['08', '42', '43', '44', '45', '51', '102', '104', '110', '132', '146', '189'],
+  // Hepatitis A
+  'hepa': ['31', '52', '83', '84', '85', '104'],
+  'hepatitis a': ['31', '52', '83', '84', '85', '104'],
+  // Varicella (Chickenpox)
+  'varicella': ['21', '94'],
+  'chickenpox': ['21', '94'],
+  'vzv': ['21', '94'],
+  // PCV (Pneumococcal)
+  'pcv': ['133', '152', '215', '216'],
+  'pneumococcal': ['133', '152', '215', '216'],
+  'prevnar': ['133', '152', '215', '216'],
+  // Rotavirus
+  'rotavirus': ['116', '119', '122'],
+  'rota': ['116', '119', '122'],
+  // Influenza
+  'influenza': ['88', '140', '141', '150', '153', '155', '158', '161', '166', '168', '171', '185', '186', '197', '205'],
+  'flu': ['88', '140', '141', '150', '153', '155', '158', '161', '166', '168', '171', '185', '186', '197', '205'],
+};
+
+function evaluateImmunization(
+  patient: TestPatient,
+  element: DataElement,
+  measure: UniversalMeasureSpec,
+  mpStart: string,
+  mpEnd: string
+): { met: boolean; facts: ValidationFact[] } {
+  const facts: ValidationFact[] = [];
+  let met = false;
+
+  if (!patient.immunizations || patient.immunizations.length === 0) {
+    facts.push({
+      code: 'NO_IMMUNIZATIONS',
+      display: 'No immunization records found for patient',
+      source: 'Immunization Evaluation',
+    });
+    return { met: false, facts };
+  }
+
+  const codesToMatch = getCodesFromElement(element, measure);
+  const descLower = element.description.toLowerCase();
+
+  // Determine CVX codes to match based on description keywords
+  let fallbackCvxCodes: string[] = [];
+  for (const [keyword, codes] of Object.entries(IMMUNIZATION_CVX_CODES)) {
+    if (descLower.includes(keyword)) {
+      fallbackCvxCodes = [...new Set([...fallbackCvxCodes, ...codes])];
+    }
+  }
+
+  // For childhood immunization measures, calculate the child's 2nd birthday for timing
+  const birthDate = new Date(patient.demographics.birthDate);
+  const secondBirthday = new Date(birthDate);
+  secondBirthday.setFullYear(birthDate.getFullYear() + 2);
+
+  for (const imm of patient.immunizations) {
+    if (imm.status !== 'completed') continue;
+
+    // Check if code matches defined codes
+    let codeMatches = matchCode(imm.code, imm.system, codesToMatch);
+
+    // Fallback: check against CVX codes derived from description keywords
+    if (!codeMatches && fallbackCvxCodes.length > 0) {
+      codeMatches = fallbackCvxCodes.includes(imm.code);
+    }
+
+    // If still no match and no codes defined, try matching by display name
+    if (!codeMatches && codesToMatch.length === 0 && fallbackCvxCodes.length === 0) {
+      const immDisplayLower = imm.display.toLowerCase();
+      // Check if the immunization display matches any keyword in the element description
+      for (const keyword of Object.keys(IMMUNIZATION_CVX_CODES)) {
+        if (descLower.includes(keyword) && immDisplayLower.includes(keyword)) {
+          codeMatches = true;
+          break;
+        }
+      }
+    }
+
+    if (codeMatches) {
+      // For childhood immunizations, check if administered before 2nd birthday
+      const immDate = new Date(imm.date);
+      const isChildhoodMeasure = descLower.includes('child') ||
+                                  descLower.includes('infant') ||
+                                  descLower.includes('2 year') ||
+                                  descLower.includes('by age 2') ||
+                                  measure.metadata.title?.toLowerCase().includes('childhood');
+
+      let timingOk = true;
+      if (isChildhoodMeasure) {
+        // For childhood immunizations, must be before 2nd birthday
+        timingOk = immDate <= secondBirthday;
+      } else {
+        // Use standard timing check
+        timingOk = checkTiming(imm.date, element.timingRequirements, mpStart, mpEnd);
+      }
+
+      if (timingOk) {
+        met = true;
+        facts.push({
+          code: imm.code,
+          display: imm.display,
+          date: imm.date,
+          source: 'Immunizations',
+        });
+      }
+    }
+  }
+
+  if (!met) {
+    facts.push({
+      code: 'NO_MATCH',
+      display: `No matching immunization found for: ${element.description}`,
+      source: 'Immunization Evaluation',
+    });
+  }
+
+  return { met, facts };
+}
+
 function evaluateAssessment(
   patient: TestPatient,
   element: DataElement,
@@ -834,6 +979,14 @@ function evaluateAssessment(
   // Try observations
   const obsResult = evaluateObservation(patient, element, measure, mpStart, mpEnd);
   if (obsResult.met) return obsResult;
+
+  // Try immunizations (important for childhood measures)
+  const immResult = evaluateImmunization(patient, element, measure, mpStart, mpEnd);
+  if (immResult.met) return immResult;
+
+  // Try medications
+  const medResult = evaluateMedication(patient, element, measure, mpStart, mpEnd);
+  if (medResult.met) return medResult;
 
   // Nothing matched
   facts.push({
