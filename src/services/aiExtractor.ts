@@ -763,6 +763,7 @@ function convertToUMS(data: ExtractedMeasureData): UniversalMeasureSpec {
     },
     populations,
     valueSets,
+    status: 'in_progress',
     overallConfidence: valueSets.length > 0 && valueSets.some(vs => vs.codes.length > 0) ? 'high' : 'medium',
     reviewProgress: { total, approved: 0, pending, flagged: 0 },
     createdAt: now,

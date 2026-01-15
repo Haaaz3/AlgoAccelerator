@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type {
   UniversalMeasureSpec,
   ReviewStatus,
+  MeasureStatus,
   PatientValidationTrace,
   MeasureCorrection,
   CorrectionType,
@@ -18,7 +19,7 @@ interface MeasureState {
   activeMeasureId: string | null;
 
   // UI state
-  activeTab: 'library' | 'editor' | 'validation' | 'codegen' | 'valuesets';
+  activeTab: 'library' | 'editor' | 'validation' | 'codegen' | 'valuesets' | 'settings';
   editorSection: string | null;
   isUploading: boolean;
   uploadProgress: number;
@@ -49,6 +50,9 @@ interface MeasureState {
   lockMeasure: (measureId: string) => void;
   unlockMeasure: (measureId: string) => void;
   isMeasureLocked: (measureId: string) => boolean;
+
+  // Status management
+  setMeasureStatus: (measureId: string, status: MeasureStatus) => void;
 
   // Validation actions
   addValidationTrace: (trace: PatientValidationTrace) => void;
@@ -266,6 +270,15 @@ export const useMeasureStore = create<MeasureState>()(
         const measure = get().measures.find((m) => m.id === measureId);
         return !!measure?.lockedAt;
       },
+
+      setMeasureStatus: (measureId, status) =>
+        set((state) => ({
+          measures: state.measures.map((m) =>
+            m.id === measureId
+              ? { ...m, status, updatedAt: new Date().toISOString() }
+              : m
+          ),
+        })),
 
       addValidationTrace: (trace) =>
         set((state) => ({

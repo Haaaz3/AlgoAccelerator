@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { CheckCircle, XCircle, Info, Code, FileText, User, AlertTriangle, Cpu, FileCode, Database, ChevronDown, ChevronUp, Heart, Calendar, Stethoscope, Pill, Syringe, Activity, Edit3, X, Save, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle, XCircle, Info, Code, FileText, User, AlertTriangle, Cpu, FileCode, Database, ChevronDown, ChevronUp, Heart, Calendar, Stethoscope, Pill, Syringe, Activity, Edit3, X, Save, Plus, Trash2, Library, ChevronRight, ArrowUpDown, Filter, ArrowUp, ArrowDown } from 'lucide-react';
 import { useMeasureStore, type CodeOutputFormat } from '../../stores/measureStore';
 import type { PatientValidationTrace, ValidationNode } from '../../types/ums';
 import { generateTestPatients } from '../../services/testPatientGenerator';
@@ -1260,6 +1260,20 @@ const _DEMO_TRACES: PatientValidationTrace[] = [
 ];
 
 type PopulationFilter = 'all' | 'in_numerator' | 'not_in_numerator' | 'excluded' | 'not_in_population';
+type SortField = 'name' | 'age' | 'sex' | 'outcome';
+type SortDirection = 'asc' | 'desc';
+
+// Helper to calculate age from birth date
+function calculateAge(birthDate: string): number {
+  const birth = new Date(birthDate);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
 
 export function ValidationTraceViewer() {
   const { getActiveMeasure, selectedCodeFormat, setActiveTab } = useMeasureStore();
@@ -1274,6 +1288,13 @@ export function ValidationTraceViewer() {
   const [populationFilter, setPopulationFilter] = useState<PopulationFilter>('all');
   const [editingPatient, setEditingPatient] = useState<TestPatient | null>(null);
   const [editedPatientData, setEditedPatientData] = useState<TestPatient | null>(null);
+
+  // Sort and filter state
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
+  const [ageRange, setAgeRange] = useState<{ min: number | null; max: number | null }>({ min: null, max: null });
+  const [showFilters, setShowFilters] = useState(false);
 
   const codeInfo = CODE_FORMAT_INFO[selectedCodeFormat];
   const CodeIcon = codeInfo.icon;
@@ -1349,15 +1370,91 @@ export function ValidationTraceViewer() {
     setSelectedPatient(patient || null);
   };
 
-  // Filter traces based on population filter
-  const filteredTraces = useMemo(() => {
-    if (populationFilter === 'all') return validationTraces;
-    return validationTraces.filter(t => t.finalOutcome === populationFilter);
-  }, [validationTraces, populationFilter]);
+  // Filter and sort traces
+  const filteredAndSortedTraces = useMemo(() => {
+    let traces = [...validationTraces];
+
+    // Apply population filter
+    if (populationFilter !== 'all') {
+      traces = traces.filter(t => t.finalOutcome === populationFilter);
+    }
+
+    // Apply gender filter
+    if (genderFilter !== 'all') {
+      traces = traces.filter(t => {
+        const patient = testPatients.find(p => p.id === t.patientId);
+        return patient?.demographics.gender === genderFilter;
+      });
+    }
+
+    // Apply age range filter
+    if (ageRange.min !== null || ageRange.max !== null) {
+      traces = traces.filter(t => {
+        const patient = testPatients.find(p => p.id === t.patientId);
+        if (!patient) return false;
+        const age = calculateAge(patient.demographics.birthDate);
+        if (ageRange.min !== null && age < ageRange.min) return false;
+        if (ageRange.max !== null && age > ageRange.max) return false;
+        return true;
+      });
+    }
+
+    // Apply sorting
+    traces.sort((a, b) => {
+      const patientA = testPatients.find(p => p.id === a.patientId);
+      const patientB = testPatients.find(p => p.id === b.patientId);
+
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'name':
+          comparison = (a.patientName || '').localeCompare(b.patientName || '');
+          break;
+        case 'age':
+          const ageA = patientA ? calculateAge(patientA.demographics.birthDate) : 0;
+          const ageB = patientB ? calculateAge(patientB.demographics.birthDate) : 0;
+          comparison = ageA - ageB;
+          break;
+        case 'sex':
+          const genderA = patientA?.demographics.gender || '';
+          const genderB = patientB?.demographics.gender || '';
+          comparison = genderA.localeCompare(genderB);
+          break;
+        case 'outcome':
+          const outcomeOrder = { in_numerator: 0, not_in_numerator: 1, excluded: 2, not_in_population: 3 };
+          comparison = outcomeOrder[a.finalOutcome] - outcomeOrder[b.finalOutcome];
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return traces;
+  }, [validationTraces, populationFilter, genderFilter, ageRange, sortField, sortDirection, testPatients]);
+
+  // Keep filteredTraces as an alias for backwards compatibility
+  const filteredTraces = filteredAndSortedTraces;
 
   // Handle filter click
   const handleFilterClick = (filter: PopulationFilter) => {
     setPopulationFilter(prev => prev === filter ? 'all' : filter);
+  };
+
+  // Toggle sort direction or change sort field
+  const handleSortChange = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setGenderFilter('all');
+    setAgeRange({ min: null, max: null });
+    setPopulationFilter('all');
   };
 
   // Start editing a patient
@@ -1429,8 +1526,23 @@ export function ValidationTraceViewer() {
 
   if (!measure) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)]">
-        <p>Select a measure to view validation traces</p>
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+            <CheckCircle className="w-8 h-8 text-[var(--text-dim)]" />
+          </div>
+          <h2 className="text-xl font-semibold text-[var(--text)] mb-2">No Measure Selected</h2>
+          <p className="text-[var(--text-muted)] mb-6">
+            Select a measure from the library to generate test patients and validate measure logic.
+          </p>
+          <button
+            onClick={() => useMeasureStore.getState().setActiveTab('library')}
+            className="px-6 py-3 bg-cyan-500 text-white rounded-lg font-medium hover:bg-cyan-600 transition-colors inline-flex items-center gap-2"
+          >
+            <Library className="w-4 h-4" />
+            Go to Measure Library
+          </button>
+        </div>
       </div>
     );
   }
@@ -1449,6 +1561,20 @@ export function ValidationTraceViewer() {
       {/* Header with measure info and code format */}
       <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--bg-secondary)]">
         <div className="max-w-5xl mx-auto">
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-2 text-sm mb-4">
+            <button
+              onClick={() => setActiveTab('library')}
+              className="text-[var(--text-muted)] hover:text-cyan-400 transition-colors"
+            >
+              Measure Library
+            </button>
+            <ChevronRight className="w-4 h-4 text-[var(--text-dim)]" />
+            <span className="text-[var(--text-muted)]">{measure.metadata.measureId}</span>
+            <ChevronRight className="w-4 h-4 text-[var(--text-dim)]" />
+            <span className="text-[var(--text)]">Test Validation</span>
+          </nav>
+
           {/* Measure & Code Format Info */}
           <div className="flex items-start gap-6 mb-4">
             {/* Measure being validated */}
@@ -1554,48 +1680,162 @@ export function ValidationTraceViewer() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Patient list */}
-        <div className="w-72 border-r border-[var(--border)] bg-[var(--bg-secondary)] overflow-auto">
+        <div className="w-80 border-r border-[var(--border)] bg-[var(--bg-secondary)] flex flex-col overflow-hidden">
+          {/* Header with title and controls */}
           <div className="p-4 border-b border-[var(--border)]">
-            <h2 className="font-semibold text-[var(--text)]">Test Patients</h2>
-            <p className="text-xs text-[var(--text-muted)] mt-1">
-              {populationFilter === 'all'
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="font-semibold text-[var(--text)]">Test Patients</h2>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    showFilters || genderFilter !== 'all' || ageRange.min !== null || ageRange.max !== null
+                      ? 'bg-cyan-500/20 text-cyan-400'
+                      : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]'
+                  }`}
+                  title="Filter patients"
+                >
+                  <Filter className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">
+              {filteredTraces.length === stats.total
                 ? `${stats.total} synthetic patients`
                 : `${filteredTraces.length} of ${stats.total} patients`}
             </p>
+
+            {/* Sort controls */}
+            <div className="flex items-center gap-1 mt-3 flex-wrap">
+              <span className="text-xs text-[var(--text-dim)] mr-1">Sort:</span>
+              {(['name', 'age', 'sex', 'outcome'] as SortField[]).map(field => (
+                <button
+                  key={field}
+                  onClick={() => handleSortChange(field)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                    sortField === field
+                      ? 'bg-cyan-500/20 text-cyan-400'
+                      : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]'
+                  }`}
+                >
+                  <span className="capitalize">{field}</span>
+                  {sortField === field && (
+                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Filter panel */}
+            {showFilters && (
+              <div className="mt-3 pt-3 border-t border-[var(--border)] space-y-3">
+                {/* Gender filter */}
+                <div>
+                  <label className="text-xs text-[var(--text-muted)] block mb-1">Gender</label>
+                  <div className="flex gap-1">
+                    {(['all', 'male', 'female'] as const).map(g => (
+                      <button
+                        key={g}
+                        onClick={() => setGenderFilter(g)}
+                        className={`px-2 py-1 rounded text-xs transition-colors ${
+                          genderFilter === g
+                            ? 'bg-cyan-500/20 text-cyan-400'
+                            : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]'
+                        }`}
+                      >
+                        {g === 'all' ? 'All' : g.charAt(0).toUpperCase() + g.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Age range filter */}
+                <div>
+                  <label className="text-xs text-[var(--text-muted)] block mb-1">Age Range</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      placeholder="Min"
+                      value={ageRange.min ?? ''}
+                      onChange={(e) => setAgeRange(prev => ({ ...prev, min: e.target.value ? parseInt(e.target.value) : null }))}
+                      className="w-16 px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded text-xs text-[var(--text)] placeholder-[var(--text-dim)]"
+                    />
+                    <span className="text-xs text-[var(--text-dim)]">to</span>
+                    <input
+                      type="number"
+                      placeholder="Max"
+                      value={ageRange.max ?? ''}
+                      onChange={(e) => setAgeRange(prev => ({ ...prev, max: e.target.value ? parseInt(e.target.value) : null }))}
+                      className="w-16 px-2 py-1 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded text-xs text-[var(--text)] placeholder-[var(--text-dim)]"
+                    />
+                  </div>
+                </div>
+
+                {/* Clear filters */}
+                {(genderFilter !== 'all' || ageRange.min !== null || ageRange.max !== null) && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                  >
+                    <X className="w-3 h-3" />
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-          <div className="p-2">
+
+          {/* Patient list */}
+          <div className="flex-1 overflow-auto p-2">
             {isGenerating ? (
               <div className="flex items-center justify-center py-8 text-[var(--text-muted)]">
                 <span>Loading...</span>
               </div>
             ) : filteredTraces.length === 0 ? (
               <div className="text-center py-8 text-[var(--text-muted)] text-sm">
-                {populationFilter !== 'all' ? 'No patients in this category' : 'No test patients'}
+                {genderFilter !== 'all' || ageRange.min !== null || ageRange.max !== null
+                  ? 'No patients match your filters'
+                  : populationFilter !== 'all'
+                  ? 'No patients in this category'
+                  : 'No test patients'}
               </div>
-            ) : filteredTraces.map((trace, index) => (
-              <button
-                key={trace.patientId}
-                onClick={() => handleSelectPatient(trace, index)}
-                className={`w-full p-3 rounded-lg text-left transition-colors ${
-                  selectedTrace?.patientId === trace.patientId
-                    ? 'bg-cyan-500/15 border border-cyan-500/30'
-                    : 'hover:bg-[var(--bg-tertiary)]'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center">
-                    <User className="w-4 h-4 text-[var(--text-muted)]" />
+            ) : filteredTraces.map((trace, index) => {
+              const patient = testPatients.find(p => p.id === trace.patientId);
+              const age = patient ? calculateAge(patient.demographics.birthDate) : null;
+              const gender = patient?.demographics.gender;
+
+              return (
+                <button
+                  key={trace.patientId}
+                  onClick={() => handleSelectPatient(trace, index)}
+                  className={`w-full p-3 rounded-lg text-left transition-colors mb-1 ${
+                    selectedTrace?.patientId === trace.patientId
+                      ? 'bg-cyan-500/15 border border-cyan-500/30'
+                      : 'hover:bg-[var(--bg-tertiary)]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      gender === 'male' ? 'bg-blue-500/15' : gender === 'female' ? 'bg-pink-500/15' : 'bg-[var(--bg-tertiary)]'
+                    }`}>
+                      <User className={`w-4 h-4 ${
+                        gender === 'male' ? 'text-blue-400' : gender === 'female' ? 'text-pink-400' : 'text-[var(--text-muted)]'
+                      }`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-[var(--text)] truncate">{trace.patientName}</div>
+                      <div className="flex items-center gap-2 text-xs text-[var(--text-dim)]">
+                        {age !== null && <span>{age} yrs</span>}
+                        {gender && <span className="capitalize">{gender}</span>}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-[var(--text)] truncate">{trace.patientName}</div>
-                    <div className="text-xs text-[var(--text-dim)]">{trace.patientId}</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <OutcomeBadge outcome={trace.finalOutcome} />
                   </div>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <OutcomeBadge outcome={trace.finalOutcome} />
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </div>
 

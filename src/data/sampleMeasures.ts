@@ -327,6 +327,7 @@ export function createSampleCRCMeasure(): UniversalMeasureSpec {
         totalCodeCount: 8,
       },
     ],
+    status: 'in_progress',
     overallConfidence: 'medium',
     reviewProgress: { total: 12, approved: 4, pending: 8, flagged: 0 },
     createdAt: now,

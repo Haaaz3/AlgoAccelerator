@@ -1,22 +1,30 @@
-import { useState, useCallback } from 'react';
-import { Upload, FileText, Trash2, Clock, CheckCircle, AlertTriangle, Lock, Unlock, Shield, Key, Settings, Brain, Zap, ChevronDown, Beaker } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+import { Upload, FileText, Trash2, Clock, CheckCircle, AlertTriangle, Lock, Unlock, Shield, Brain, Zap, ChevronDown, Send, Edit3, Plus, Copy } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
-import { useSettingsStore, LLM_PROVIDERS, type LLMProvider } from '../../stores/settingsStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { ingestMeasureFiles, ingestMeasureFilesDirect, type IngestionProgress } from '../../services/measureIngestion';
-import { createSampleCRCMeasure } from '../../data/sampleMeasures';
-import type { UniversalMeasureSpec } from '../../types/ums';
+import { MeasureCreator } from './MeasureCreator';
+import type { UniversalMeasureSpec, MeasureStatus } from '../../types/ums';
+
+type StatusTab = 'all' | 'in_progress' | 'published';
+type ProgramFilter = 'all' | 'MIPS_CQM' | 'eCQM' | 'HEDIS' | 'QOF' | 'Registry' | 'Custom';
+
+// Helper to reset review status recursively
+function resetReviewStatus(obj: any): any {
+  if (!obj) return obj;
+  const result = { ...obj, reviewStatus: 'pending' };
+  if (result.children) {
+    result.children = result.children.map(resetReviewStatus);
+  }
+  return result;
+}
 
 export function MeasureLibrary() {
-  const { measures, addMeasure, deleteMeasure, setActiveMeasure, getReviewProgress, lockMeasure, unlockMeasure } = useMeasureStore();
+  const { measures, addMeasure, deleteMeasure, setActiveMeasure, getReviewProgress, lockMeasure, unlockMeasure, setMeasureStatus } = useMeasureStore();
   const {
     selectedProvider,
     selectedModel,
-    apiKeys,
     useAIExtraction,
-    setSelectedProvider,
-    setSelectedModel,
-    setApiKey,
-    setUseAIExtraction,
     getActiveApiKey,
     getActiveProvider,
   } = useSettingsStore();
@@ -25,8 +33,14 @@ export function MeasureLibrary() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<IngestionProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState(apiKeys[selectedProvider] || '');
+  const [showCreator, setShowCreator] = useState(false);
+
+  // Filtering state
+  const [statusTab, setStatusTab] = useState<StatusTab>('all');
+  const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
+
+  // Get store's setActiveTab for navigation
+  const { setActiveTab } = useMeasureStore();
 
   // Supported file extensions
   const SUPPORTED_EXTENSIONS = ['.pdf', '.html', '.htm', '.xlsx', '.xls', '.csv', '.xml', '.json', '.cql', '.txt', '.zip'];
@@ -48,8 +62,7 @@ export function MeasureLibrary() {
     const activeApiKey = getActiveApiKey();
     const activeProvider = getActiveProvider();
     if (useAIExtraction && !activeApiKey) {
-      setError(`Please configure your ${activeProvider.name} API key in settings to use AI-powered extraction, or switch to Quick Parse mode`);
-      setShowSettings(true);
+      setError(`Please configure your ${activeProvider.name} API key in Settings to use AI-powered extraction, or switch to Quick Parse mode`);
       return;
     }
 
@@ -64,7 +77,9 @@ export function MeasureLibrary() {
         : await ingestMeasureFilesDirect(supportedFiles, setProgress);
 
       if (result.success && result.ums) {
-        addMeasure(result.ums);
+        // New measures start as "in_progress"
+        const measureWithStatus = { ...result.ums, status: 'in_progress' as MeasureStatus };
+        addMeasure(measureWithStatus);
         setProgress({ stage: 'complete', message: `Successfully imported "${result.ums.metadata.title}"`, progress: 100 });
 
         // Clear progress after a delay
@@ -95,17 +110,6 @@ export function MeasureLibrary() {
     e.target.value = '';
   }, [handleFiles]);
 
-  const saveApiKey = () => {
-    setApiKey(selectedProvider, apiKeyInput);
-  };
-
-  const handleProviderChange = (provider: LLMProvider) => {
-    setSelectedProvider(provider);
-    setApiKeyInput(apiKeys[provider] || '');
-  };
-
-  const activeApiKey = apiKeys[selectedProvider] || '';
-
   const getConfidenceColor = (confidence: string) => {
     switch (confidence) {
       case 'high': return 'text-emerald-400';
@@ -115,11 +119,80 @@ export function MeasureLibrary() {
     }
   };
 
+  // Filter measures based on status tab and program filter
+  const filteredMeasures = useMemo(() => {
+    return measures.filter((m) => {
+      // Status filter
+      const status = m.status || 'in_progress'; // Default to in_progress for legacy measures
+      if (statusTab !== 'all' && status !== statusTab) return false;
+
+      // Program filter
+      if (programFilter !== 'all' && m.metadata.program !== programFilter) return false;
+
+      return true;
+    });
+  }, [measures, statusTab, programFilter]);
+
+  // Get unique programs for filter dropdown
+  const availablePrograms = useMemo(() => {
+    const programs = new Set(measures.map(m => m.metadata.program));
+    return Array.from(programs);
+  }, [measures]);
+
+  // Count measures by status
+  const statusCounts = useMemo(() => {
+    const inProgress = measures.filter(m => (m.status || 'in_progress') === 'in_progress').length;
+    const published = measures.filter(m => m.status === 'published').length;
+    return { inProgress, published, all: measures.length };
+  }, [measures]);
+
+  // Copy a measure
+  const handleCopyMeasure = useCallback((measure: UniversalMeasureSpec) => {
+    const now = new Date().toISOString();
+    const newId = `ums-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Deep clone the measure
+    const copiedMeasure: UniversalMeasureSpec = {
+      ...JSON.parse(JSON.stringify(measure)),
+      id: newId,
+      metadata: {
+        ...measure.metadata,
+        measureId: `${measure.metadata.measureId}-COPY`,
+        title: `Copy of ${measure.metadata.title}`,
+        version: '1.0',
+        lastUpdated: now,
+      },
+      status: 'in_progress',
+      createdAt: now,
+      updatedAt: now,
+      lockedAt: undefined,
+      lockedBy: undefined,
+      approvedAt: undefined,
+      approvedBy: undefined,
+    };
+
+    // Reset all review statuses to pending
+    copiedMeasure.populations = copiedMeasure.populations.map((pop: any) => ({
+      ...pop,
+      reviewStatus: 'pending',
+      criteria: pop.criteria ? resetReviewStatus(pop.criteria) : pop.criteria,
+    }));
+    copiedMeasure.reviewProgress = {
+      total: copiedMeasure.reviewProgress.total,
+      approved: 0,
+      pending: copiedMeasure.reviewProgress.total,
+      flagged: 0,
+    };
+
+    addMeasure(copiedMeasure);
+    setActiveMeasure(copiedMeasure.id);
+  }, [addMeasure, setActiveMeasure]);
+
   return (
     <div className="flex-1 p-6 overflow-auto">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-[var(--text)] mb-2">Measure Library</h1>
             <p className="text-[var(--text-muted)]">
@@ -127,152 +200,13 @@ export function MeasureLibrary() {
             </p>
           </div>
           <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={`p-2 rounded-lg transition-colors ${
-              activeApiKey
-                ? 'text-emerald-400 hover:bg-emerald-500/10'
-                : 'text-amber-400 hover:bg-amber-500/10'
-            }`}
-            title={activeApiKey ? 'API key configured' : 'Configure API key'}
+            onClick={() => setShowCreator(true)}
+            className="px-4 py-2.5 bg-cyan-500 text-white rounded-lg font-medium hover:bg-cyan-600 transition-colors flex items-center gap-2"
           >
-            <Settings className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
+            New Measure
           </button>
         </div>
-
-        {/* Settings Panel */}
-        {showSettings && (
-          <div className="mb-6 p-5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl space-y-6">
-            {/* Extraction Mode */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Brain className="w-5 h-5 text-cyan-400" />
-                <h3 className="font-semibold text-[var(--text)]">Extraction Mode</h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center bg-[var(--bg-tertiary)] rounded-lg p-1">
-                  <button
-                    onClick={() => setUseAIExtraction(true)}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
-                      useAIExtraction
-                        ? 'bg-cyan-500 text-white'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text)]'
-                    }`}
-                  >
-                    <Brain className="w-4 h-4" />
-                    AI Extraction
-                  </button>
-                  <button
-                    onClick={() => setUseAIExtraction(false)}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
-                      !useAIExtraction
-                        ? 'bg-emerald-500 text-white'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text)]'
-                    }`}
-                  >
-                    <Zap className="w-4 h-4" />
-                    Quick Parse
-                  </button>
-                </div>
-              </div>
-              <p className="text-xs text-[var(--text-dim)] mt-2">
-                {useAIExtraction
-                  ? 'Uses AI for intelligent extraction (recommended for complex measures)'
-                  : 'Fast local parsing without AI (limited extraction quality)'}
-              </p>
-            </div>
-
-            {/* LLM Provider Selection */}
-            <div className="border-t border-[var(--border)] pt-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Brain className="w-5 h-5 text-cyan-400" />
-                <h3 className="font-semibold text-[var(--text)]">LLM Provider</h3>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                {LLM_PROVIDERS.map((provider) => (
-                  <button
-                    key={provider.id}
-                    onClick={() => handleProviderChange(provider.id)}
-                    className={`p-3 rounded-lg border text-left transition-all ${
-                      selectedProvider === provider.id
-                        ? 'border-cyan-500 bg-cyan-500/10'
-                        : 'border-[var(--border)] hover:border-[var(--text-dim)]'
-                    }`}
-                  >
-                    <div className="font-medium text-sm text-[var(--text)]">{provider.name}</div>
-                    <div className="text-xs text-[var(--text-dim)] mt-1">{provider.description}</div>
-                    {apiKeys[provider.id] && (
-                      <div className="flex items-center gap-1 text-xs text-emerald-400 mt-2">
-                        <CheckCircle className="w-3 h-3" />
-                        Configured
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* Model Selection */}
-              <div className="mb-4">
-                <label className="text-sm text-[var(--text-muted)] mb-2 block">Model</label>
-                <div className="relative">
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className="w-full px-4 py-2 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg text-[var(--text)] appearance-none cursor-pointer focus:outline-none focus:border-cyan-500"
-                  >
-                    {LLM_PROVIDERS.find(p => p.id === selectedProvider)?.models.map((model) => (
-                      <option key={model.id} value={model.id}>{model.name}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-dim)] pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* API Key Configuration */}
-            <div className="border-t border-[var(--border)] pt-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Key className="w-5 h-5 text-cyan-400" />
-                <h3 className="font-semibold text-[var(--text)]">
-                  {LLM_PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
-                </h3>
-              </div>
-              <p className="text-sm text-[var(--text-muted)] mb-4">
-                Enter your API key to enable AI-powered extraction. Your key is stored locally.
-              </p>
-              <div className="flex gap-3">
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder={
-                    selectedProvider === 'anthropic' ? 'sk-ant-api...' :
-                    selectedProvider === 'openai' ? 'sk-...' :
-                    'API key...'
-                  }
-                  className="flex-1 px-4 py-2 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-cyan-500"
-                />
-                <button
-                  onClick={saveApiKey}
-                  className="px-4 py-2 bg-cyan-500 text-white rounded-lg font-medium hover:bg-cyan-600 transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-              {activeApiKey && (
-                <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1">
-                  <CheckCircle className="w-3 h-3" />
-                  API key configured
-                </p>
-              )}
-              {useAIExtraction && !activeApiKey && (
-                <p className="text-xs text-amber-400 mt-2 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  API key required for AI extraction
-                </p>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Upload Zone */}
         <div
@@ -280,7 +214,7 @@ export function MeasureLibrary() {
           onDragLeave={() => setDragActive(false)}
           onDrop={handleDrop}
           className={`
-            relative border-2 border-dashed rounded-xl p-12 text-center transition-all mb-8
+            relative border-2 border-dashed rounded-xl p-10 text-center transition-all mb-6
             ${isProcessing
               ? 'border-cyan-500/50 bg-cyan-500/5'
               : dragActive
@@ -326,37 +260,15 @@ export function MeasureLibrary() {
             </div>
           ) : (
             <>
-              <Upload className={`w-12 h-12 mx-auto mb-4 ${dragActive ? 'text-cyan-400' : 'text-[var(--text-dim)]'}`} />
+              <Upload className={`w-10 h-10 mx-auto mb-3 ${dragActive ? 'text-cyan-400' : 'text-[var(--text-dim)]'}`} />
               <p className="text-[var(--text)] font-medium mb-1">
                 Drop measure specification files here
               </p>
               <p className="text-sm text-[var(--text-muted)]">
-                Upload multiple files together for comprehensive extraction
-              </p>
-              <p className="text-xs text-[var(--text-dim)] mt-3">
                 Supports PDF, HTML, Excel, XML, JSON, CQL, and ZIP packages
-              </p>
-              <p className="text-xs text-[var(--text-dim)]">
-                Compatible with eCQM, MIPS CQM, HEDIS, QOF, and registry formats
               </p>
             </>
           )}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <button
-            onClick={() => {
-              const sampleMeasure = createSampleCRCMeasure();
-              addMeasure(sampleMeasure);
-              setProgress({ stage: 'complete', message: 'Loaded sample CRC Screening measure', progress: 100 });
-              setTimeout(() => setProgress(null), 3000);
-            }}
-            className="px-4 py-2 bg-purple-500/15 text-purple-400 rounded-lg text-sm font-medium hover:bg-purple-500/25 transition-colors flex items-center gap-2"
-          >
-            <Beaker className="w-4 h-4" />
-            Load Sample Measure (CRC Screening)
-          </button>
         </div>
 
         {/* Error display */}
@@ -366,6 +278,14 @@ export function MeasureLibrary() {
             <div className="flex-1">
               <p className="text-red-400 font-medium">Extraction Error</p>
               <p className="text-sm text-red-300/80 mt-1 whitespace-pre-wrap">{error}</p>
+              {error.includes('Settings') && (
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className="mt-2 text-sm text-cyan-400 hover:text-cyan-300 underline"
+                >
+                  Go to Settings
+                </button>
+              )}
             </div>
             <button
               onClick={() => setError(null)}
@@ -376,43 +296,118 @@ export function MeasureLibrary() {
           </div>
         )}
 
-        {/* Measures Grid */}
-        {measures.length > 0 ? (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-[var(--text)]">
-              Imported Measures ({measures.length})
-            </h2>
-            <div className="grid gap-4">
-              {measures.map((measure) => (
-                <MeasureCard
-                  key={measure.id}
-                  measure={measure}
-                  reviewProgress={getReviewProgress(measure.id)}
-                  onSelect={() => setActiveMeasure(measure.id)}
-                  onDelete={() => {
-                    if (measure.lockedAt) {
-                      alert('Cannot delete a locked measure. Unlock it first.');
-                      return;
-                    }
-                    if (confirm(`Delete "${measure.metadata.title}"?`)) {
-                      deleteMeasure(measure.id);
-                    }
-                  }}
-                  onLock={() => lockMeasure(measure.id)}
-                  onUnlock={() => unlockMeasure(measure.id)}
-                  getConfidenceColor={getConfidenceColor}
-                />
-              ))}
+        {/* Tabs and Filters */}
+        <div className="flex items-center justify-between mb-4">
+          {/* Status Tabs */}
+          <div className="flex items-center gap-1 bg-[var(--bg-secondary)] rounded-lg p-1">
+            <button
+              onClick={() => setStatusTab('all')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                statusTab === 'all'
+                  ? 'bg-[var(--bg-tertiary)] text-[var(--text)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+              }`}
+            >
+              All ({statusCounts.all})
+            </button>
+            <button
+              onClick={() => setStatusTab('in_progress')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+                statusTab === 'in_progress'
+                  ? 'bg-amber-500/15 text-amber-400'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+              }`}
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              In Progress ({statusCounts.inProgress})
+            </button>
+            <button
+              onClick={() => setStatusTab('published')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+                statusTab === 'published'
+                  ? 'bg-emerald-500/15 text-emerald-400'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+              }`}
+            >
+              <Send className="w-3.5 h-3.5" />
+              Published ({statusCounts.published})
+            </button>
+          </div>
+
+          {/* Program Filter */}
+          {availablePrograms.length > 1 && (
+            <div className="relative">
+              <select
+                value={programFilter}
+                onChange={(e) => setProgramFilter(e.target.value as ProgramFilter)}
+                className="px-4 py-2 pr-8 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] appearance-none cursor-pointer focus:outline-none focus:border-cyan-500"
+              >
+                <option value="all">All Programs</option>
+                {availablePrograms.map(program => (
+                  <option key={program} value={program}>{program.replace('_', ' ')}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-dim)] pointer-events-none" />
             </div>
+          )}
+        </div>
+
+        {/* Measures Grid */}
+        {filteredMeasures.length > 0 ? (
+          <div className="grid gap-4">
+            {filteredMeasures.map((measure) => (
+              <MeasureCard
+                key={measure.id}
+                measure={measure}
+                reviewProgress={getReviewProgress(measure.id)}
+                onSelect={() => setActiveMeasure(measure.id)}
+                onDelete={() => {
+                  if (measure.lockedAt) {
+                    alert('Cannot delete a locked measure. Unlock it first.');
+                    return;
+                  }
+                  if (confirm(`Delete "${measure.metadata.title}"?`)) {
+                    deleteMeasure(measure.id);
+                  }
+                }}
+                onCopy={() => handleCopyMeasure(measure)}
+                onLock={() => lockMeasure(measure.id)}
+                onUnlock={() => unlockMeasure(measure.id)}
+                onPublish={() => setMeasureStatus(measure.id, 'published')}
+                onUnpublish={() => setMeasureStatus(measure.id, 'in_progress')}
+                getConfidenceColor={getConfidenceColor}
+              />
+            ))}
+          </div>
+        ) : measures.length > 0 ? (
+          <div className="text-center py-12 text-[var(--text-muted)]">
+            <FileText className="w-16 h-16 mx-auto mb-4 opacity-30" />
+            <p>No measures match the current filter</p>
+            <button
+              onClick={() => { setStatusTab('all'); setProgramFilter('all'); }}
+              className="mt-2 text-sm text-cyan-400 hover:text-cyan-300"
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
           <div className="text-center py-12 text-[var(--text-muted)]">
             <FileText className="w-16 h-16 mx-auto mb-4 opacity-30" />
             <p>No measures imported yet</p>
-            <p className="text-sm mt-1">Upload specification files to get started</p>
+            <p className="text-sm mt-1">Upload specification files or create a new measure to get started</p>
+            <button
+              onClick={() => setShowCreator(true)}
+              className="mt-4 px-4 py-2 bg-cyan-500/15 text-cyan-400 rounded-lg text-sm font-medium hover:bg-cyan-500/25 transition-colors inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Create New Measure
+            </button>
           </div>
         )}
       </div>
+
+      {/* Measure Creator Modal */}
+      <MeasureCreator isOpen={showCreator} onClose={() => setShowCreator(false)} />
     </div>
   );
 }
@@ -422,35 +417,57 @@ function MeasureCard({
   reviewProgress,
   onSelect,
   onDelete,
+  onCopy,
   onLock,
   onUnlock,
+  onPublish,
+  onUnpublish,
   getConfidenceColor,
 }: {
   measure: UniversalMeasureSpec;
   reviewProgress: { approved: number; total: number; pending: number; flagged: number };
   onSelect: () => void;
   onDelete: () => void;
+  onCopy: () => void;
   onLock: () => void;
   onUnlock: () => void;
+  onPublish: () => void;
+  onUnpublish: () => void;
   getConfidenceColor: (c: string) => string;
 }) {
   const { approved, total, flagged } = reviewProgress;
   const progress = total > 0 ? Math.round((approved / total) * 100) : 0;
   const isLocked = !!measure.lockedAt;
   const canLock = progress === 100 && !isLocked;
+  const status = measure.status || 'in_progress';
+  const isPublished = status === 'published';
 
   return (
     <div
       className={`bg-[var(--bg-secondary)] border rounded-xl p-5 transition-colors cursor-pointer group ${
-        isLocked
-          ? 'border-emerald-500/50 bg-emerald-500/5'
-          : 'border-[var(--border)] hover:border-cyan-500/50'
+        isPublished
+          ? 'border-emerald-500/30'
+          : isLocked
+            ? 'border-emerald-500/50 bg-emerald-500/5'
+            : 'border-[var(--border)] hover:border-cyan-500/50'
       }`}
       onClick={onSelect}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-2 flex-wrap">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            {/* Status Badge */}
+            {isPublished ? (
+              <span className="px-2 py-0.5 text-xs font-medium rounded bg-emerald-500/15 text-emerald-400 flex items-center gap-1">
+                <Send className="w-3 h-3" />
+                Published
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-500/15 text-amber-400 flex items-center gap-1">
+                <Edit3 className="w-3 h-3" />
+                In Progress
+              </span>
+            )}
             <span className="px-2 py-0.5 text-xs font-medium bg-[var(--bg-tertiary)] rounded border border-[var(--border)]">
               {measure.metadata.measureId}
             </span>
@@ -463,7 +480,7 @@ function MeasureCard({
             {isLocked && (
               <span className="px-2 py-0.5 text-xs font-medium rounded bg-emerald-500/15 text-emerald-400 flex items-center gap-1">
                 <Shield className="w-3 h-3" />
-                Locked for Publish
+                Locked
               </span>
             )}
           </div>
@@ -495,10 +512,37 @@ function MeasureCard({
 
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-1">
-            {canLock && (
+            {/* Copy */}
+            <button
+              onClick={(e) => { e.stopPropagation(); onCopy(); }}
+              className="p-2 text-[var(--text-dim)] hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
+              title="Duplicate measure"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+            {/* Publish/Unpublish */}
+            {!isPublished && progress === 100 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onPublish(); }}
+                className="p-2 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                title="Publish measure"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            )}
+            {isPublished && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onUnpublish(); }}
+                className="p-2 text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
+                title="Unpublish (move back to In Progress)"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+            )}
+            {canLock && !isPublished && (
               <button
                 onClick={(e) => { e.stopPropagation(); onLock(); }}
-                className="p-2 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                className="p-2 text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
                 title="Lock for publish"
               >
                 <Lock className="w-4 h-4" />
@@ -513,10 +557,11 @@ function MeasureCard({
                 <Unlock className="w-4 h-4" />
               </button>
             )}
-            {!isLocked && (
+            {!isLocked && !isPublished && (
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(); }}
                 className="p-2 text-[var(--text-dim)] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                title="Delete measure"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -534,14 +579,14 @@ function MeasureCard({
               <circle
                 cx="24" cy="24" r="20"
                 fill="none"
-                stroke={isLocked ? '#34d399' : progress === 100 ? '#34d399' : '#7dd3fc'}
+                stroke={isPublished ? '#34d399' : isLocked ? '#34d399' : progress === 100 ? '#34d399' : '#7dd3fc'}
                 strokeWidth="4"
                 strokeDasharray={`${progress * 1.256} 126`}
                 strokeLinecap="round"
               />
             </svg>
-            <span className={`absolute inset-0 flex items-center justify-center text-xs font-medium ${isLocked ? 'text-emerald-400' : ''}`}>
-              {isLocked ? <Lock className="w-4 h-4" /> : `${progress}%`}
+            <span className={`absolute inset-0 flex items-center justify-center text-xs font-medium ${isPublished || isLocked ? 'text-emerald-400' : ''}`}>
+              {isPublished ? <Send className="w-4 h-4" /> : isLocked ? <Lock className="w-4 h-4" /> : `${progress}%`}
             </span>
           </div>
         </div>

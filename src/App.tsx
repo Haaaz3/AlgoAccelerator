@@ -5,6 +5,7 @@ import { UMSEditor } from './components/measure/UMSEditor';
 import { ValidationTraceViewer } from './components/validation/ValidationTraceViewer';
 import { CodeGeneration } from './components/measure/CodeGeneration';
 import { ValueSetManager } from './components/valueset/ValueSetManager';
+import { SettingsPage } from './components/settings/SettingsPage';
 
 function App() {
   const { activeTab } = useMeasureStore();
@@ -18,6 +19,7 @@ function App() {
         {activeTab === 'editor' && <UMSEditor />}
         {activeTab === 'validation' && <ValidationTraceViewer />}
         {activeTab === 'codegen' && <CodeGeneration />}
+        {activeTab === 'settings' && <SettingsPage />}
       </main>
     </div>
   );

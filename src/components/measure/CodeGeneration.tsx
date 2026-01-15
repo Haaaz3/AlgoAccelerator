@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Code, Copy, Check, Download, RefreshCw, FileCode, Database, Sparkles } from 'lucide-react';
+import { Code, Copy, Check, Download, RefreshCw, FileCode, Database, Sparkles, Library, ChevronRight } from 'lucide-react';
 import { useMeasureStore, type CodeOutputFormat } from '../../stores/measureStore';
 
 export function CodeGeneration() {
-  const { getActiveMeasure, selectedCodeFormat, setSelectedCodeFormat } = useMeasureStore();
+  const { getActiveMeasure, selectedCodeFormat, setSelectedCodeFormat, setActiveTab } = useMeasureStore();
   const measure = getActiveMeasure();
   const format = selectedCodeFormat;
   const setFormat = setSelectedCodeFormat;
@@ -12,8 +12,23 @@ export function CodeGeneration() {
 
   if (!measure) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)]">
-        <p>Select a measure to generate code</p>
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+            <Code className="w-8 h-8 text-[var(--text-dim)]" />
+          </div>
+          <h2 className="text-xl font-semibold text-[var(--text)] mb-2">No Measure Selected</h2>
+          <p className="text-[var(--text-muted)] mb-6">
+            Select a measure from the library to generate CQL, SQL, or Synapse code.
+          </p>
+          <button
+            onClick={() => setActiveTab('library')}
+            className="px-6 py-3 bg-cyan-500 text-white rounded-lg font-medium hover:bg-cyan-600 transition-colors inline-flex items-center gap-2"
+          >
+            <Library className="w-4 h-4" />
+            Go to Measure Library
+          </button>
+        </div>
       </div>
     );
   }
@@ -37,6 +52,20 @@ export function CodeGeneration() {
   return (
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-5xl mx-auto">
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-2 text-sm mb-4">
+          <button
+            onClick={() => setActiveTab('library')}
+            className="text-[var(--text-muted)] hover:text-cyan-400 transition-colors"
+          >
+            Measure Library
+          </button>
+          <ChevronRight className="w-4 h-4 text-[var(--text-dim)]" />
+          <span className="text-[var(--text-muted)]">{measure.metadata.measureId}</span>
+          <ChevronRight className="w-4 h-4 text-[var(--text-dim)]" />
+          <span className="text-[var(--text)]">Code Generation</span>
+        </nav>
+
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-xl font-bold text-[var(--text)]">Code Generation</h1>

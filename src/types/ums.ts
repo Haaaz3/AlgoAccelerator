@@ -11,6 +11,7 @@
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 export type ReviewStatus = 'pending' | 'approved' | 'needs_revision' | 'flagged';
+export type MeasureStatus = 'in_progress' | 'published';
 export type MeasureType = 'process' | 'outcome' | 'structure' | 'patient_experience';
 export type PopulationType = 'initial_population' | 'denominator' | 'denominator_exclusion' | 'denominator_exception' | 'numerator' | 'numerator_exclusion';
 export type LogicalOperator = 'AND' | 'OR' | 'NOT';
@@ -207,6 +208,9 @@ export interface UniversalMeasureSpec {
   stratifiers?: Stratifier[];
   supplementalData?: SupplementalData[];
   attribution?: AttributionRule;
+
+  // Workflow status
+  status: MeasureStatus;
 
   // Confidence & Review Summary
   overallConfidence: ConfidenceLevel;

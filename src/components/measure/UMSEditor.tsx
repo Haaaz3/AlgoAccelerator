@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, Send, Bot, User, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library, Import } from 'lucide-react';
+import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, Send, Bot, User, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
 import { ComponentBuilder } from './ComponentBuilder';
 import type { PopulationDefinition, LogicalClause, DataElement, ConfidenceLevel, ReviewStatus, ValueSetReference, CodeReference, CodeSystem } from '../../types/ums';
 import { getAllStandardValueSets, searchStandardValueSets, type StandardValueSet } from '../../constants/standardValueSets';
 
 export function UMSEditor() {
-  const { getActiveMeasure, updateReviewStatus, approveAllHighConfidence, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, deleteComponent } = useMeasureStore();
+  const { getActiveMeasure, updateReviewStatus, approveAllHighConfidence, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, deleteComponent, setActiveTab } = useMeasureStore();
   const measure = getActiveMeasure();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['ip', 'den', 'ex', 'num']));
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -24,8 +24,23 @@ export function UMSEditor() {
 
   if (!measure) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)]">
-        <p>Select a measure from the library to begin editing</p>
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border)] flex items-center justify-center">
+            <FileText className="w-8 h-8 text-[var(--text-dim)]" />
+          </div>
+          <h2 className="text-xl font-semibold text-[var(--text)] mb-2">No Measure Selected</h2>
+          <p className="text-[var(--text-muted)] mb-6">
+            Select a measure from the library to view and edit its Universal Measure Specification.
+          </p>
+          <button
+            onClick={() => setActiveTab('library')}
+            className="px-6 py-3 bg-cyan-500 text-white rounded-lg font-medium hover:bg-cyan-600 transition-colors inline-flex items-center gap-2"
+          >
+            <LibraryIcon className="w-4 h-4" />
+            Go to Measure Library
+          </button>
+        </div>
       </div>
     );
   }
@@ -90,6 +105,18 @@ export function UMSEditor() {
       {/* Main editor panel */}
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-4xl mx-auto">
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-2 text-sm mb-4">
+            <button
+              onClick={() => setActiveTab('library')}
+              className="text-[var(--text-muted)] hover:text-cyan-400 transition-colors"
+            >
+              Measure Library
+            </button>
+            <ChevronRight className="w-4 h-4 text-[var(--text-dim)]" />
+            <span className="text-[var(--text)]">{measure.metadata.measureId}</span>
+          </nav>
+
           {/* Header */}
           <div className="mb-6">
             <div className="flex items-start justify-between gap-4">
@@ -113,7 +140,7 @@ export function UMSEditor() {
                   title="Enable advanced logic editing: AND/OR toggle, reorder, delete"
                 >
                   <Settings2 className="w-4 h-4" />
-                  Deep Mode
+                  Deep Edit Mode
                 </button>
                 <button
                   onClick={() => setShowCQL(!showCQL)}
@@ -227,7 +254,7 @@ export function UMSEditor() {
                     onClick={() => setShowValueSetBrowser(true)}
                     className="w-full p-3 border-2 border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--text-muted)] hover:text-cyan-400 hover:border-cyan-500/50 transition-colors flex items-center justify-center gap-2"
                   >
-                    <Library className="w-4 h-4" />
+                    <LibraryIcon className="w-4 h-4" />
                     Browse Standard Value Sets (VSAC)
                   </button>
                   {measure.valueSets.map((vs) => (
@@ -466,14 +493,16 @@ function PopulationSection({
             </div>
           )}
 
-          {/* Add Component Button */}
-          <button
-            onClick={onAddComponent}
-            className="ml-7 mt-3 px-4 py-2 border-2 border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--text-muted)] hover:text-cyan-400 hover:border-cyan-500/50 transition-colors flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Add Component
-          </button>
+          {/* Add Component Button - only visible in Deep Edit Mode */}
+          {deepMode && (
+            <button
+              onClick={onAddComponent}
+              className="ml-7 mt-3 px-4 py-2 border-2 border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--text-muted)] hover:text-cyan-400 hover:border-cyan-500/50 transition-colors flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Component
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1654,7 +1683,7 @@ function StandardValueSetBrowser({
         <div className="p-4 border-b border-[var(--border)] flex items-start justify-between">
           <div>
             <h2 className="text-lg font-bold text-[var(--text)] flex items-center gap-2">
-              <Library className="w-5 h-5 text-cyan-400" />
+              <LibraryIcon className="w-5 h-5 text-cyan-400" />
               Standard Value Set Library
             </h2>
             <p className="text-sm text-[var(--text-muted)] mt-1">
@@ -1836,7 +1865,7 @@ function StandardValueSetBrowser({
             ) : (
               <div className="flex items-center justify-center h-full text-[var(--text-muted)]">
                 <div className="text-center">
-                  <Library className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <LibraryIcon className="w-12 h-12 mx-auto mb-3 opacity-30" />
                   <p>Select a value set to view its codes</p>
                 </div>
               </div>
