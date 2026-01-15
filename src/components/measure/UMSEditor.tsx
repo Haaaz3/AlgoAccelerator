@@ -1,0 +1,1874 @@
+import { useState, useRef, useEffect } from 'react';
+import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, Send, Bot, User, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library, Import } from 'lucide-react';
+import { useMeasureStore } from '../../stores/measureStore';
+import { ComponentBuilder } from './ComponentBuilder';
+import type { PopulationDefinition, LogicalClause, DataElement, ConfidenceLevel, ReviewStatus, ValueSetReference, CodeReference, CodeSystem } from '../../types/ums';
+import { getAllStandardValueSets, searchStandardValueSets, type StandardValueSet } from '../../constants/standardValueSets';
+
+export function UMSEditor() {
+  const { getActiveMeasure, updateReviewStatus, approveAllHighConfidence, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, deleteComponent } = useMeasureStore();
+  const measure = getActiveMeasure();
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['ip', 'den', 'ex', 'num']));
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [showCQL, setShowCQL] = useState(false);
+  const [activeValueSet, setActiveValueSet] = useState<ValueSetReference | null>(null);
+  const [builderTarget, setBuilderTarget] = useState<{ populationId: string; populationType: string } | null>(null);
+  const [deepMode, setDeepMode] = useState(false);
+  const [showValueSetBrowser, setShowValueSetBrowser] = useState(false);
+
+  // Force re-render when measures change (for progress bar)
+  const [, forceUpdate] = useState({});
+  useEffect(() => {
+    forceUpdate({});
+  }, [measures]);
+
+  if (!measure) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)]">
+        <p>Select a measure from the library to begin editing</p>
+      </div>
+    );
+  }
+
+  const toggleSection = (id: string) => {
+    const next = new Set(expandedSections);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpandedSections(next);
+  };
+
+  const getPopulationIcon = (type: string) => {
+    switch (type) {
+      case 'initial_population': return '👥';
+      case 'denominator': return '📊';
+      case 'denominator_exclusion': return '🚫';
+      case 'numerator': return '✅';
+      default: return '📋';
+    }
+  };
+
+  const getPopulationLabel = (type: string) => {
+    switch (type) {
+      case 'initial_population': return 'Initial Population';
+      case 'denominator': return 'Denominator';
+      case 'denominator_exclusion': return 'Denominator Exclusions';
+      case 'denominator_exception': return 'Denominator Exceptions';
+      case 'numerator': return 'Numerator';
+      case 'numerator_exclusion': return 'Numerator Exclusions';
+      default: return type;
+    }
+  };
+
+  // Recalculate review progress from current measure state
+  const reviewProgress = useMeasureStore.getState().getReviewProgress(measure.id);
+  const progressPercent = reviewProgress.total > 0 ? Math.round((reviewProgress.approved / reviewProgress.total) * 100) : 0;
+
+  // Get corrections count
+  const corrections = getCorrections(measure.id);
+
+  // Export corrections as JSON file
+  const handleExportCorrections = () => {
+    const exportData = exportCorrections(measure.id);
+    if (!exportData) {
+      alert('No corrections to export yet.');
+      return;
+    }
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${measure.metadata.measureId}-corrections-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="flex-1 flex overflow-hidden">
+      {/* Main editor panel */}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="mb-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="px-2 py-1 text-sm font-medium bg-cyan-500/15 text-cyan-400 rounded">
+                    {measure.metadata.measureId}
+                  </span>
+                  <ConfidenceBadge confidence={measure.overallConfidence} />
+                </div>
+                <h1 className="text-xl font-bold text-[var(--text)]">{measure.metadata.title}</h1>
+                <p className="text-sm text-[var(--text-muted)] mt-1">{measure.metadata.description}</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setDeepMode(!deepMode)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                    deepMode ? 'bg-purple-500/15 text-purple-400' : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text)]'
+                  }`}
+                  title="Enable advanced logic editing: AND/OR toggle, reorder, delete"
+                >
+                  <Settings2 className="w-4 h-4" />
+                  Deep Mode
+                </button>
+                <button
+                  onClick={() => setShowCQL(!showCQL)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                    showCQL ? 'bg-cyan-500/15 text-cyan-400' : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text)]'
+                  }`}
+                >
+                  <Code className="w-4 h-4" />
+                  CQL
+                </button>
+                <button
+                  onClick={() => approveAllHighConfidence(measure.id)}
+                  className="px-3 py-2 bg-emerald-500/15 text-emerald-400 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-emerald-500/25 transition-colors"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Auto-approve High Confidence
+                </button>
+                {corrections.length > 0 && (
+                  <button
+                    onClick={handleExportCorrections}
+                    className="px-3 py-2 bg-purple-500/15 text-purple-400 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-purple-500/25 transition-colors"
+                    title="Export corrections for AI training"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export ({corrections.length})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div className="mt-4 p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border)]">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-[var(--text-muted)]">Review Progress</span>
+                <span className="text-sm font-medium text-[var(--text)]">
+                  {reviewProgress.approved} / {reviewProgress.total} approved ({progressPercent}%)
+                </span>
+              </div>
+              <div className="h-2 bg-[var(--bg-tertiary)] rounded-full overflow-hidden flex">
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-300"
+                  style={{ width: `${(reviewProgress.approved / Math.max(reviewProgress.total, 1)) * 100}%` }}
+                />
+                <div
+                  className="h-full bg-amber-500 transition-all duration-300"
+                  style={{ width: `${(reviewProgress.flagged / Math.max(reviewProgress.total, 1)) * 100}%` }}
+                />
+              </div>
+              {reviewProgress.flagged > 0 && (
+                <p className="text-xs text-amber-400 mt-2 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  {reviewProgress.flagged} component{reviewProgress.flagged !== 1 ? 's' : ''} need revision
+                </p>
+              )}
+              {progressPercent === 100 && (
+                <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  All components approved — ready for code generation
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Population sections */}
+          <div className="space-y-4">
+            {measure.populations.map((population) => (
+              <PopulationSection
+                key={population.id}
+                population={population}
+                measureId={measure.id}
+                isExpanded={expandedSections.has(population.type.split('_')[0])}
+                onToggle={() => toggleSection(population.type.split('_')[0])}
+                selectedNode={selectedNode}
+                onSelectNode={setSelectedNode}
+                onSelectValueSet={setActiveValueSet}
+                onAddComponent={() => setBuilderTarget({ populationId: population.id, populationType: population.type })}
+                showCQL={showCQL}
+                icon={getPopulationIcon(population.type)}
+                label={getPopulationLabel(population.type)}
+                updateReviewStatus={updateReviewStatus}
+                allValueSets={measure.valueSets}
+                deepMode={deepMode}
+                onToggleOperator={(clauseId) => toggleLogicalOperator(measure.id, clauseId)}
+                onReorder={(parentId, childId, dir) => reorderComponent(measure.id, parentId, childId, dir)}
+                onDeleteComponent={(componentId) => deleteComponent(measure.id, componentId)}
+              />
+            ))}
+          </div>
+
+          {/* Value Sets Section */}
+          <div className="mt-6">
+            <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] overflow-hidden">
+              <button
+                onClick={() => toggleSection('valueSets')}
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[var(--bg-tertiary)] transition-colors"
+              >
+                {expandedSections.has('valueSets') ? (
+                  <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
+                )}
+                <span className="text-lg">📚</span>
+                <span className="font-medium text-[var(--text)]">Value Sets</span>
+                <span className="text-sm text-[var(--text-muted)]">({measure.valueSets.length})</span>
+              </button>
+
+              {expandedSections.has('valueSets') && (
+                <div className="px-4 pb-4 space-y-2">
+                  {/* Browse Standard Value Sets button */}
+                  <button
+                    onClick={() => setShowValueSetBrowser(true)}
+                    className="w-full p-3 border-2 border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--text-muted)] hover:text-cyan-400 hover:border-cyan-500/50 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Library className="w-4 h-4" />
+                    Browse Standard Value Sets (VSAC)
+                  </button>
+                  {measure.valueSets.map((vs) => (
+                    <button
+                      key={vs.id}
+                      onClick={() => setActiveValueSet(vs)}
+                      className="w-full p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)] hover:border-cyan-500/50 transition-colors text-left"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="font-medium text-[var(--text)] flex items-center gap-2">
+                            {vs.name}
+                            <ExternalLink className="w-3 h-3 text-[var(--text-dim)]" />
+                          </div>
+                          {vs.oid && (
+                            <code className="text-xs text-[var(--text-dim)] mt-1 block">{vs.oid}</code>
+                          )}
+                          <div className="text-xs text-cyan-400 mt-1">
+                            {vs.codes?.length || 0} codes {vs.totalCodeCount && vs.totalCodeCount > (vs.codes?.length || 0) ? `(${vs.totalCodeCount} total)` : ''}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <ConfidenceBadge confidence={vs.confidence} size="sm" />
+                          {vs.verified && (
+                            <span className="px-1.5 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-400 rounded">VSAC Verified</span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Detail panel for selected node */}
+      {selectedNode && (
+        <NodeDetailPanel
+          measureId={measure.id}
+          nodeId={selectedNode}
+          allValueSets={measure.valueSets}
+          onClose={() => setSelectedNode(null)}
+          onSelectValueSet={setActiveValueSet}
+          updateReviewStatus={updateReviewStatus}
+        />
+      )}
+
+      {/* Value Set detail modal */}
+      {activeValueSet && measure && (
+        <ValueSetModal
+          valueSet={activeValueSet}
+          measureId={measure.id}
+          onClose={() => setActiveValueSet(null)}
+        />
+      )}
+
+      {/* Component Builder modal */}
+      {builderTarget && measure && (
+        <ComponentBuilder
+          measureId={measure.id}
+          populationId={builderTarget.populationId}
+          populationType={builderTarget.populationType}
+          existingValueSets={measure.valueSets}
+          onSave={(component, newValueSet) => {
+            // Add new value set if created
+            if (newValueSet) {
+              addValueSet(measure.id, newValueSet);
+            }
+            // Add component to population
+            addComponentToPopulation(measure.id, builderTarget.populationId, component);
+            setBuilderTarget(null);
+          }}
+          onClose={() => setBuilderTarget(null)}
+        />
+      )}
+
+      {/* Standard Value Set Browser modal */}
+      {showValueSetBrowser && measure && (
+        <StandardValueSetBrowser
+          measureId={measure.id}
+          existingOids={new Set(measure.valueSets.map(vs => vs.oid).filter(Boolean) as string[])}
+          onImport={(standardVS) => {
+            // Convert StandardValueSet to ValueSetReference and add to measure
+            const vsRef: ValueSetReference = {
+              id: `vs-${Date.now()}`,
+              name: standardVS.name,
+              oid: standardVS.oid,
+              version: standardVS.version,
+              confidence: 'high',
+              source: 'VSAC Standard Library',
+              verified: true,
+              codes: standardVS.codes.map(c => ({
+                code: c.code,
+                display: c.display,
+                system: mapCodeSystemFromUri(c.system),
+              })),
+              totalCodeCount: standardVS.codes.length,
+            };
+            addValueSet(measure.id, vsRef);
+          }}
+          onClose={() => setShowValueSetBrowser(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Helper to convert URI to short code system name
+function mapCodeSystemFromUri(uri: string): CodeSystem {
+  const uriMap: Record<string, CodeSystem> = {
+    'http://hl7.org/fhir/sid/icd-10-cm': 'ICD10',
+    'http://snomed.info/sct': 'SNOMED',
+    'http://www.ama-assn.org/go/cpt': 'CPT',
+    'https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets': 'HCPCS',
+    'http://loinc.org': 'LOINC',
+    'http://www.nlm.nih.gov/research/umls/rxnorm': 'RxNorm',
+    'http://hl7.org/fhir/sid/cvx': 'CVX',
+  };
+  return uriMap[uri] || 'CPT';
+}
+
+function PopulationSection({
+  population,
+  measureId,
+  isExpanded,
+  onToggle,
+  selectedNode,
+  onSelectNode,
+  onSelectValueSet,
+  onAddComponent,
+  showCQL,
+  icon,
+  label,
+  updateReviewStatus,
+  allValueSets,
+  deepMode,
+  onToggleOperator,
+  onReorder,
+  onDeleteComponent,
+}: {
+  population: PopulationDefinition;
+  measureId: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+  selectedNode: string | null;
+  onSelectNode: (id: string | null) => void;
+  onSelectValueSet: (vs: ValueSetReference) => void;
+  onAddComponent: () => void;
+  showCQL: boolean;
+  icon: string;
+  label: string;
+  updateReviewStatus: (measureId: string, componentId: string, status: ReviewStatus, notes?: string) => void;
+  allValueSets: ValueSetReference[];
+  deepMode: boolean;
+  onToggleOperator: (clauseId: string) => void;
+  onReorder: (parentId: string, childId: string, direction: 'up' | 'down') => void;
+  onDeleteComponent: (componentId: string) => void;
+}) {
+  // Compute effective status based on children's status
+  const computeEffectiveStatus = (pop: PopulationDefinition): ReviewStatus => {
+    const statuses: ReviewStatus[] = [pop.reviewStatus];
+
+    const collectStatuses = (node: LogicalClause | DataElement) => {
+      statuses.push(node.reviewStatus);
+      if ('children' in node && node.children) {
+        node.children.forEach(collectStatuses);
+      }
+    };
+
+    if (pop.criteria) {
+      collectStatuses(pop.criteria);
+    }
+
+    // If any are flagged, show flagged
+    if (statuses.some(s => s === 'flagged')) return 'flagged';
+    // If any are needs_revision, show needs_revision
+    if (statuses.some(s => s === 'needs_revision')) return 'needs_revision';
+    // If all are approved, show approved
+    if (statuses.every(s => s === 'approved')) return 'approved';
+    // Otherwise pending
+    return 'pending';
+  };
+
+  const effectiveStatus = computeEffectiveStatus(population);
+
+  return (
+    <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[var(--bg-tertiary)] transition-colors"
+      >
+        {isExpanded ? (
+          <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
+        )}
+        <span className="text-lg">{icon}</span>
+        <span className="font-medium text-[var(--text)]">{label}</span>
+        <ConfidenceBadge confidence={population.confidence} size="sm" />
+        <ReviewStatusBadge status={effectiveStatus} size="sm" />
+      </button>
+
+      {isExpanded && (
+        <div className="px-4 pb-4 space-y-3">
+          <p className="text-sm text-[var(--text-muted)] ml-7">{population.narrative}</p>
+
+          {/* Criteria tree */}
+          {population.criteria && (
+            <CriteriaNode
+              node={population.criteria}
+              parentId={null}
+              measureId={measureId}
+              depth={0}
+              index={0}
+              totalSiblings={1}
+              selectedNode={selectedNode}
+              onSelectNode={onSelectNode}
+              onSelectValueSet={onSelectValueSet}
+              updateReviewStatus={updateReviewStatus}
+              allValueSets={allValueSets}
+              deepMode={deepMode}
+              onToggleOperator={onToggleOperator}
+              onReorder={onReorder}
+              onDeleteComponent={onDeleteComponent}
+            />
+          )}
+
+          {/* CQL Preview */}
+          {showCQL && population.cqlDefinition && (
+            <div className="mt-3 ml-7">
+              <pre className="p-3 bg-[#0b1a34] rounded-lg text-xs text-cyan-300 overflow-auto border border-cyan-500/20">
+                {population.cqlDefinition}
+              </pre>
+            </div>
+          )}
+
+          {/* Add Component Button */}
+          <button
+            onClick={onAddComponent}
+            className="ml-7 mt-3 px-4 py-2 border-2 border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--text-muted)] hover:text-cyan-400 hover:border-cyan-500/50 transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Component
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CriteriaNode({
+  node,
+  parentId,
+  measureId,
+  depth,
+  index,
+  totalSiblings,
+  selectedNode,
+  onSelectNode,
+  onSelectValueSet,
+  updateReviewStatus,
+  allValueSets,
+  deepMode,
+  onToggleOperator,
+  onReorder,
+  onDeleteComponent,
+}: {
+  node: LogicalClause | DataElement;
+  parentId: string | null;
+  measureId: string;
+  depth: number;
+  index: number;
+  totalSiblings: number;
+  selectedNode: string | null;
+  onSelectNode: (id: string | null) => void;
+  onSelectValueSet: (vs: ValueSetReference) => void;
+  updateReviewStatus: (measureId: string, componentId: string, status: ReviewStatus, notes?: string) => void;
+  allValueSets: ValueSetReference[];
+  deepMode: boolean;
+  onToggleOperator: (clauseId: string) => void;
+  onReorder: (parentId: string, childId: string, direction: 'up' | 'down') => void;
+  onDeleteComponent: (componentId: string) => void;
+}) {
+  const isClause = 'operator' in node;
+  const isSelected = selectedNode === node.id;
+  const canMoveUp = index > 0;
+  const canMoveDown = index < totalSiblings - 1;
+
+  if (isClause) {
+    const clause = node as LogicalClause;
+    return (
+      <div className="ml-7 space-y-2">
+        <div className="flex items-center gap-2 text-sm group">
+          {/* Operator badge - clickable in deep mode */}
+          {deepMode ? (
+            <button
+              onClick={() => onToggleOperator(clause.id)}
+              className={`px-2 py-0.5 rounded font-mono text-xs cursor-pointer hover:ring-2 hover:ring-white/20 transition-all ${
+                clause.operator === 'AND' ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25' :
+                clause.operator === 'OR' ? 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25' :
+                'bg-red-500/15 text-red-400 hover:bg-red-500/25'
+              }`}
+              title="Click to toggle: AND → OR → NOT"
+            >
+              {clause.operator}
+            </button>
+          ) : (
+            <span className={`px-2 py-0.5 rounded font-mono text-xs ${
+              clause.operator === 'AND' ? 'bg-emerald-500/15 text-emerald-400' :
+              clause.operator === 'OR' ? 'bg-amber-500/15 text-amber-400' :
+              'bg-red-500/15 text-red-400'
+            }`}>
+              {clause.operator}
+            </span>
+          )}
+          <span className="text-[var(--text-muted)] flex-1">{clause.description}</span>
+
+          {/* Deep mode controls for clause */}
+          {deepMode && parentId && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => onReorder(parentId, clause.id, 'up')}
+                disabled={!canMoveUp}
+                className={`p-1 rounded ${canMoveUp ? 'hover:bg-[var(--bg-tertiary)] text-[var(--text-dim)] hover:text-[var(--text)]' : 'text-[var(--bg-tertiary)] cursor-not-allowed'}`}
+                title="Move up"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => onReorder(parentId, clause.id, 'down')}
+                disabled={!canMoveDown}
+                className={`p-1 rounded ${canMoveDown ? 'hover:bg-[var(--bg-tertiary)] text-[var(--text-dim)] hover:text-[var(--text)]' : 'text-[var(--bg-tertiary)] cursor-not-allowed'}`}
+                title="Move down"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm('Delete this logic group and all its children?')) {
+                    onDeleteComponent(clause.id);
+                  }
+                }}
+                className="p-1 rounded hover:bg-red-500/10 text-[var(--text-dim)] hover:text-red-400"
+                title="Delete group"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+        {clause.children.map((child, idx) => (
+          <CriteriaNode
+            key={child.id}
+            node={child}
+            parentId={clause.id}
+            measureId={measureId}
+            depth={depth + 1}
+            index={idx}
+            totalSiblings={clause.children.length}
+            selectedNode={selectedNode}
+            onSelectNode={onSelectNode}
+            onSelectValueSet={onSelectValueSet}
+            updateReviewStatus={updateReviewStatus}
+            allValueSets={allValueSets}
+            deepMode={deepMode}
+            onToggleOperator={onToggleOperator}
+            onReorder={onReorder}
+            onDeleteComponent={onDeleteComponent}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const element = node as DataElement;
+
+  // Find the full value set with codes from allValueSets
+  const fullValueSet = element.valueSet
+    ? allValueSets.find(vs => vs.id === element.valueSet?.id) || element.valueSet
+    : undefined;
+
+  return (
+    <div
+      onClick={() => onSelectNode(isSelected ? null : element.id)}
+      className={`ml-7 p-3 rounded-lg border cursor-pointer transition-all ${
+        isSelected
+          ? 'bg-cyan-500/10 border-cyan-500/50'
+          : 'bg-[var(--bg-tertiary)] border-[var(--border)] hover:border-[var(--text-dim)]'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--bg-secondary)] text-[var(--text-dim)] uppercase">
+              {element.type}
+            </span>
+            <ConfidenceBadge confidence={element.confidence} size="sm" />
+            <ReviewStatusBadge status={element.reviewStatus} size="sm" />
+          </div>
+          <p className="text-sm text-[var(--text)]">{element.description}</p>
+
+          {/* Thresholds for demographics (age) and observations */}
+          {element.thresholds && (element.thresholds.ageMin !== undefined || element.thresholds.valueMin !== undefined) && (
+            <div className="mt-2 flex items-center gap-2">
+              {element.thresholds.ageMin !== undefined && element.thresholds.ageMax !== undefined && (
+                <span className="text-xs px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg flex items-center gap-1">
+                  <span className="font-medium">Age:</span>
+                  <span className="font-bold">{element.thresholds.ageMin}</span>
+                  <span>-</span>
+                  <span className="font-bold">{element.thresholds.ageMax}</span>
+                  <span>years</span>
+                </span>
+              )}
+              {element.thresholds.valueMin !== undefined && (
+                <span className="text-xs px-2 py-1 bg-amber-500/10 text-amber-400 rounded-lg">
+                  {element.thresholds.comparator || '>='} {element.thresholds.valueMin}
+                  {element.thresholds.valueMax !== undefined && ` - ${element.thresholds.valueMax}`}
+                  {element.thresholds.unit && ` ${element.thresholds.unit}`}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Value Set - clickable */}
+          {fullValueSet && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectValueSet(fullValueSet);
+              }}
+              className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1 group"
+            >
+              <span>📋 Value Set: {fullValueSet.name}</span>
+              <span className="text-[var(--text-dim)]">({fullValueSet.codes?.length || 0} codes)</span>
+              <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+          )}
+
+          {/* Timing Requirements - clearer language */}
+          {element.timingRequirements && element.timingRequirements.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {element.timingRequirements.map((tr, i) => (
+                <span key={i} className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded">
+                  ⏱️ {tr.description}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {/* Deep mode controls for elements */}
+          {deepMode && parentId && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReorder(parentId, element.id, 'up');
+                }}
+                disabled={!canMoveUp}
+                className={`p-1.5 rounded ${canMoveUp ? 'hover:bg-[var(--bg-secondary)] text-[var(--text-dim)] hover:text-[var(--text)]' : 'text-[var(--bg-tertiary)] cursor-not-allowed'}`}
+                title="Move up"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReorder(parentId, element.id, 'down');
+                }}
+                disabled={!canMoveDown}
+                className={`p-1.5 rounded ${canMoveDown ? 'hover:bg-[var(--bg-secondary)] text-[var(--text-dim)] hover:text-[var(--text)]' : 'text-[var(--bg-tertiary)] cursor-not-allowed'}`}
+                title="Move down"
+              >
+                <ArrowDown className="w-4 h-4" />
+              </button>
+              <div className="w-px h-4 bg-[var(--border)] mx-1" />
+            </>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              updateReviewStatus(measureId, element.id, 'approved');
+            }}
+            className="p-1.5 rounded hover:bg-emerald-500/20 text-[var(--text-dim)] hover:text-emerald-400 transition-colors"
+            title="Approve"
+          >
+            <CheckCircle className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              updateReviewStatus(measureId, element.id, 'needs_revision');
+            }}
+            className="p-1.5 rounded hover:bg-amber-500/20 text-[var(--text-dim)] hover:text-amber-400 transition-colors"
+            title="Flag for revision"
+          >
+            <AlertTriangle className="w-4 h-4" />
+          </button>
+          {/* Delete button in deep mode */}
+          {deepMode && parentId && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm('Delete this component?')) {
+                  onDeleteComponent(element.id);
+                }
+              }}
+              className="p-1.5 rounded hover:bg-red-500/20 text-[var(--text-dim)] hover:text-red-400 transition-colors"
+              title="Delete component"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NodeDetailPanel({
+  measureId,
+  nodeId,
+  allValueSets,
+  onClose,
+  onSelectValueSet,
+  updateReviewStatus,
+}: {
+  measureId: string;
+  nodeId: string;
+  allValueSets: ValueSetReference[];
+  onClose: () => void;
+  onSelectValueSet: (vs: ValueSetReference) => void;
+  updateReviewStatus: (measureId: string, componentId: string, status: ReviewStatus, notes?: string) => void;
+}) {
+  const { updateDataElement, measures } = useMeasureStore();
+  const [chatInput, setChatInput] = useState('');
+  const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string; action?: string }>>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Editing states
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+  const [editTimingIdx, setEditTimingIdx] = useState<number | null>(null);
+  const [editReqIdx, setEditReqIdx] = useState<number | null>(null);
+
+  // Find the node in the tree (re-fetch from measures to get live updates)
+  const findNode = (obj: any): DataElement | null => {
+    if (obj?.id === nodeId) return obj;
+    if (obj?.criteria) {
+      const found = findNode(obj.criteria);
+      if (found) return found;
+    }
+    if (obj?.children) {
+      for (const child of obj.children) {
+        const found = findNode(child);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  // Get fresh data from store
+  const currentMeasure = measures.find(m => m.id === measureId);
+  let node: DataElement | null = null;
+  if (currentMeasure) {
+    for (const pop of currentMeasure.populations) {
+      node = findNode(pop);
+      if (node) break;
+    }
+  }
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory]);
+
+  if (!node) return null;
+
+  const fullValueSet = node.valueSet
+    ? (currentMeasure?.valueSets.find(vs => vs.id === node?.valueSet?.id) || allValueSets.find(vs => vs.id === node?.valueSet?.id) || node.valueSet)
+    : undefined;
+
+  // Helper to extract age range from description
+  const parseAgeRange = (desc: string): { min: number; max: number } | null => {
+    const match = desc.match(/(?:age[d]?\s*)?(\d+)\s*[-–to]+\s*(\d+)/i);
+    if (match) return { min: parseInt(match[1]), max: parseInt(match[2]) };
+    return null;
+  };
+
+  const ageRange = parseAgeRange(node.description);
+
+  // Save handlers
+  const saveDescription = () => {
+    if (editValue.trim() && editValue !== node?.description) {
+      updateDataElement(measureId, nodeId, { description: editValue.trim() }, 'description_changed', 'Edited via inline edit');
+    }
+    setEditingField(null);
+    setEditValue('');
+  };
+
+  const saveAgeRange = (min: number, max: number) => {
+    const newDesc = node!.description.replace(/(\d+)\s*[-–to]+\s*(\d+)/, `${min}-${max}`);
+    if (newDesc !== node?.description) {
+      updateDataElement(measureId, nodeId, { description: newDesc }, 'threshold_changed', `Age range changed to ${min}-${max}`);
+    }
+    setEditingField(null);
+  };
+
+  const saveTiming = (idx: number, newValue: string) => {
+    if (!node?.timingRequirements) return;
+    const updatedTimings = [...node.timingRequirements];
+    updatedTimings[idx] = { ...updatedTimings[idx], description: newValue };
+    updateDataElement(measureId, nodeId, { timingRequirements: updatedTimings }, 'timing_changed', 'Edited timing via inline edit');
+    setEditTimingIdx(null);
+    setEditValue('');
+  };
+
+  const saveRequirement = (idx: number, newValue: string) => {
+    if (!node?.additionalRequirements) return;
+    const updated = [...node.additionalRequirements];
+    updated[idx] = newValue;
+    updateDataElement(measureId, nodeId, { additionalRequirements: updated }, 'description_changed', 'Edited requirement via inline edit');
+    setEditReqIdx(null);
+    setEditValue('');
+  };
+
+  const removeRequirement = (idx: number) => {
+    if (!node?.additionalRequirements) return;
+    const updated = node.additionalRequirements.filter((_, i) => i !== idx);
+    updateDataElement(measureId, nodeId, { additionalRequirements: updated }, 'element_removed', 'Removed requirement');
+  };
+
+  const addRequirement = () => {
+    const updated = [...(node?.additionalRequirements || []), 'New requirement'];
+    updateDataElement(measureId, nodeId, { additionalRequirements: updated }, 'element_added', 'Added new requirement');
+  };
+
+  // Chat command handling (simplified - now most editing is inline)
+  const handleSendMessage = async () => {
+    if (!chatInput.trim()) return;
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
+    setIsTyping(true);
+
+    setTimeout(() => {
+      let response = 'You can now edit most fields directly by clicking the edit icon next to them. Try clicking on the description, age range, timing, or requirements to edit inline.';
+      let action: string | undefined;
+
+      const lowerMsg = userMessage.toLowerCase();
+      if (lowerMsg === 'help') {
+        response = `**Inline Editing Available:**\n\n• Click ✏️ next to any field to edit directly\n• Age ranges can be adjusted with number inputs\n• Timing and requirements are all editable\n• Changes are automatically tracked for AI training`;
+      } else if (lowerMsg.match(/^approve(\s+this)?$/)) {
+        updateReviewStatus(measureId, nodeId, 'approved');
+        response = 'Marked as **approved**.';
+        action = 'approved';
+      } else if (lowerMsg.match(/^flag(\s+.*)?$/)) {
+        updateReviewStatus(measureId, nodeId, 'flagged');
+        response = 'Flagged for engineering review.';
+        action = 'flagged';
+      }
+
+      setChatHistory(prev => [...prev, { role: 'assistant', content: response, action }]);
+      setIsTyping(false);
+    }, 300);
+  };
+
+  return (
+    <div className="w-[450px] border-l border-[var(--border)] bg-[var(--bg-secondary)] flex flex-col overflow-hidden">
+      <div className="sticky top-0 bg-[var(--bg-secondary)] border-b border-[var(--border)] p-4 flex items-center justify-between">
+        <h3 className="font-semibold text-[var(--text)]">Edit Component</h3>
+        <button onClick={onClose} className="p-1 hover:bg-[var(--bg-tertiary)] rounded">
+          <X className="w-4 h-4 text-[var(--text-muted)]" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-auto p-4 space-y-4">
+        {/* Type & Status */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs px-2 py-1 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)] uppercase">
+            {node.type}
+          </span>
+          <ConfidenceBadge confidence={node.confidence} />
+          <ReviewStatusBadge status={node.reviewStatus} />
+        </div>
+
+        {/* Editable Description */}
+        <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Description</h4>
+            {editingField !== 'description' && (
+              <button
+                onClick={() => { setEditingField('description'); setEditValue(node?.description || ''); }}
+                className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-dim)] hover:text-cyan-400 transition-colors"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {editingField === 'description' ? (
+            <div className="space-y-2">
+              <textarea
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-cyan-500/50 rounded-lg text-sm text-[var(--text)] focus:outline-none resize-none"
+                rows={3}
+                autoFocus
+              />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setEditingField(null)} className="px-3 py-1.5 text-xs bg-[var(--bg-secondary)] text-[var(--text-muted)] rounded hover:text-[var(--text)]">
+                  Cancel
+                </button>
+                <button onClick={saveDescription} className="px-3 py-1.5 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600">
+                  Save
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--text)]">{node.description}</p>
+          )}
+        </div>
+
+        {/* Editable Age Range (if detected) */}
+        {ageRange && (
+          <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Age Range</h4>
+              {editingField !== 'ageRange' && (
+                <button
+                  onClick={() => setEditingField('ageRange')}
+                  className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-dim)] hover:text-cyan-400 transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {editingField === 'ageRange' ? (
+              <AgeRangeEditor
+                min={ageRange.min}
+                max={ageRange.max}
+                onSave={saveAgeRange}
+                onCancel={() => setEditingField(null)}
+              />
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="text-2xl font-bold text-cyan-400">{ageRange.min}</span>
+                <span className="text-[var(--text-muted)]">to</span>
+                <span className="text-2xl font-bold text-cyan-400">{ageRange.max}</span>
+                <span className="text-sm text-[var(--text-muted)]">years old</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Value Set - clickable */}
+        {fullValueSet && (
+          <div>
+            <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-2">Value Set</h4>
+            <button
+              onClick={() => onSelectValueSet(fullValueSet)}
+              className="w-full p-3 bg-[var(--bg-tertiary)] rounded-lg hover:border-cyan-500/50 border border-[var(--border)] text-left transition-colors"
+            >
+              <div className="font-medium text-[var(--text)] flex items-center gap-2">
+                {fullValueSet.name}
+                <ExternalLink className="w-3 h-3 text-cyan-400" />
+              </div>
+              {fullValueSet.oid && (
+                <code className="text-xs text-[var(--text-dim)] block mt-1">{fullValueSet.oid}</code>
+              )}
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-cyan-400">{fullValueSet.codes?.length || 0} codes</span>
+                <span className="text-xs text-[var(--text-dim)]">• Click to edit codes</span>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Editable Timing Requirements */}
+        {node.timingRequirements && node.timingRequirements.length > 0 && (
+          <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
+            <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-2">Timing Requirements</h4>
+            <div className="space-y-2">
+              {node.timingRequirements.map((tr, i) => (
+                <div key={i} className="group">
+                  {editTimingIdx === i ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-cyan-500/50 rounded-lg text-sm text-[var(--text)] focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && saveTiming(i, editValue)}
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => setEditTimingIdx(null)} className="px-3 py-1.5 text-xs bg-[var(--bg-secondary)] text-[var(--text-muted)] rounded">Cancel</button>
+                        <button onClick={() => saveTiming(i, editValue)} className="px-3 py-1.5 text-xs bg-cyan-500 text-white rounded">Save</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-2 bg-[var(--bg-secondary)] rounded">
+                      <span className="text-sm text-blue-400">⏱️ {tr.description}</span>
+                      <button
+                        onClick={() => { setEditTimingIdx(i); setEditValue(tr.description); }}
+                        className="p-1 opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-dim)] hover:text-cyan-400 transition-all"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Editable Additional Requirements */}
+        {(node.additionalRequirements && node.additionalRequirements.length > 0) && (
+          <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Additional Requirements</h4>
+              <button
+                onClick={addRequirement}
+                className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-dim)] hover:text-cyan-400 transition-colors"
+                title="Add requirement"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <ul className="space-y-2">
+              {node.additionalRequirements.map((req, i) => (
+                <li key={i} className="group">
+                  {editReqIdx === i ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-cyan-500/50 rounded-lg text-sm text-[var(--text)] focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && saveRequirement(i, editValue)}
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => setEditReqIdx(null)} className="px-3 py-1.5 text-xs bg-[var(--bg-secondary)] text-[var(--text-muted)] rounded">Cancel</button>
+                        <button onClick={() => saveRequirement(i, editValue)} className="px-3 py-1.5 text-xs bg-cyan-500 text-white rounded">Save</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2 p-2 bg-[var(--bg-secondary)] rounded group">
+                      <span className="text-cyan-400 mt-0.5">•</span>
+                      <span className="flex-1 text-sm text-[var(--text-muted)]">{req}</span>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => { setEditReqIdx(i); setEditValue(req); }}
+                          className="p-1 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-dim)] hover:text-cyan-400"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => removeRequirement(i)}
+                          className="p-1 hover:bg-red-500/10 rounded text-[var(--text-dim)] hover:text-red-400"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => updateReviewStatus(measureId, node!.id, 'approved')}
+            className="flex-1 py-2 bg-emerald-500/15 text-emerald-400 rounded-lg text-sm font-medium hover:bg-emerald-500/25 transition-colors flex items-center justify-center gap-2"
+          >
+            <CheckCircle className="w-4 h-4" />
+            Approve
+          </button>
+          <button
+            onClick={() => updateReviewStatus(measureId, node!.id, 'needs_revision')}
+            className="flex-1 py-2 bg-amber-500/15 text-amber-400 rounded-lg text-sm font-medium hover:bg-amber-500/25 transition-colors flex items-center justify-center gap-2"
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Needs Revision
+          </button>
+        </div>
+      </div>
+
+      {/* AI Chat Section */}
+      <div className="border-t border-[var(--border)] bg-[var(--bg-tertiary)]">
+        <div className="p-3 border-b border-[var(--border)]">
+          <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-2">
+            <Bot className="w-3.5 h-3.5" />
+            AI Assistant — Ask questions or request changes
+          </h4>
+        </div>
+
+        {/* Chat messages */}
+        <div className="h-48 overflow-auto p-3 space-y-3">
+          {chatHistory.length === 0 && (
+            <p className="text-xs text-[var(--text-dim)] text-center py-4">
+              Type <span className="text-cyan-400 font-mono">help</span> for commands, or ask a question.
+            </p>
+          )}
+          {chatHistory.map((msg, i) => (
+            <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+              {msg.role === 'assistant' && (
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  msg.action ? 'bg-emerald-500/20' : 'bg-cyan-500/20'
+                }`}>
+                  {msg.action ? (
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                  )}
+                </div>
+              )}
+              <div className={`max-w-[85%] p-2 rounded-lg text-sm ${
+                msg.role === 'user'
+                  ? 'bg-cyan-500/20 text-[var(--text)]'
+                  : msg.action
+                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-[var(--text)]'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)]'
+              }`}>
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+                {msg.action && (
+                  <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
+                    <History className="w-3 h-3" /> Tracked for AI training
+                  </p>
+                )}
+              </div>
+              {msg.role === 'user' && (
+                <div className="w-6 h-6 rounded-full bg-[var(--bg-secondary)] flex items-center justify-center flex-shrink-0">
+                  <User className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                </div>
+              )}
+            </div>
+          ))}
+          {isTyping && (
+            <div className="flex gap-2">
+              <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                <Bot className="w-3.5 h-3.5 text-cyan-400" />
+              </div>
+              <div className="bg-[var(--bg-secondary)] p-2 rounded-lg">
+                <span className="text-sm text-[var(--text-muted)]">Thinking...</span>
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Chat input */}
+        <div className="p-3 border-t border-[var(--border)]">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder="Ask a question or describe a change..."
+              className="flex-1 px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-cyan-500/50"
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!chatInput.trim() || isTyping}
+              className="px-3 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ValueSetModal({ valueSet, measureId, onClose }: { valueSet: ValueSetReference; measureId: string; onClose: () => void }) {
+  const { addCodeToValueSet, removeCodeFromValueSet, getCorrections, updateMeasure, measures } = useMeasureStore();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newCode, setNewCode] = useState({ code: '', display: '', system: 'ICD10' as CodeSystem });
+  const [showHistory, setShowHistory] = useState(false);
+  const [editingCodeIdx, setEditingCodeIdx] = useState<number | null>(null);
+  const [editCode, setEditCode] = useState({ code: '', display: '', system: 'ICD10' as CodeSystem });
+
+  // Get corrections related to this value set
+  const corrections = getCorrections(measureId).filter(c => c.componentId === valueSet.id);
+
+  // Re-fetch the value set from the store to get updated codes
+  const measure = measures.find(m => m.id === measureId);
+  const currentValueSet = measure?.valueSets.find(vs => vs.id === valueSet.id) || valueSet;
+
+  const handleAddCode = () => {
+    if (!newCode.code.trim() || !newCode.display.trim()) return;
+
+    addCodeToValueSet(measureId, valueSet.id, {
+      code: newCode.code.trim(),
+      display: newCode.display.trim(),
+      system: newCode.system,
+    }, 'User added code manually');
+
+    setNewCode({ code: '', display: '', system: 'ICD10' });
+    setShowAddForm(false);
+  };
+
+  const handleRemoveCode = (codeValue: string) => {
+    if (confirm(`Remove code "${codeValue}" from this value set?`)) {
+      removeCodeFromValueSet(measureId, valueSet.id, codeValue, 'User removed code manually');
+    }
+  };
+
+  const handleEditCode = (idx: number) => {
+    const code = currentValueSet.codes?.[idx];
+    if (code) {
+      setEditingCodeIdx(idx);
+      setEditCode({ code: code.code, display: code.display, system: code.system });
+    }
+  };
+
+  const handleSaveEditCode = () => {
+    if (editingCodeIdx === null || !measure) return;
+
+    const updatedCodes = [...(currentValueSet.codes || [])];
+    updatedCodes[editingCodeIdx] = {
+      code: editCode.code.trim(),
+      display: editCode.display.trim(),
+      system: editCode.system,
+    };
+
+    // Update the value set in the measure
+    const updatedValueSets = measure.valueSets.map(vs =>
+      vs.id === valueSet.id ? { ...vs, codes: updatedCodes } : vs
+    );
+
+    updateMeasure(measureId, { valueSets: updatedValueSets });
+    setEditingCodeIdx(null);
+    setEditCode({ code: '', display: '', system: 'ICD10' });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-[min(900px,90vw)] max-h-[85vh] bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b border-[var(--border)] flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="text-lg font-bold text-[var(--text)]">{currentValueSet.name}</h2>
+              {currentValueSet.verified && (
+                <span className="px-2 py-0.5 text-xs bg-emerald-500/15 text-emerald-400 rounded">VSAC Verified</span>
+              )}
+              <ConfidenceBadge confidence={currentValueSet.confidence} />
+              {corrections.length > 0 && (
+                <span className="px-2 py-0.5 text-xs bg-purple-500/15 text-purple-400 rounded flex items-center gap-1">
+                  <History className="w-3 h-3" />
+                  {corrections.length} edit{corrections.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            {currentValueSet.oid && (
+              <code className="text-sm text-[var(--text-muted)]">{currentValueSet.oid}</code>
+            )}
+            <div className="text-xs text-[var(--text-dim)] mt-1">
+              {currentValueSet.source} {currentValueSet.version && `• Version ${currentValueSet.version}`}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {corrections.length > 0 && (
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className={`p-2 rounded-lg transition-colors ${showHistory ? 'bg-purple-500/15 text-purple-400' : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)]'}`}
+                title="View edit history"
+              >
+                <History className="w-5 h-5" />
+              </button>
+            )}
+            <button onClick={onClose} className="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg">
+              <X className="w-5 h-5 text-[var(--text-muted)]" />
+            </button>
+          </div>
+        </div>
+
+        {/* Edit history panel */}
+        {showHistory && corrections.length > 0 && (
+          <div className="p-4 bg-purple-500/5 border-b border-purple-500/20">
+            <h3 className="text-sm font-medium text-purple-400 mb-2 flex items-center gap-2">
+              <History className="w-4 h-4" />
+              Edit History (for AI training)
+            </h3>
+            <div className="space-y-2 max-h-32 overflow-auto">
+              {corrections.map((c) => (
+                <div key={c.id} className="text-xs p-2 bg-[var(--bg-tertiary)] rounded flex items-start justify-between">
+                  <div>
+                    <span className={`font-medium ${c.correctionType === 'code_added' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {c.correctionType === 'code_added' ? '+ Added' : '- Removed'}
+                    </span>
+                    <span className="text-[var(--text-muted)] ml-2">
+                      {c.correctionType === 'code_added'
+                        ? `${(c.correctedValue as CodeReference[])?.slice(-1)[0]?.code || 'code'}`
+                        : `${(c.originalValue as CodeReference)?.code || 'code'}`
+                      }
+                    </span>
+                  </div>
+                  <span className="text-[var(--text-dim)]">{new Date(c.timestamp).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Add code form */}
+        {showAddForm && (
+          <div className="p-4 bg-cyan-500/5 border-b border-cyan-500/20">
+            <h3 className="text-sm font-medium text-cyan-400 mb-3">Add New Code</h3>
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <label className="text-xs text-[var(--text-muted)] block mb-1">Code</label>
+                <input
+                  type="text"
+                  value={newCode.code}
+                  onChange={(e) => setNewCode({ ...newCode, code: e.target.value })}
+                  placeholder="e.g., I10.1"
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-cyan-500/50"
+                />
+              </div>
+              <div className="flex-[2]">
+                <label className="text-xs text-[var(--text-muted)] block mb-1">Display Name</label>
+                <input
+                  type="text"
+                  value={newCode.display}
+                  onChange={(e) => setNewCode({ ...newCode, display: e.target.value })}
+                  placeholder="e.g., Benign essential hypertension"
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-cyan-500/50"
+                />
+              </div>
+              <div className="w-32">
+                <label className="text-xs text-[var(--text-muted)] block mb-1">System</label>
+                <select
+                  value={newCode.system}
+                  onChange={(e) => setNewCode({ ...newCode, system: e.target.value as CodeSystem })}
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] focus:outline-none focus:border-cyan-500/50"
+                >
+                  <option value="ICD10">ICD-10</option>
+                  <option value="SNOMED">SNOMED</option>
+                  <option value="CPT">CPT</option>
+                  <option value="HCPCS">HCPCS</option>
+                  <option value="LOINC">LOINC</option>
+                  <option value="RxNorm">RxNorm</option>
+                  <option value="CVX">CVX</option>
+                </select>
+              </div>
+              <button
+                onClick={handleAddCode}
+                disabled={!newCode.code.trim() || !newCode.display.trim()}
+                className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-sm font-medium hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add
+              </button>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="px-4 py-2 bg-[var(--bg-tertiary)] text-[var(--text-muted)] rounded-lg text-sm hover:text-[var(--text)] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Toolbar */}
+        <div className="px-4 py-2 border-b border-[var(--border)] flex items-center justify-between bg-[var(--bg-tertiary)]">
+          <div className="text-sm text-[var(--text-muted)]">
+            {currentValueSet.codes?.length || 0} codes
+          </div>
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/15 text-cyan-400 rounded-lg text-sm font-medium hover:bg-cyan-500/25 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Code
+          </button>
+        </div>
+
+        {/* Codes table */}
+        <div className="flex-1 overflow-auto p-4">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-[var(--bg-secondary)]">
+              <tr className="text-left text-[var(--text-muted)] border-b border-[var(--border)]">
+                <th className="pb-2 pr-4 font-medium">Code</th>
+                <th className="pb-2 pr-4 font-medium">Display Name</th>
+                <th className="pb-2 pr-4 font-medium">System</th>
+                <th className="pb-2 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentValueSet.codes && currentValueSet.codes.length > 0 ? (
+                currentValueSet.codes.map((code, i) => (
+                  editingCodeIdx === i ? (
+                    <tr key={`edit-${i}`} className="border-b border-cyan-500/30 bg-cyan-500/5">
+                      <td className="py-2 pr-2">
+                        <input
+                          type="text"
+                          value={editCode.code}
+                          onChange={(e) => setEditCode({ ...editCode, code: e.target.value })}
+                          className="w-full px-2 py-1.5 bg-[var(--bg-secondary)] border border-cyan-500/50 rounded text-sm text-cyan-400 font-mono focus:outline-none"
+                          autoFocus
+                        />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input
+                          type="text"
+                          value={editCode.display}
+                          onChange={(e) => setEditCode({ ...editCode, display: e.target.value })}
+                          className="w-full px-2 py-1.5 bg-[var(--bg-secondary)] border border-cyan-500/50 rounded text-sm text-[var(--text)] focus:outline-none"
+                        />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <select
+                          value={editCode.system}
+                          onChange={(e) => setEditCode({ ...editCode, system: e.target.value as CodeSystem })}
+                          className="w-full px-2 py-1.5 bg-[var(--bg-secondary)] border border-cyan-500/50 rounded text-sm text-[var(--text)] focus:outline-none"
+                        >
+                          <option value="ICD10">ICD-10</option>
+                          <option value="SNOMED">SNOMED</option>
+                          <option value="CPT">CPT</option>
+                          <option value="HCPCS">HCPCS</option>
+                          <option value="LOINC">LOINC</option>
+                          <option value="RxNorm">RxNorm</option>
+                          <option value="CVX">CVX</option>
+                        </select>
+                      </td>
+                      <td className="py-2">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={handleSaveEditCode}
+                            className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded"
+                            title="Save"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setEditingCodeIdx(null)}
+                            className="p-1.5 text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--bg-tertiary)] rounded"
+                            title="Cancel"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={`${code.code}-${i}`} className="border-b border-[var(--border-light)] group hover:bg-[var(--bg-tertiary)]">
+                      <td className="py-2 pr-4">
+                        <code className="px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-cyan-400">
+                          {code.code}
+                        </code>
+                      </td>
+                      <td className="py-2 pr-4 text-[var(--text)]">{code.display}</td>
+                      <td className="py-2 pr-4 text-[var(--text-muted)]">{code.system}</td>
+                      <td className="py-2">
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <button
+                            onClick={() => handleEditCode(i)}
+                            className="p-1.5 text-[var(--text-dim)] hover:text-cyan-400 hover:bg-cyan-500/10 rounded"
+                            title="Edit code"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleRemoveCode(code.code)}
+                            className="p-1.5 text-[var(--text-dim)] hover:text-red-400 hover:bg-red-500/10 rounded"
+                            title="Remove code"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-[var(--text-muted)]">
+                    No codes in this value set. Click "Add Code" to add one.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {currentValueSet.totalCodeCount && currentValueSet.codes && currentValueSet.totalCodeCount > currentValueSet.codes.length && (
+            <p className="mt-4 text-sm text-[var(--text-muted)] text-center">
+              Showing {currentValueSet.codes.length} of {currentValueSet.totalCodeCount} codes.
+              <button className="text-cyan-400 hover:underline ml-1">Load all codes</button>
+            </p>
+          )}
+        </div>
+
+        {/* Footer with training info */}
+        <div className="p-3 border-t border-[var(--border)] bg-[var(--bg-tertiary)] text-xs text-[var(--text-dim)] flex items-center justify-between">
+          <span>All edits are tracked for AI training feedback</span>
+          {corrections.length > 0 && (
+            <button className="flex items-center gap-1 text-purple-400 hover:text-purple-300">
+              <Download className="w-3 h-3" />
+              Export corrections
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Standard Value Set Browser modal
+function StandardValueSetBrowser({
+  measureId,
+  existingOids,
+  onImport,
+  onClose,
+}: {
+  measureId: string;
+  existingOids: Set<string>;
+  onImport: (vs: StandardValueSet) => void;
+  onClose: () => void;
+}) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedVS, setSelectedVS] = useState<StandardValueSet | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'screening' | 'exclusion'>('all');
+
+  const allValueSets = getAllStandardValueSets();
+
+  // Filter value sets
+  const filteredValueSets = searchQuery
+    ? searchStandardValueSets(searchQuery)
+    : allValueSets.filter(vs => {
+        if (categoryFilter === 'all') return true;
+        if (categoryFilter === 'screening') {
+          return ['colonoscopy', 'fobt', 'fit-dna', 'flexible-sigmoidoscopy', 'ct-colonography'].includes(vs.id);
+        }
+        if (categoryFilter === 'exclusion') {
+          return ['colorectal-cancer', 'total-colectomy', 'hospice-care', 'frailty', 'dementia'].includes(vs.id);
+        }
+        return true;
+      });
+
+  const handleImport = (vs: StandardValueSet) => {
+    onImport(vs);
+    // Keep modal open for more imports
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-[min(1100px,95vw)] h-[85vh] bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b border-[var(--border)] flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-[var(--text)] flex items-center gap-2">
+              <Library className="w-5 h-5 text-cyan-400" />
+              Standard Value Set Library
+            </h2>
+            <p className="text-sm text-[var(--text-muted)] mt-1">
+              Browse and import VSAC-published value sets with complete code lists
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg">
+            <X className="w-5 h-5 text-[var(--text-muted)]" />
+          </button>
+        </div>
+
+        {/* Search and filters */}
+        <div className="p-4 border-b border-[var(--border)] bg-[var(--bg-tertiary)]">
+          <div className="flex items-center gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-dim)]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, OID, or code..."
+                className="w-full pl-10 pr-4 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-cyan-500/50"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCategoryFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  categoryFilter === 'all'
+                    ? 'bg-cyan-500/15 text-cyan-400'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text)]'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setCategoryFilter('screening')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  categoryFilter === 'screening'
+                    ? 'bg-emerald-500/15 text-emerald-400'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text)]'
+                }`}
+              >
+                Screening
+              </button>
+              <button
+                onClick={() => setCategoryFilter('exclusion')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  categoryFilter === 'exclusion'
+                    ? 'bg-red-500/15 text-red-400'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text)]'
+                }`}
+              >
+                Exclusions
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Value set list */}
+          <div className="w-1/2 border-r border-[var(--border)] overflow-auto p-4 space-y-2">
+            {filteredValueSets.map((vs) => {
+              const isImported = existingOids.has(vs.oid);
+              return (
+                <button
+                  key={vs.id}
+                  onClick={() => setSelectedVS(vs)}
+                  className={`w-full p-3 rounded-lg border text-left transition-colors ${
+                    selectedVS?.id === vs.id
+                      ? 'bg-cyan-500/10 border-cyan-500/50'
+                      : 'bg-[var(--bg-tertiary)] border-[var(--border)] hover:border-[var(--text-dim)]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="font-medium text-[var(--text)] flex items-center gap-2">
+                        {vs.name}
+                        {isImported && (
+                          <span className="px-1.5 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-400 rounded">
+                            Imported
+                          </span>
+                        )}
+                      </div>
+                      <code className="text-xs text-[var(--text-dim)] mt-1 block">{vs.oid}</code>
+                      <div className="text-xs text-cyan-400 mt-1">
+                        {vs.codes.length} codes
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+            {filteredValueSets.length === 0 && (
+              <div className="text-center py-8 text-[var(--text-muted)]">
+                No value sets found matching your search.
+              </div>
+            )}
+          </div>
+
+          {/* Value set detail */}
+          <div className="w-1/2 overflow-auto">
+            {selectedVS ? (
+              <div className="p-4">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-[var(--text)]">{selectedVS.name}</h3>
+                    <code className="text-sm text-[var(--text-muted)]">{selectedVS.oid}</code>
+                  </div>
+                  <button
+                    onClick={() => handleImport(selectedVS)}
+                    disabled={existingOids.has(selectedVS.oid)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                      existingOids.has(selectedVS.oid)
+                        ? 'bg-emerald-500/15 text-emerald-400 cursor-not-allowed'
+                        : 'bg-cyan-500 text-white hover:bg-cyan-600'
+                    }`}
+                  >
+                    {existingOids.has(selectedVS.oid) ? (
+                      <>
+                        <CheckCircle className="w-4 h-4" />
+                        Already Imported
+                      </>
+                    ) : (
+                      <>
+                        <Import className="w-4 h-4" />
+                        Import to Measure
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="mb-4 p-3 bg-[var(--bg-tertiary)] rounded-lg">
+                  <div className="text-xs text-[var(--text-muted)] mb-1">Codes by System</div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(
+                      selectedVS.codes.reduce((acc, c) => {
+                        const system = c.system.split('/').pop() || c.system;
+                        acc[system] = (acc[system] || 0) + 1;
+                        return acc;
+                      }, {} as Record<string, number>)
+                    ).map(([system, count]) => (
+                      <span key={system} className="px-2 py-1 text-xs bg-[var(--bg-secondary)] text-[var(--text-muted)] rounded">
+                        {system}: {count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Code list */}
+                <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[var(--bg-tertiary)]">
+                      <tr className="text-left text-[var(--text-muted)]">
+                        <th className="px-3 py-2 font-medium">Code</th>
+                        <th className="px-3 py-2 font-medium">Display</th>
+                        <th className="px-3 py-2 font-medium">System</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedVS.codes.map((code, i) => (
+                        <tr key={i} className="border-t border-[var(--border-light)]">
+                          <td className="px-3 py-2">
+                            <code className="px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-cyan-400 text-xs">
+                              {code.code}
+                            </code>
+                          </td>
+                          <td className="px-3 py-2 text-[var(--text)]">{code.display}</td>
+                          <td className="px-3 py-2 text-[var(--text-muted)] text-xs">
+                            {code.system.split('/').pop()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-[var(--text-muted)]">
+                <div className="text-center">
+                  <Library className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p>Select a value set to view its codes</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-3 border-t border-[var(--border)] bg-[var(--bg-tertiary)] text-xs text-[var(--text-dim)]">
+          Standard value sets sourced from VSAC (Value Set Authority Center). OIDs reference authoritative published definitions.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Age range editor with number inputs
+function AgeRangeEditor({ min, max, onSave, onCancel }: { min: number; max: number; onSave: (min: number, max: number) => void; onCancel: () => void }) {
+  const [minAge, setMinAge] = useState(min);
+  const [maxAge, setMaxAge] = useState(max);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <label className="text-xs text-[var(--text-muted)] block mb-1">Min Age</label>
+          <input
+            type="number"
+            value={minAge}
+            onChange={(e) => setMinAge(parseInt(e.target.value) || 0)}
+            min={0}
+            max={120}
+            className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-cyan-500/50 rounded-lg text-lg font-bold text-cyan-400 focus:outline-none text-center"
+          />
+        </div>
+        <span className="text-[var(--text-muted)] mt-5">to</span>
+        <div className="flex-1">
+          <label className="text-xs text-[var(--text-muted)] block mb-1">Max Age</label>
+          <input
+            type="number"
+            value={maxAge}
+            onChange={(e) => setMaxAge(parseInt(e.target.value) || 0)}
+            min={0}
+            max={120}
+            className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-cyan-500/50 rounded-lg text-lg font-bold text-cyan-400 focus:outline-none text-center"
+          />
+        </div>
+      </div>
+      <div className="flex gap-2 justify-end">
+        <button onClick={onCancel} className="px-3 py-1.5 text-xs bg-[var(--bg-secondary)] text-[var(--text-muted)] rounded hover:text-[var(--text)]">
+          Cancel
+        </button>
+        <button onClick={() => onSave(minAge, maxAge)} className="px-3 py-1.5 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600">
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ConfidenceBadge({ confidence, size = 'md' }: { confidence: ConfidenceLevel; size?: 'sm' | 'md' }) {
+  const colors = {
+    high: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    medium: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    low: 'bg-red-500/15 text-red-400 border-red-500/30',
+  };
+
+  const icons = {
+    high: <CheckCircle className={size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'} />,
+    medium: <HelpCircle className={size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'} />,
+    low: <AlertTriangle className={size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'} />,
+  };
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${colors[confidence]} ${size === 'sm' ? 'text-[10px]' : 'text-xs'}`}>
+      {icons[confidence]}
+      {confidence}
+    </span>
+  );
+}
+
+function ReviewStatusBadge({ status, size = 'md' }: { status: ReviewStatus; size?: 'sm' | 'md' }) {
+  const styles = {
+    pending: 'bg-[var(--bg-tertiary)] text-[var(--text-dim)] border-[var(--border)]',
+    approved: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    needs_revision: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    flagged: 'bg-red-500/15 text-red-400 border-red-500/30',
+  };
+
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded border ${styles[status]} ${size === 'sm' ? 'text-[10px]' : 'text-xs'}`}>
+      {status.replace('_', ' ')}
+    </span>
+  );
+}
