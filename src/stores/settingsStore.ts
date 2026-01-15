@@ -59,6 +59,13 @@ interface SettingsState {
   apiKeys: Record<LLMProvider, string>;
   useAIExtraction: boolean;
 
+  // VSAC Configuration
+  vsacApiKey: string;
+
+  // Backend API Configuration
+  useBackendApi: boolean;
+  backendUrl: string;
+
   // Legacy (for backwards compatibility)
   anthropicApiKey: string;
 
@@ -67,6 +74,9 @@ interface SettingsState {
   setSelectedModel: (model: string) => void;
   setApiKey: (provider: LLMProvider, key: string) => void;
   setUseAIExtraction: (use: boolean) => void;
+  setVsacApiKey: (key: string) => void;
+  setUseBackendApi: (use: boolean) => void;
+  setBackendUrl: (url: string) => void;
 
   // Legacy action
   setAnthropicApiKey: (key: string) => void;
@@ -88,6 +98,9 @@ export const useSettingsStore = create<SettingsState>()(
         google: '',
       },
       useAIExtraction: true,
+      vsacApiKey: '',
+      useBackendApi: false,
+      backendUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001',
       anthropicApiKey: '', // Legacy
 
       setSelectedProvider: (provider) => {
@@ -109,6 +122,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       setUseAIExtraction: (use) => set({ useAIExtraction: use }),
+      setVsacApiKey: (key) => set({ vsacApiKey: key }),
+      setUseBackendApi: (use) => set({ useBackendApi: use }),
+      setBackendUrl: (url) => set({ backendUrl: url }),
 
       // Legacy actions for backwards compatibility
       setAnthropicApiKey: (key) => {
@@ -143,6 +159,9 @@ export const useSettingsStore = create<SettingsState>()(
         selectedModel: state.selectedModel,
         apiKeys: state.apiKeys,
         useAIExtraction: state.useAIExtraction,
+        vsacApiKey: state.vsacApiKey,
+        useBackendApi: state.useBackendApi,
+        backendUrl: state.backendUrl,
         anthropicApiKey: state.anthropicApiKey,
       }),
       // Migration to handle old data format
