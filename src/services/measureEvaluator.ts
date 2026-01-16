@@ -642,6 +642,30 @@ const COMMON_OFFICE_VISIT_CODES = [
   '99441', '99442', '99443',
 ];
 
+// Common cervical cytology (Pap test) CPT codes for cervical cancer screening
+const CERVICAL_CYTOLOGY_CODES = [
+  // Cytopathology cervical/vaginal
+  '88141', '88142', '88143', '88147', '88148',
+  '88150', '88152', '88153', '88164', '88165',
+  '88166', '88167', '88174', '88175',
+  // HPV testing
+  '87620', '87621', '87622', '87624', '87625',
+];
+
+// Common colonoscopy/colorectal screening CPT codes
+const COLORECTAL_SCREENING_CODES = [
+  // Colonoscopy
+  '44388', '44389', '44390', '44391', '44392',
+  '44393', '44394', '44397', '45355', '45378',
+  '45379', '45380', '45381', '45382', '45383',
+  '45384', '45385', '45386', '45387', '45388',
+  '45389', '45390', '45391', '45392', '45393',
+  // FIT/FOBT
+  '82270', '82274',
+  // Sigmoidoscopy
+  '45330', '45331', '45332', '45333', '45334', '45335',
+];
+
 function evaluateEncounter(
   patient: TestPatient,
   element: DataElement,
@@ -709,9 +733,33 @@ function evaluateProcedure(
   let met = false;
 
   const codesToMatch = getCodesFromElement(element, measure);
+  const descLower = element.description.toLowerCase();
+
+  // Determine if this is a screening-type procedure that can use fallback codes
+  const isCervicalScreening = descLower.includes('cervical') ||
+    descLower.includes('pap') ||
+    descLower.includes('cytology') ||
+    descLower.includes('hpv');
+
+  const isColorectalScreening = descLower.includes('colonoscopy') ||
+    descLower.includes('colorectal') ||
+    descLower.includes('colon') ||
+    descLower.includes('fobt') ||
+    descLower.includes('fit ') ||
+    descLower.includes('fecal') ||
+    descLower.includes('sigmoidoscopy');
 
   for (const proc of patient.procedures) {
-    const codeMatches = matchCode(proc.code, proc.system, codesToMatch);
+    let codeMatches = matchCode(proc.code, proc.system, codesToMatch);
+
+    // Fallback: if no specific codes matched, try common screening codes
+    if (!codeMatches && codesToMatch.length === 0) {
+      if (isCervicalScreening) {
+        codeMatches = CERVICAL_CYTOLOGY_CODES.includes(proc.code);
+      } else if (isColorectalScreening) {
+        codeMatches = COLORECTAL_SCREENING_CODES.includes(proc.code);
+      }
+    }
 
     if (codeMatches) {
       const timingOk = checkTiming(proc.date, element.timingRequirements, mpStart, mpEnd);
