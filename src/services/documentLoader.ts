@@ -13,8 +13,28 @@ import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker - try multiple sources for reliability
+// Flag to track if we've already tried fallback
+let workerConfigured = false;
+let useFallbackWorker = false;
+
+const configurePdfWorker = () => {
+  if (workerConfigured) return;
+
+  // Primary: Use unpkg CDN with matching version
+  if (!useFallbackWorker) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  } else {
+    // Fallback: Use cdnjs with a known stable version
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
+  }
+
+  console.log(`PDF.js worker configured: ${pdfjsLib.GlobalWorkerOptions.workerSrc}`);
+  workerConfigured = true;
+};
+
+// Initialize worker on module load
+configurePdfWorker();
 
 export interface ExtractedDocument {
   filename: string;
@@ -119,12 +139,23 @@ function getFileType(filename: string): string {
 /**
  * Extract text from PDF using pdf.js
  */
-async function extractFromPDF(file: File): Promise<ExtractedDocument> {
+async function extractFromPDF(file: File, retryWithFallback = true): Promise<ExtractedDocument> {
   const metadata: Record<string, string> = {};
 
   try {
+    console.log(`Extracting PDF: ${file.name}, size: ${file.size} bytes`);
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    console.log(`ArrayBuffer size: ${arrayBuffer.byteLength} bytes`);
+
+    // Create loading task with more options for better compatibility
+    const loadingTask = pdfjsLib.getDocument({
+      data: arrayBuffer,
+      useSystemFonts: true,
+      disableFontFace: false,
+    });
+
+    const pdf = await loadingTask.promise;
+    console.log(`PDF loaded successfully: ${pdf.numPages} pages`);
 
     metadata.pageCount = String(pdf.numPages);
 
@@ -132,6 +163,8 @@ async function extractFromPDF(file: File): Promise<ExtractedDocument> {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
+
+      console.log(`Page ${i}: ${textContent.items.length} text items`);
 
       // Reconstruct text with proper spacing
       let lastY: number | null = null;
@@ -150,19 +183,34 @@ async function extractFromPDF(file: File): Promise<ExtractedDocument> {
       pages.push(`--- Page ${i} ---\n${pageText}`);
     }
 
+    const content = pages.join('\n\n');
+    console.log(`Total extracted content: ${content.length} characters`);
+
     return {
       filename: file.name,
       fileType: 'pdf',
-      content: pages.join('\n\n'),
+      content,
       metadata,
     };
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`PDF extraction failed for ${file.name}:`, err);
+
+    // If primary worker failed, try fallback worker
+    if (retryWithFallback && !useFallbackWorker) {
+      console.log('Retrying with fallback PDF.js worker...');
+      useFallbackWorker = true;
+      workerConfigured = false;
+      configurePdfWorker();
+      return extractFromPDF(file, false);
+    }
+
     return {
       filename: file.name,
       fileType: 'pdf',
       content: '',
       metadata,
-      error: `PDF extraction failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      error: `PDF extraction failed: ${errorMessage}`,
     };
   }
 }
