@@ -146,22 +146,43 @@ export function MeasureLibrary() {
     return { inProgress, published, all: measures.length };
   }, [measures]);
 
-  // Copy a measure
+  // Copy a measure (with full FHIR-aligned data preservation)
   const handleCopyMeasure = useCallback((measure: UniversalMeasureSpec) => {
     const now = new Date().toISOString();
     const newId = `ums-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Deep clone the measure
+    // Deep clone the measure - preserves ALL nested data
+    const cloned = JSON.parse(JSON.stringify(measure));
+
+    // Build the copied measure with updated metadata
     const copiedMeasure: UniversalMeasureSpec = {
-      ...JSON.parse(JSON.stringify(measure)),
+      ...cloned,
       id: newId,
+      resourceType: 'Measure', // FHIR marker
       metadata: {
-        ...measure.metadata,
-        measureId: `${measure.metadata.measureId}-COPY`,
-        title: `Copy of ${measure.metadata.title}`,
+        ...cloned.metadata,
+        measureId: `${cloned.metadata.measureId}-COPY`,
+        title: `Copy of ${cloned.metadata.title}`,
         version: '1.0',
         lastUpdated: now,
+        url: `urn:uuid:${newId}`, // New FHIR URL
       },
+      // Preserve globalConstraints (single source of truth)
+      globalConstraints: cloned.globalConstraints,
+      // Preserve all populations with their full criteria trees
+      populations: cloned.populations.map((pop: any) => ({
+        ...pop,
+        reviewStatus: 'pending',
+        criteria: pop.criteria ? resetReviewStatus(pop.criteria) : pop.criteria,
+      })),
+      // Preserve all value sets
+      valueSets: cloned.valueSets,
+      // Preserve stratifiers and supplemental data
+      stratifiers: cloned.stratifiers,
+      supplementalData: cloned.supplementalData,
+      // Preserve CQL library if present
+      cqlLibrary: cloned.cqlLibrary,
+      // Reset workflow status
       status: 'in_progress',
       createdAt: now,
       updatedAt: now,
@@ -169,20 +190,21 @@ export function MeasureLibrary() {
       lockedBy: undefined,
       approvedAt: undefined,
       approvedBy: undefined,
+      // Reset review progress
+      reviewProgress: {
+        total: cloned.reviewProgress?.total || 0,
+        approved: 0,
+        pending: cloned.reviewProgress?.total || 0,
+        flagged: 0,
+      },
+      // Clear corrections (start fresh for the copy)
+      corrections: [],
     };
 
-    // Reset all review statuses to pending
-    copiedMeasure.populations = copiedMeasure.populations.map((pop: any) => ({
-      ...pop,
-      reviewStatus: 'pending',
-      criteria: pop.criteria ? resetReviewStatus(pop.criteria) : pop.criteria,
-    }));
-    copiedMeasure.reviewProgress = {
-      total: copiedMeasure.reviewProgress.total,
-      approved: 0,
-      pending: copiedMeasure.reviewProgress.total,
-      flagged: 0,
-    };
+    console.log('Copied measure:', copiedMeasure.metadata.title);
+    console.log('Populations:', copiedMeasure.populations.length);
+    console.log('Value sets:', copiedMeasure.valueSets.length);
+    console.log('Global constraints:', copiedMeasure.globalConstraints);
 
     addMeasure(copiedMeasure);
     setActiveMeasure(copiedMeasure.id);
