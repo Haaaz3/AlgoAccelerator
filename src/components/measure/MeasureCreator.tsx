@@ -102,6 +102,68 @@ export function MeasureCreator({ isOpen, onClose }: MeasureCreatorProps) {
     return Array.from(vsMap.values());
   }, [measures]);
 
+  // Categorize value sets by type based on name/codes
+  const categorizedValueSets = useMemo(() => {
+    const categorize = (vs: ValueSetReference): 'diagnosis' | 'encounter' | 'procedure' | 'observation' | 'medication' | 'other' => {
+      const name = vs.name.toLowerCase();
+      const hasICD = vs.codes?.some(c => c.system === 'ICD10' || c.system === 'SNOMED');
+      const hasCPT = vs.codes?.some(c => c.system === 'CPT' || c.system === 'HCPCS');
+      const hasLOINC = vs.codes?.some(c => c.system === 'LOINC');
+      const hasRxNorm = vs.codes?.some(c => c.system === 'RxNorm');
+
+      // Check name patterns
+      if (name.includes('diagnosis') || name.includes('condition') || name.includes('disease') ||
+          name.includes('disorder') || name.includes('syndrome') || name.includes('cancer') ||
+          name.includes('diabetes') || name.includes('hypertension') || name.includes('pregnancy') ||
+          name.includes('hospice') || name.includes('frailty') || name.includes('dementia')) {
+        return 'diagnosis';
+      }
+      if (name.includes('encounter') || name.includes('visit') || name.includes('office') ||
+          name.includes('outpatient') || name.includes('inpatient') || name.includes('emergency') ||
+          name.includes('telehealth') || name.includes('home health')) {
+        return 'encounter';
+      }
+      if (name.includes('procedure') || name.includes('screening') || name.includes('colonoscopy') ||
+          name.includes('mammogram') || name.includes('cytology') || name.includes('pap') ||
+          name.includes('vaccination') || name.includes('immunization') || name.includes('surgery')) {
+        return 'procedure';
+      }
+      if (name.includes('lab') || name.includes('observation') || name.includes('result') ||
+          name.includes('hba1c') || name.includes('blood pressure') || name.includes('ldl') ||
+          name.includes('measurement') || name.includes('test result')) {
+        return 'observation';
+      }
+      if (name.includes('medication') || name.includes('drug') || name.includes('prescription') ||
+          name.includes('therapy') || name.includes('statin') || name.includes('ace inhibitor')) {
+        return 'medication';
+      }
+
+      // Fall back to code system analysis
+      if (hasRxNorm) return 'medication';
+      if (hasLOINC) return 'observation';
+      if (hasCPT) return 'procedure';
+      if (hasICD) return 'diagnosis';
+
+      return 'other';
+    };
+
+    const result = {
+      diagnosis: [] as typeof availableValueSets,
+      encounter: [] as typeof availableValueSets,
+      procedure: [] as typeof availableValueSets,
+      observation: [] as typeof availableValueSets,
+      medication: [] as typeof availableValueSets,
+      other: [] as typeof availableValueSets,
+    };
+
+    availableValueSets.forEach(item => {
+      const category = categorize(item.valueSet);
+      result[category].push(item);
+    });
+
+    return result;
+  }, [availableValueSets]);
+
   // Filter value sets by search
   const filteredValueSets = useMemo(() => {
     if (!valueSetSearch) return availableValueSets;
@@ -806,30 +868,72 @@ export function MeasureCreator({ isOpen, onClose }: MeasureCreatorProps) {
                 </div>
               </div>
 
+              {/* Required Diagnosis - Value Set Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-[var(--text)] mb-2">
-                  Required Diagnosis
+                  Required Diagnosis Value Set
                 </label>
-                <input
-                  type="text"
+                <select
                   value={initialPopCriteria.requiredDiagnosis || ''}
-                  onChange={(e) => setInitialPopCriteria({ ...initialPopCriteria, requiredDiagnosis: e.target.value })}
-                  placeholder="e.g., Essential Hypertension, Diabetes Mellitus"
-                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-cyan-500"
-                />
+                  onChange={(e) => {
+                    const vsId = e.target.value;
+                    setInitialPopCriteria({
+                      ...initialPopCriteria,
+                      requiredDiagnosis: vsId,
+                      valueSets: vsId ? new Set([...(initialPopCriteria.valueSets || []), vsId]) : initialPopCriteria.valueSets
+                    });
+                  }}
+                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="">-- Select a diagnosis value set --</option>
+                  {categorizedValueSets.diagnosis.map(({ valueSet, sourceMeasure }) => (
+                    <option key={valueSet.oid || valueSet.id} value={valueSet.oid || valueSet.id}>
+                      {valueSet.name} ({valueSet.codes?.length || 0} codes) - {sourceMeasure}
+                    </option>
+                  ))}
+                  {categorizedValueSets.diagnosis.length === 0 && (
+                    <option disabled>No diagnosis value sets available</option>
+                  )}
+                </select>
+                {categorizedValueSets.diagnosis.length === 0 && (
+                  <p className="text-xs text-[var(--text-dim)] mt-1">
+                    Import measures with diagnosis value sets to populate this list
+                  </p>
+                )}
               </div>
 
+              {/* Required Encounter - Value Set Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-[var(--text)] mb-2">
-                  Required Encounter Type
+                  Required Encounter Value Set
                 </label>
-                <input
-                  type="text"
+                <select
                   value={initialPopCriteria.requiredEncounter || ''}
-                  onChange={(e) => setInitialPopCriteria({ ...initialPopCriteria, requiredEncounter: e.target.value })}
-                  placeholder="e.g., Office Visit, Annual Wellness Visit"
-                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-cyan-500"
-                />
+                  onChange={(e) => {
+                    const vsId = e.target.value;
+                    setInitialPopCriteria({
+                      ...initialPopCriteria,
+                      requiredEncounter: vsId,
+                      valueSets: vsId ? new Set([...(initialPopCriteria.valueSets || []), vsId]) : initialPopCriteria.valueSets
+                    });
+                  }}
+                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="">-- Select an encounter value set --</option>
+                  {categorizedValueSets.encounter.map(({ valueSet, sourceMeasure }) => (
+                    <option key={valueSet.oid || valueSet.id} value={valueSet.oid || valueSet.id}>
+                      {valueSet.name} ({valueSet.codes?.length || 0} codes) - {sourceMeasure}
+                    </option>
+                  ))}
+                  {categorizedValueSets.encounter.length === 0 && (
+                    <option disabled>No encounter value sets available</option>
+                  )}
+                </select>
+                {categorizedValueSets.encounter.length === 0 && (
+                  <p className="text-xs text-[var(--text-dim)] mt-1">
+                    Import measures with encounter value sets to populate this list
+                  </p>
+                )}
               </div>
 
               {/* Value Set Picker for Initial Population */}
@@ -1039,30 +1143,72 @@ export function MeasureCreator({ isOpen, onClose }: MeasureCreatorProps) {
                 />
               </div>
 
+              {/* Required Procedure - Value Set Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-[var(--text)] mb-2">
-                  Required Procedure or Test
+                  Required Procedure Value Set
                 </label>
-                <input
-                  type="text"
+                <select
                   value={numeratorCriteria.requiredProcedure || ''}
-                  onChange={(e) => setNumeratorCriteria({ ...numeratorCriteria, requiredProcedure: e.target.value })}
-                  placeholder="e.g., HbA1c Lab Test, Colonoscopy, Mammogram"
-                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-cyan-500"
-                />
+                  onChange={(e) => {
+                    const vsId = e.target.value;
+                    setNumeratorCriteria({
+                      ...numeratorCriteria,
+                      requiredProcedure: vsId,
+                      valueSets: vsId ? new Set([...(numeratorCriteria.valueSets || []), vsId]) : numeratorCriteria.valueSets
+                    });
+                  }}
+                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="">-- Select a procedure value set --</option>
+                  {categorizedValueSets.procedure.map(({ valueSet, sourceMeasure }) => (
+                    <option key={valueSet.oid || valueSet.id} value={valueSet.oid || valueSet.id}>
+                      {valueSet.name} ({valueSet.codes?.length || 0} codes) - {sourceMeasure}
+                    </option>
+                  ))}
+                  {categorizedValueSets.procedure.length === 0 && (
+                    <option disabled>No procedure value sets available</option>
+                  )}
+                </select>
+                {categorizedValueSets.procedure.length === 0 && (
+                  <p className="text-xs text-[var(--text-dim)] mt-1">
+                    Import measures with procedure value sets to populate this list
+                  </p>
+                )}
               </div>
 
+              {/* Required Observation - Value Set Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-[var(--text)] mb-2">
-                  Required Result/Observation
+                  Required Observation/Lab Value Set
                 </label>
-                <input
-                  type="text"
+                <select
                   value={numeratorCriteria.requiredObservation || ''}
-                  onChange={(e) => setNumeratorCriteria({ ...numeratorCriteria, requiredObservation: e.target.value })}
-                  placeholder="e.g., Blood pressure reading, HbA1c result < 9%"
-                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-cyan-500"
-                />
+                  onChange={(e) => {
+                    const vsId = e.target.value;
+                    setNumeratorCriteria({
+                      ...numeratorCriteria,
+                      requiredObservation: vsId,
+                      valueSets: vsId ? new Set([...(numeratorCriteria.valueSets || []), vsId]) : numeratorCriteria.valueSets
+                    });
+                  }}
+                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="">-- Select an observation value set --</option>
+                  {categorizedValueSets.observation.map(({ valueSet, sourceMeasure }) => (
+                    <option key={valueSet.oid || valueSet.id} value={valueSet.oid || valueSet.id}>
+                      {valueSet.name} ({valueSet.codes?.length || 0} codes) - {sourceMeasure}
+                    </option>
+                  ))}
+                  {categorizedValueSets.observation.length === 0 && (
+                    <option disabled>No observation value sets available</option>
+                  )}
+                </select>
+                {categorizedValueSets.observation.length === 0 && (
+                  <p className="text-xs text-[var(--text-dim)] mt-1">
+                    Import measures with lab/observation value sets to populate this list
+                  </p>
+                )}
               </div>
 
               {/* Value Set Picker for Numerator */}
@@ -1151,15 +1297,47 @@ export function MeasureCreator({ isOpen, onClose }: MeasureCreatorProps) {
 
               <div>
                 <label className="block text-sm font-medium text-[var(--text)] mb-2">
-                  Denominator Exclusions
+                  Exclusion Description
                 </label>
                 <textarea
                   value={exclusionCriteria.description}
                   onChange={(e) => setExclusionCriteria({ ...exclusionCriteria, description: e.target.value })}
                   placeholder="e.g., Patients in hospice care, patients with ESRD, patients who are pregnant"
-                  rows={3}
-                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-cyan-500 resize-none"
+                  rows={2}
+                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-amber-500 resize-none"
                 />
+              </div>
+
+              {/* Exclusion Diagnosis - Value Set Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-[var(--text)] mb-2">
+                  Exclusion Diagnosis Value Set
+                </label>
+                <select
+                  value={exclusionCriteria.requiredDiagnosis || ''}
+                  onChange={(e) => {
+                    const vsId = e.target.value;
+                    setExclusionCriteria({
+                      ...exclusionCriteria,
+                      requiredDiagnosis: vsId,
+                      valueSets: vsId ? new Set([...(exclusionCriteria.valueSets || []), vsId]) : exclusionCriteria.valueSets
+                    });
+                  }}
+                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] focus:outline-none focus:border-amber-500"
+                >
+                  <option value="">-- Select an exclusion value set --</option>
+                  {categorizedValueSets.diagnosis.map(({ valueSet, sourceMeasure }) => (
+                    <option key={valueSet.oid || valueSet.id} value={valueSet.oid || valueSet.id}>
+                      {valueSet.name} ({valueSet.codes?.length || 0} codes) - {sourceMeasure}
+                    </option>
+                  ))}
+                  {categorizedValueSets.diagnosis.length === 0 && (
+                    <option disabled>No diagnosis value sets available</option>
+                  )}
+                </select>
+                <p className="text-xs text-[var(--text-dim)] mt-1">
+                  Common exclusions: Hospice, ESRD, Pregnancy, Frailty, Dementia
+                </p>
               </div>
 
               <div className="text-sm text-[var(--text-dim)] italic">
