@@ -214,7 +214,6 @@ export function MeasureCreator({ isOpen, onClose }: MeasureCreatorProps) {
       case 'denominator':
       case 'numerator':
       case 'exclusions':
-      case 'value_sets':
         return true; // Optional steps
       case 'review':
         return true;

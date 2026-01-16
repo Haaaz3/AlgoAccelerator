@@ -282,9 +282,24 @@ function collectDataElements(populations: any[]): any[] {
   return elements;
 }
 
-// Helper to get population by type
+// Helper to get population by type - supports both FHIR kebab-case and legacy underscore
 function getPopulation(populations: any[], type: string): any | null {
-  return populations.find(p => p.type === type) || null;
+  // Map between FHIR kebab-case and legacy underscore formats
+  const typeVariants: Record<string, string[]> = {
+    'initial-population': ['initial-population', 'initial_population'],
+    'initial_population': ['initial-population', 'initial_population'],
+    'denominator': ['denominator'],
+    'denominator-exclusion': ['denominator-exclusion', 'denominator_exclusion'],
+    'denominator_exclusion': ['denominator-exclusion', 'denominator_exclusion'],
+    'denominator-exception': ['denominator-exception', 'denominator_exception'],
+    'denominator_exception': ['denominator-exception', 'denominator_exception'],
+    'numerator': ['numerator'],
+    'numerator-exclusion': ['numerator-exclusion', 'numerator_exclusion'],
+    'numerator_exclusion': ['numerator-exclusion', 'numerator_exclusion'],
+  };
+
+  const variants = typeVariants[type] || [type];
+  return populations.find(p => variants.includes(p.type)) || null;
 }
 
 function getGeneratedCode(measure: any, format: CodeOutputFormat): string {
@@ -298,10 +313,11 @@ function getGeneratedCode(measure: any, format: CodeOutputFormat): string {
   const exclPop = getPopulation(measure.populations, 'denominator_exclusion');
   const numPop = getPopulation(measure.populations, 'numerator');
 
-  // Build value set declarations from actual measure value sets
+  // Build value set declarations from actual measure value sets with FHIR canonical URLs
   const valueSetDeclarations = measure.valueSets.map((vs: any) => {
-    const oid = vs.oid || `urn:oid:2.16.840.1.113883.3.XXX.${vs.id}`;
-    return `valueset "${vs.name}": '${oid}'`;
+    // Use FHIR canonical URL (VSAC format) if OID exists, otherwise use urn:oid
+    const url = vs.url || (vs.oid ? `http://cts.nlm.nih.gov/fhir/ValueSet/${vs.oid}` : `urn:oid:2.16.840.1.113883.3.XXX.${vs.id}`);
+    return `valueset "${vs.name}": '${url}'`;
   }).join('\n');
 
   // Build code lists for SQL
@@ -317,74 +333,97 @@ function getGeneratedCode(measure: any, format: CodeOutputFormat): string {
     const exclCriteria = exclPop?.narrative || 'Patients with exclusion criteria';
     const numCriteria = numPop?.narrative || 'Patients meeting numerator criteria';
 
+    // Use CQL definition names from populations (FHIR alignment)
+    const ipDefName = ipPop?.cqlDefinitionName || 'Initial Population';
+    const denomDefName = denomPop?.cqlDefinitionName || 'Denominator';
+    const exclDefName = exclPop?.cqlDefinitionName || 'Denominator Exclusion';
+    const numDefName = numPop?.cqlDefinitionName || 'Numerator';
+
+    // Library name from measure ID (FHIR canonical format)
+    const libraryName = measure.metadata.measureId.replace(/[^a-zA-Z0-9]/g, '');
+    const libraryUrl = measure.metadata.url || `urn:uuid:${measure.id}`;
+
     return `/*
  * ${measure.metadata.title}
  * Measure ID: ${measure.metadata.measureId}
  * Version: ${measure.metadata.version}
+ * Scoring: ${measure.metadata.scoring || 'proportion'}
  * Generated: ${new Date().toISOString()}
  *
- * THIS CODE WAS AUTO-GENERATED FROM UMS
+ * FHIR R4 / QI-Core aligned CQL
+ * Library URL: ${libraryUrl}
+ *
+ * THIS CODE WAS AUTO-GENERATED FROM UMS (FHIR-aligned)
  * Review status: ${measure.reviewProgress.approved}/${measure.reviewProgress.total} approved
  */
 
-library ${measure.metadata.measureId.replace(/[^a-zA-Z0-9]/g, '')} version '${measure.metadata.version}'
+library ${libraryName} version '${measure.metadata.version}'
 
-using QDM version '5.6'
+using FHIR version '4.0.1'
 
-include MATGlobalCommonFunctionsQDM version '8.0.000' called Global
+include FHIRHelpers version '4.0.1' called FHIRHelpers
+include QICoreCommon version '2.0.0' called QICoreCommon
 
-// Value Sets from UMS
+codesystem "LOINC": 'http://loinc.org'
+codesystem "SNOMEDCT": 'http://snomed.info/sct'
+codesystem "ICD10CM": 'http://hl7.org/fhir/sid/icd-10-cm'
+codesystem "CPT": 'http://www.ama-assn.org/go/cpt'
+
+// Value Sets from UMS (VSAC canonical URLs)
 ${valueSetDeclarations}
 
 parameter "Measurement Period" Interval<DateTime>
+  default Interval[@${measure.metadata.measurementPeriod?.start || '2025-01-01'}T00:00:00.0, @${measure.metadata.measurementPeriod?.end || '2025-12-31'}T23:59:59.999]
 
 context Patient
 
 /*
- * Initial Population
+ * ${ipDefName}
  * ${ipCriteria}
  */
-define "Initial Population":
+define "${ipDefName}":
   AgeInYearsAt(date from end of "Measurement Period") in Interval[${ageRange.min}, ${ageRange.max}]
 ${dataElements.filter(e => e.type === 'diagnosis').map(e => `    and exists "${e.valueSet?.name || 'Qualifying Condition'}"`).join('\n')}
 ${dataElements.filter(e => e.type === 'encounter').map(e => `    and exists "${e.valueSet?.name || 'Qualifying Encounter'}"`).join('\n')}
 
 /*
- * Denominator
+ * ${denomDefName}
  * ${denomCriteria}
  */
-define "Denominator":
-  "Initial Population"
+define "${denomDefName}":
+  "${ipDefName}"
 
 /*
- * Denominator Exclusions
+ * ${exclDefName}
  * ${exclCriteria}
  */
-define "Denominator Exclusions":
+define "${exclDefName}":
 ${dataElements.filter(e => exclPop?.criteria && JSON.stringify(exclPop.criteria).includes(e.id)).map(e => `  exists "${e.valueSet?.name || 'Exclusion Condition'}"`).join('\n    or ') || '  false /* No exclusions defined */'}
 
 /*
- * Numerator
+ * ${numDefName}
  * ${numCriteria}
  */
-define "Numerator":
+define "${numDefName}":
 ${dataElements.filter(e => numPop?.criteria && JSON.stringify(numPop.criteria).includes(e.id)).map(e => `  exists "${e.valueSet?.name || 'Numerator Action'}"`).join('\n    and ') || '  true /* Define numerator criteria */'}
 
-// Data Element Definitions
+// QI-Core Data Element Definitions
 ${measure.valueSets.map((vs: any) => {
   const relatedElement = dataElements.find(e => e.valueSet?.id === vs.id);
   const elemType = relatedElement?.type || 'diagnosis';
-  const qdmType = elemType === 'diagnosis' ? 'Diagnosis' :
-                  elemType === 'encounter' ? 'Encounter, Performed' :
-                  elemType === 'procedure' ? 'Procedure, Performed' :
-                  elemType === 'observation' ? 'Laboratory Test, Performed' :
-                  elemType === 'medication' ? 'Medication, Active' :
-                  elemType === 'assessment' ? 'Assessment, Performed' : 'Diagnosis';
+  // QI-Core resource types (FHIR alignment)
+  const qicoreType = elemType === 'diagnosis' ? 'Condition' :
+                     elemType === 'encounter' ? 'Encounter' :
+                     elemType === 'procedure' ? 'Procedure' :
+                     elemType === 'observation' ? 'Observation' :
+                     elemType === 'medication' ? 'MedicationRequest' :
+                     elemType === 'assessment' ? 'Observation' : 'Condition';
   const timing = relatedElement?.timingRequirements?.[0]?.description || 'During Measurement Period';
 
   return `define "${vs.name}":
-  ["${qdmType}": "${vs.name}"] Item
-    where Item.relevantPeriod overlaps "Measurement Period"
+  [${qicoreType}: "${vs.name}"] R
+    where R.clinicalStatus ~ QICoreCommon."active"
+      and (R.onset as Period) overlaps "Measurement Period"
     /* Timing: ${timing} */`;
 }).join('\n\n')}
 `;

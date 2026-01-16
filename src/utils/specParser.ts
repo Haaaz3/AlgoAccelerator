@@ -1,4 +1,5 @@
-import type { UniversalMeasureSpec, IngestionResult, ConfidenceLevel, PopulationDefinition, DataElement, ValueSetReference, ParsedSection, CodeSystem, MeasureType } from '../types/ums';
+import type { UniversalMeasureSpec, IngestionResult, ConfidenceLevel, PopulationDefinition, DataElement, ValueSetReference, ParsedSection, CodeSystem, MeasureType, PopulationType } from '../types/ums';
+import { getCodeSystemUrl } from '../types/fhir-measure';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
@@ -887,18 +888,19 @@ function mapFhirPopulationType(code: string): string {
 }
 
 /**
- * Generate UMS from parsed data
+ * Generate UMS from parsed data - outputs FHIR-aligned structure
  */
 function generateUMSFromParsedData(data: ParsedMeasureData, filename: string): UniversalMeasureSpec {
   const id = `ums-${data.measureId || 'unknown'}-${Date.now()}`;
   const now = new Date().toISOString();
+  const measureId = data.measureId ? `CMS${data.measureId}` : extractMeasureIdFromFilename(filename);
 
   // Generate populations
   const populations = data.populations.length > 0
     ? convertParsedPopulations(data)
     : generateDefaultPopulations(data);
 
-  // Convert value sets
+  // Convert value sets with FHIR URLs
   const valueSets = convertParsedValueSets(data);
 
   // Calculate review progress
@@ -915,10 +917,20 @@ function generateUMSFromParsedData(data: ParsedMeasureData, filename: string): U
   };
   populations.forEach(countReviewStatus);
 
+  // Build globalConstraints from parsed data (single source of truth)
+  const globalConstraints: UniversalMeasureSpec['globalConstraints'] = {};
+  if (data.ageRange) {
+    globalConstraints.ageRange = {
+      min: data.ageRange.min,
+      max: data.ageRange.max,
+    };
+  }
+
   return {
     id,
+    resourceType: 'Measure', // FHIR alignment
     metadata: {
-      measureId: data.measureId ? `CMS${data.measureId}` : extractMeasureIdFromFilename(filename),
+      measureId,
       title: data.title || extractTitleFromFilename(filename),
       version: data.version || '1.0',
       cbeNumber: data.cbeNumber || undefined,
@@ -930,6 +942,8 @@ function generateUMSFromParsedData(data: ParsedMeasureData, filename: string): U
       clinicalRecommendation: data.clinicalRecommendation || undefined,
       submissionFrequency: 'Once per performance period',
       improvementNotation: data.measureType === 'outcome' ? 'decrease' : 'increase',
+      scoring: 'proportion', // FHIR measure scoring
+      url: `urn:uuid:${id}`, // FHIR canonical URL
       measurementPeriod: {
         start: '2025-01-01',
         end: '2025-12-31',
@@ -938,6 +952,7 @@ function generateUMSFromParsedData(data: ParsedMeasureData, filename: string): U
       lastUpdated: now,
       sourceDocuments: [filename],
     },
+    globalConstraints: Object.keys(globalConstraints).length > 0 ? globalConstraints : undefined,
     populations,
     valueSets,
     status: 'in_progress',
@@ -946,6 +961,40 @@ function generateUMSFromParsedData(data: ParsedMeasureData, filename: string): U
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * Convert internal population type to FHIR kebab-case
+ */
+function toFHIRPopulationType(type: string): PopulationType {
+  const mapping: Record<string, PopulationType> = {
+    'initial_population': 'initial-population',
+    'denominator': 'denominator',
+    'denominator_exclusion': 'denominator-exclusion',
+    'denominator_exception': 'denominator-exception',
+    'numerator': 'numerator',
+    'numerator_exclusion': 'numerator-exclusion',
+  };
+  return mapping[type] || type as PopulationType;
+}
+
+/**
+ * Get CQL definition name for a population type
+ */
+function getCQLDefinitionName(type: string): string {
+  const mapping: Record<string, string> = {
+    'initial_population': 'Initial Population',
+    'initial-population': 'Initial Population',
+    'denominator': 'Denominator',
+    'denominator_exclusion': 'Denominator Exclusion',
+    'denominator-exclusion': 'Denominator Exclusion',
+    'denominator_exception': 'Denominator Exception',
+    'denominator-exception': 'Denominator Exception',
+    'numerator': 'Numerator',
+    'numerator_exclusion': 'Numerator Exclusion',
+    'numerator-exclusion': 'Numerator Exclusion',
+  };
+  return mapping[type] || type.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function convertParsedPopulations(data: ParsedMeasureData): PopulationDefinition[] {
@@ -963,10 +1012,15 @@ function convertParsedPopulations(data: ParsedMeasureData): PopulationDefinition
   });
 
   return data.populations.map((pop, idx) => {
+    // Convert to FHIR kebab-case population type
+    const fhirType = toFHIRPopulationType(pop.type);
+    const cqlDefName = getCQLDefinitionName(pop.type);
+
     // Try multiple CQL definition name formats
     const popName = pop.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     const cql = data.cqlDefinitions[popName] ||
                 data.cqlDefinitions[pop.type] ||
+                data.cqlDefinitions[cqlDefName] ||
                 data.cqlDefinitions[popName.replace(/s$/, '')] || // Try singular
                 '';
 
@@ -1100,14 +1154,19 @@ function convertParsedPopulations(data: ParsedMeasureData): PopulationDefinition
     }
 
     return {
-      id: `${pop.type}-${measureId}-${idx}`,
-      type: pop.type as any,
+      id: `${fhirType}-${measureId}-${idx}`,
+      type: fhirType, // FHIR kebab-case population type
       description: pop.description,
       narrative: pop.narrative,
+      cqlDefinitionName: cqlDefName, // CQL expression reference
+      expression: {
+        language: 'text/cql-identifier' as const,
+        expression: cqlDefName,
+      },
       confidence: (children.some(c => c.valueSet) ? 'high' : 'medium') as ConfidenceLevel,
       reviewStatus: 'pending' as const,
       criteria: {
-        id: `${pop.type}-criteria-${measureId}-${idx}`,
+        id: `${fhirType}-criteria-${measureId}-${idx}`,
         operator: determineOperator(pop.narrative, pop.criteria),
         description: pop.description,
         confidence: 'high' as ConfidenceLevel,
@@ -1335,10 +1394,16 @@ function convertParsedValueSets(data: ParsedMeasureData): ValueSetReference[] {
     id: `vs-${idx}-${measureId}`,
     name: vs.name,
     oid: vs.oid || undefined,
+    // Add FHIR canonical URL from OID
+    url: vs.oid ? `http://cts.nlm.nih.gov/fhir/ValueSet/${vs.oid}` : undefined,
     confidence: (vs.oid ? 'high' : 'medium') as ConfidenceLevel,
     source: 'Parsed',
     verified: false,
-    codes: vs.codes,
+    // Add FHIR system URIs to codes
+    codes: vs.codes.map(code => ({
+      ...code,
+      systemUri: getCodeSystemUrl(code.system),
+    })),
     totalCodeCount: vs.codes.length,
   }));
 }
@@ -1349,14 +1414,19 @@ function generateDefaultPopulations(data: ParsedMeasureData): PopulationDefiniti
 
   return [
     {
-      id: `ip-${measureId}`,
-      type: 'initial_population',
+      id: `initial-population-${measureId}`,
+      type: 'initial-population', // FHIR kebab-case
       description: `Patients aged ${ageRange.min}-${ageRange.max} with qualifying encounters`,
       narrative: data.description || 'Patients meeting age and encounter requirements.',
+      cqlDefinitionName: 'Initial Population',
+      expression: {
+        language: 'text/cql-identifier' as const,
+        expression: 'Initial Population',
+      },
       confidence: 'medium',
       reviewStatus: 'pending',
       criteria: {
-        id: `ip-criteria-${measureId}`,
+        id: `initial-population-criteria-${measureId}`,
         operator: 'AND',
         description: 'All conditions must be met',
         confidence: 'medium',
@@ -1365,14 +1435,19 @@ function generateDefaultPopulations(data: ParsedMeasureData): PopulationDefiniti
       },
     },
     {
-      id: `den-${measureId}`,
+      id: `denominator-${measureId}`,
       type: 'denominator',
       description: 'Equals Initial Population',
       narrative: 'All patients in the Initial Population.',
+      cqlDefinitionName: 'Denominator',
+      expression: {
+        language: 'text/cql-identifier' as const,
+        expression: 'Denominator',
+      },
       confidence: 'high',
       reviewStatus: 'pending',
       criteria: {
-        id: `den-criteria-${measureId}`,
+        id: `denominator-criteria-${measureId}`,
         operator: 'AND',
         description: 'Equals Initial Population',
         confidence: 'high',
@@ -1381,14 +1456,19 @@ function generateDefaultPopulations(data: ParsedMeasureData): PopulationDefiniti
       },
     },
     {
-      id: `num-${measureId}`,
+      id: `numerator-${measureId}`,
       type: 'numerator',
       description: 'Patients meeting quality action',
       narrative: 'Patients with documented evidence of the quality action.',
+      cqlDefinitionName: 'Numerator',
+      expression: {
+        language: 'text/cql-identifier' as const,
+        expression: 'Numerator',
+      },
       confidence: 'medium',
       reviewStatus: 'pending',
       criteria: {
-        id: `num-criteria-${measureId}`,
+        id: `numerator-criteria-${measureId}`,
         operator: 'AND',
         description: 'Quality action performed',
         confidence: 'medium',

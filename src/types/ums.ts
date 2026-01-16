@@ -140,7 +140,7 @@ export interface TimingRequirement {
   window?: {
     value: number;
     unit: 'days' | 'weeks' | 'months' | 'years';
-    direction: 'before' | 'after' | 'before or after';
+    direction: 'before' | 'after' | 'before or after' | 'within';
   };
   confidence: ConfidenceLevel;
   /** CQL expression for this timing constraint */

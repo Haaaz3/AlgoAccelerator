@@ -11,6 +11,7 @@ import type {
   CorrectionExport,
 } from '../types/ums';
 import { syncAgeConstraints } from '../utils/constraintSync';
+import { migrateMeasure, needsMigration } from '../utils/measureMigration';
 
 export type CodeOutputFormat = 'cql' | 'synapse' | 'sql';
 
@@ -101,11 +102,21 @@ export const useMeasureStore = create<MeasureState>()(
       activeTraceId: null,
 
       addMeasure: (measure) =>
-        set((state) => ({
-          measures: [...state.measures, measure],
-          activeMeasureId: measure.id,
-          activeTab: 'editor',
-        })),
+        set((state) => {
+          // If measure already has resourceType, it's already formatted - don't migrate
+          // This preserves copied measures exactly as they are
+          const fhirMeasure = measure.resourceType === 'Measure'
+            ? measure
+            : needsMigration(measure)
+              ? migrateMeasure(measure)
+              : { ...measure, resourceType: 'Measure' as const };
+
+          return {
+            measures: [...state.measures, fhirMeasure],
+            activeMeasureId: fhirMeasure.id,
+            activeTab: 'editor',
+          };
+        }),
 
       updateMeasure: (id, updates) =>
         set((state) => ({
@@ -731,6 +742,19 @@ export const useMeasureStore = create<MeasureState>()(
         measures: state.measures,
         validationTraces: state.validationTraces,
       }),
+      // Auto-migrate measures on load from storage
+      onRehydrateStorage: () => (state) => {
+        if (state?.measures) {
+          const migratedMeasures = state.measures.map((measure) => {
+            if (needsMigration(measure)) {
+              console.log(`Migrating measure ${measure.id} to FHIR-aligned schema`);
+              return migrateMeasure(measure);
+            }
+            return measure;
+          });
+          state.measures = migratedMeasures;
+        }
+      },
     }
   )
 );
