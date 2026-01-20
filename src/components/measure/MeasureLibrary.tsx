@@ -193,24 +193,33 @@ export function MeasureLibrary() {
   }, [addMeasure, setActiveMeasure]);
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--text)] mb-2">Measure Library</h1>
-            <p className="text-[var(--text-muted)]">
-              Upload measure specifications for AI-powered extraction and UMS generation
-            </p>
+    <div className="flex-1 overflow-auto">
+      {/* Page Header - Differentiated dark header */}
+      <div className="bg-[var(--header-bg)] px-6 py-5">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-semibold text-[var(--header-text)]">Measure Library</h1>
+              <p className="text-sm text-[var(--header-text-muted)] mt-0.5">
+                Upload measure specifications for AI-powered extraction and UMS generation
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowCreator(true)}
+                className="h-10 px-4 bg-[var(--primary)] text-white rounded-lg font-medium hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                New Measure
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => setShowCreator(true)}
-            className="px-4 py-2.5 bg-[var(--primary)] text-white rounded-lg font-medium hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-2 shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            New Measure
-          </button>
         </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="p-6">
+        <div className="max-w-5xl mx-auto">
 
         {/* Upload Zone */}
         <div
@@ -408,6 +417,7 @@ export function MeasureLibrary() {
             </button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Measure Creator Modal */}
@@ -448,11 +458,11 @@ function MeasureCard({
 
   return (
     <div
-      className={`bg-white border rounded-xl p-5 transition-all cursor-pointer group shadow-sm hover:shadow-md overflow-visible ${
+      className={`bg-[var(--bg-elevated)] border rounded-xl p-5 transition-all cursor-pointer group shadow-sm hover:shadow-md overflow-visible ${
         isPublished
-          ? 'border-[var(--success)]/30'
+          ? 'border-[var(--success)]/40 bg-[var(--success-light)]/30'
           : isLocked
-            ? 'border-[var(--success)]/50 bg-[var(--success-light)]'
+            ? 'border-[var(--success)]/50 bg-[var(--success-light)]/50'
             : 'border-[var(--border)] hover:border-[var(--accent)]'
       }`}
       onClick={onSelect}

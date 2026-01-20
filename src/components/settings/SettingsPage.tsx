@@ -47,17 +47,20 @@ export function SettingsPage() {
   const activeApiKey = apiKeys[selectedProvider] || '';
 
   return (
-    <div className="flex-1 p-6 overflow-auto bg-[var(--bg)]">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-[var(--text)] mb-2">Settings</h1>
-          <p className="text-[var(--text-muted)]">
+    <div className="flex-1 overflow-auto">
+      {/* Page Header */}
+      <div className="bg-[var(--header-bg)] px-6 py-5">
+        <div className="max-w-3xl mx-auto">
+          <h1 className="text-xl font-semibold text-[var(--header-text)]">Settings</h1>
+          <p className="text-sm text-[var(--header-text-muted)] mt-0.5">
             Configure AI extraction and API keys
           </p>
         </div>
+      </div>
 
-        <div className="space-y-6">
+      {/* Main Content */}
+      <div className="p-6">
+        <div className="max-w-3xl mx-auto space-y-6">
           {/* Extraction Mode */}
           <div className="p-5 bg-white border border-[var(--border)] rounded-xl shadow-sm">
             <div className="flex items-center gap-2 mb-3">

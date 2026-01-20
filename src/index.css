@@ -9,11 +9,16 @@
  */
 
 :root {
-  /* Backgrounds - Light, clean, professional */
-  --bg: #FFFFFF;
-  --bg-secondary: #F7F8FA;
-  --bg-tertiary: #EEF1F5;
+  /* Backgrounds - Subtle warmth, less stark white */
+  --bg: #F8F9FB;
+  --bg-secondary: #F1F3F6;
+  --bg-tertiary: #E8ECF0;
   --bg-elevated: #FFFFFF;
+
+  /* Header - Distinct visual hierarchy */
+  --header-bg: #1D2B3A;
+  --header-text: #FFFFFF;
+  --header-text-muted: #B4C2D1;
 
   /* Sidebar - Oracle-inspired dark sidebar */
   --sidebar-bg: #1D2B3A;
@@ -23,10 +28,11 @@
   --sidebar-text-muted: #9AA8B8;
   --sidebar-border: rgba(255, 255, 255, 0.08);
 
-  /* Text - Professional, readable hierarchy */
-  --text: #1D2B3A;
-  --text-muted: #5A6978;
-  --text-dim: #8E99A4;
+  /* Text - Strong contrast, professional hierarchy */
+  --text: #1A1F26;
+  --text-secondary: #3D4852;
+  --text-muted: #5C6B7A;
+  --text-dim: #8694A3;
 
   /* Primary - Oracle Red for key actions */
   --primary: #C74634;
@@ -34,28 +40,28 @@
   --primary-light: #FEF2F0;
 
   /* Accent - Tableau Blue for data/information */
-  --accent: #4E79A7;
-  --accent-hover: #3D6089;
-  --accent-light: #EDF3F9;
+  --accent: #3B6A99;
+  --accent-hover: #2D5278;
+  --accent-light: #E6EEF5;
 
-  /* Semantic Colors - Tableau palette */
-  --success: #59A14F;
-  --success-light: #EFF8EE;
-  --warning: #F28E2B;
-  --warning-light: #FEF6EC;
-  --danger: #E15759;
-  --danger-light: #FDEEEE;
-  --info: #76B7B2;
-  --info-light: #EFF8F7;
+  /* Semantic Colors - Deeper, more professional */
+  --success: #3D8B40;
+  --success-light: #E8F4E8;
+  --warning: #D97B1A;
+  --warning-light: #FDF3E6;
+  --danger: #C4383A;
+  --danger-light: #FCEAEA;
+  --info: #5A9A96;
+  --info-light: #E8F3F2;
 
-  /* Borders */
-  --border: #E2E6EB;
-  --border-light: #F0F2F5;
+  /* Borders - More definition */
+  --border: #D4DAE0;
+  --border-light: #E8ECF0;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(29, 43, 58, 0.05);
-  --shadow: 0 2px 8px rgba(29, 43, 58, 0.08);
-  --shadow-lg: 0 8px 24px rgba(29, 43, 58, 0.12);
+  --shadow-sm: 0 1px 2px rgba(26, 31, 38, 0.06);
+  --shadow: 0 2px 8px rgba(26, 31, 38, 0.10);
+  --shadow-lg: 0 8px 24px rgba(26, 31, 38, 0.14);
 
   /* Chart Colors - Tableau 10 palette */
   --chart-1: #4E79A7;
@@ -152,6 +158,25 @@ pre code {
 
 .card:hover {
   box-shadow: var(--shadow);
+}
+
+/* Page header styling */
+.page-header {
+  background: var(--header-bg);
+  color: var(--header-text);
+  padding: 1.25rem 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+  color: var(--header-text);
+  margin: 0;
+}
+
+.page-header p {
+  color: var(--header-text-muted);
+  margin: 0.25rem 0 0 0;
 }
 
 /* Button base styles */
