@@ -448,7 +448,7 @@ function MeasureCard({
 
   return (
     <div
-      className={`bg-white border rounded-xl p-5 transition-all cursor-pointer group shadow-sm hover:shadow-md ${
+      className={`bg-white border rounded-xl p-5 transition-all cursor-pointer group shadow-sm hover:shadow-md overflow-visible ${
         isPublished
           ? 'border-[var(--success)]/30'
           : isLocked
@@ -457,7 +457,7 @@ function MeasureCard({
       }`}
       onClick={onSelect}
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 overflow-visible">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             {/* Status Badge */}
@@ -514,7 +514,7 @@ function MeasureCard({
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
           <div className="flex items-center gap-1">
             {/* Copy */}
             <button
@@ -572,8 +572,8 @@ function MeasureCard({
             )}
           </div>
 
-          <div className="relative w-12 h-12">
-            <svg className="w-12 h-12 -rotate-90">
+          <div className="relative w-12 h-12 flex-shrink-0">
+            <svg className="w-12 h-12 -rotate-90" viewBox="0 0 48 48">
               <circle
                 cx="24" cy="24" r="20"
                 fill="none"
