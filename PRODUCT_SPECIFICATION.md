@@ -355,7 +355,6 @@ Customize AI providers, API keys, and system behavior.
 
 | Setting | Purpose |
 |---------|---------|
-| **AI Extraction Toggle** | Enable/disable AI mode |
 | **VSAC API Key** | Connect to national terminology service |
 | **Backend API Toggle** | Enable server-side processing |
 

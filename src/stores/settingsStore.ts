@@ -66,7 +66,6 @@ interface SettingsState {
   selectedProvider: LLMProvider;
   selectedModel: string;
   apiKeys: Record<LLMProvider, string>;
-  useAIExtraction: boolean;
 
   // Custom LLM Configuration
   customLlmBaseUrl: string;
@@ -86,7 +85,6 @@ interface SettingsState {
   setSelectedProvider: (provider: LLMProvider) => void;
   setSelectedModel: (model: string) => void;
   setApiKey: (provider: LLMProvider, key: string) => void;
-  setUseAIExtraction: (use: boolean) => void;
   setCustomLlmBaseUrl: (url: string) => void;
   setCustomLlmModelName: (name: string) => void;
   setVsacApiKey: (key: string) => void;
@@ -114,7 +112,6 @@ export const useSettingsStore = create<SettingsState>()(
         google: '',
         custom: '',
       },
-      useAIExtraction: true,
       customLlmBaseUrl: 'http://localhost:11434/v1',
       customLlmModelName: 'llama2',
       vsacApiKey: '',
@@ -140,7 +137,6 @@ export const useSettingsStore = create<SettingsState>()(
         }));
       },
 
-      setUseAIExtraction: (use) => set({ useAIExtraction: use }),
       setCustomLlmBaseUrl: (url) => set({ customLlmBaseUrl: url }),
       setCustomLlmModelName: (name) => set({ customLlmModelName: name, selectedModel: name }),
       setVsacApiKey: (key) => set({ vsacApiKey: key }),
@@ -188,7 +184,6 @@ export const useSettingsStore = create<SettingsState>()(
         selectedProvider: state.selectedProvider,
         selectedModel: state.selectedModel,
         apiKeys: state.apiKeys,
-        useAIExtraction: state.useAIExtraction,
         customLlmBaseUrl: state.customLlmBaseUrl,
         customLlmModelName: state.customLlmModelName,
         vsacApiKey: state.vsacApiKey,

@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { Upload, FileText, Trash2, Clock, CheckCircle, AlertTriangle, Lock, Unlock, Shield, Brain, Zap, ChevronDown, Send, Edit3, Plus, Copy } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { ingestMeasureFiles, ingestMeasureFilesDirect, type IngestionProgress } from '../../services/measureIngestion';
+import { ingestMeasureFiles, type IngestionProgress } from '../../services/measureIngestion';
 import { MeasureCreator } from './MeasureCreator';
 import type { UniversalMeasureSpec, MeasureStatus } from '../../types/ums';
 
@@ -24,7 +24,6 @@ export function MeasureLibrary() {
   const {
     selectedProvider,
     selectedModel,
-    useAIExtraction,
     getActiveApiKey,
     getActiveProvider,
     getCustomLlmConfig,
@@ -59,21 +58,19 @@ export function MeasureLibrary() {
       return;
     }
 
-    // AI mode requires API key (except for custom provider where it's optional)
+    // AI extraction requires API key (except for custom provider where it's optional)
     const activeApiKey = getActiveApiKey();
     const activeProvider = getActiveProvider();
     const customConfig = selectedProvider === 'custom' ? getCustomLlmConfig() : undefined;
 
-    if (useAIExtraction) {
-      if (selectedProvider === 'custom') {
-        if (!customConfig?.baseUrl) {
-          setError('Please configure your Custom LLM base URL in Settings to use AI-powered extraction');
-          return;
-        }
-      } else if (!activeApiKey) {
-        setError(`Please configure your ${activeProvider.name} API key in Settings to use AI-powered extraction, or switch to Quick Parse mode`);
+    if (selectedProvider === 'custom') {
+      if (!customConfig?.baseUrl) {
+        setError('Please configure your Custom LLM base URL in Settings to use AI-powered extraction');
         return;
       }
+    } else if (!activeApiKey) {
+      setError(`Please configure your ${activeProvider.name} API key in Settings to use AI-powered extraction`);
+      return;
     }
 
     setIsProcessing(true);
@@ -81,10 +78,7 @@ export function MeasureLibrary() {
     setProgress({ stage: 'loading', message: 'Starting...', progress: 0 });
 
     try {
-      // Use either AI extraction or direct parsing based on toggle
-      const result = useAIExtraction
-        ? await ingestMeasureFiles(supportedFiles, activeApiKey, setProgress, selectedProvider, selectedModel, customConfig)
-        : await ingestMeasureFilesDirect(supportedFiles, setProgress);
+      const result = await ingestMeasureFiles(supportedFiles, activeApiKey, setProgress, selectedProvider, selectedModel, customConfig);
 
       if (result.success && result.ums) {
         // New measures start as "in_progress"
@@ -104,7 +98,7 @@ export function MeasureLibrary() {
     } finally {
       setIsProcessing(false);
     }
-  }, [getActiveApiKey, getActiveProvider, addMeasure, useAIExtraction, selectedProvider, selectedModel]);
+  }, [getActiveApiKey, getActiveProvider, addMeasure, selectedProvider, selectedModel, getCustomLlmConfig]);
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();

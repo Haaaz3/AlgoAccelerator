@@ -7,13 +7,11 @@ export function SettingsPage() {
     selectedProvider,
     selectedModel,
     apiKeys,
-    useAIExtraction,
     customLlmBaseUrl,
     customLlmModelName,
     setSelectedProvider,
     setSelectedModel,
     setApiKey,
-    setUseAIExtraction,
     setCustomLlmBaseUrl,
     setCustomLlmModelName,
   } = useSettingsStore();
@@ -61,44 +59,6 @@ export function SettingsPage() {
       {/* Main Content */}
       <div className="p-6">
         <div className="max-w-3xl mx-auto space-y-6">
-          {/* Extraction Mode */}
-          <div className="p-5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-xl shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <Brain className="w-5 h-5 text-[var(--accent)]" />
-              <h3 className="font-semibold text-[var(--text)]">Extraction Mode</h3>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center bg-[var(--bg-tertiary)] rounded-lg p-1">
-                <button
-                  onClick={() => setUseAIExtraction(true)}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
-                    useAIExtraction
-                      ? 'bg-[var(--accent)] text-white shadow-sm'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text)]'
-                  }`}
-                >
-                  <Brain className="w-4 h-4" />
-                  AI Extraction
-                </button>
-                <button
-                  onClick={() => setUseAIExtraction(false)}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
-                    !useAIExtraction
-                      ? 'bg-[var(--success)] text-white shadow-sm'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text)]'
-                  }`}
-                >
-                  Quick Parse
-                </button>
-              </div>
-            </div>
-            <p className="text-sm text-[var(--text-dim)] mt-3">
-              {useAIExtraction
-                ? 'Uses AI for intelligent extraction (recommended for complex measures)'
-                : 'Fast local parsing without AI (limited extraction quality)'}
-            </p>
-          </div>
-
           {/* LLM Provider Selection */}
           <div className="p-5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-xl shadow-sm">
             <div className="flex items-center gap-2 mb-4">
@@ -266,7 +226,7 @@ export function SettingsPage() {
                   API key configured and saved
                 </p>
               )}
-              {useAIExtraction && !activeApiKey && (
+              {!activeApiKey && (
                 <p className="text-sm text-[var(--warning)] mt-3 flex items-center gap-1">
                   <AlertTriangle className="w-4 h-4" />
                   API key required for AI extraction
