@@ -19,6 +19,8 @@ import type {
 import {
   getCRCScreeningNumeratorValueSets,
   getCRCScreeningExclusionValueSets,
+  getCervicalScreeningNumeratorValueSets,
+  getCervicalScreeningExclusionValueSets,
   isCodeInValueSets,
 } from '../constants/standardValueSets';
 
@@ -98,6 +100,53 @@ export interface PatientImmunization {
 // ============================================================================
 
 /**
+ * Detect if a measure is for cervical cancer screening based on title/ID
+ */
+function isCervicalCancerMeasure(measure: UniversalMeasureSpec): boolean {
+  const title = measure.metadata.title?.toLowerCase() || '';
+  const measureId = measure.metadata.measureId?.toUpperCase() || '';
+
+  return title.includes('cervical') ||
+         title.includes('cervix') ||
+         title.includes('pap smear') ||
+         title.includes('pap test') ||
+         measureId.includes('CMS124') || // Cervical Cancer Screening
+         measureId.includes('CCS');
+}
+
+/**
+ * Check if patient meets gender requirement for the measure
+ */
+function checkGenderRequirement(
+  patient: TestPatient,
+  measure: UniversalMeasureSpec
+): { met: boolean; reason?: string } {
+  // Check explicit global constraint
+  const requiredGender = measure.globalConstraints?.gender;
+
+  if (requiredGender && requiredGender !== 'all') {
+    if (patient.demographics.gender !== requiredGender) {
+      return {
+        met: false,
+        reason: `Patient gender (${patient.demographics.gender}) does not match required gender (${requiredGender})`
+      };
+    }
+  }
+
+  // Auto-detect cervical cancer measures - these MUST be female only
+  if (isCervicalCancerMeasure(measure)) {
+    if (patient.demographics.gender !== 'female') {
+      return {
+        met: false,
+        reason: `Cervical cancer screening is only applicable to female patients (patient is ${patient.demographics.gender})`
+      };
+    }
+  }
+
+  return { met: true };
+}
+
+/**
  * Evaluate a test patient against a measure and generate a validation trace
  */
 export function evaluatePatient(
@@ -108,6 +157,38 @@ export function evaluatePatient(
   // Default measurement period to current year
   const mpStart = measurementPeriod?.start || `${new Date().getFullYear()}-01-01`;
   const mpEnd = measurementPeriod?.end || `${new Date().getFullYear()}-12-31`;
+
+  // FIRST: Check gender requirement before any other evaluation
+  const genderCheck = checkGenderRequirement(patient, measure);
+  if (!genderCheck.met) {
+    return {
+      patientId: patient.id,
+      patientName: patient.name,
+      narrative: `${patient.name} is not eligible for ${measure.metadata.title}. ${genderCheck.reason}`,
+      populations: {
+        initialPopulation: {
+          met: false,
+          nodes: [{
+            id: 'gender-check',
+            title: 'Gender Requirement',
+            type: 'decision',
+            description: genderCheck.reason || 'Gender requirement not met',
+            status: 'fail',
+            facts: [{
+              code: 'GENDER',
+              display: `Patient gender: ${patient.demographics.gender}`,
+              source: 'Demographics',
+            }],
+          }]
+        },
+        denominator: { met: false, nodes: [] },
+        exclusions: { met: false, nodes: [] },
+        numerator: { met: false, nodes: [] },
+      },
+      finalOutcome: 'not_in_population',
+      howClose: [genderCheck.reason || 'Gender requirement not met'],
+    };
+  }
 
   // Find each population type
   const ipPop = measure.populations.find(p => p.type === 'initial_population');
@@ -159,6 +240,15 @@ export function evaluatePatient(
       if (crcNumerator.met) {
         numerResult = crcNumerator;
         console.log(`Numerator met via standard CRC value sets for ${patient.name}`);
+      }
+    }
+
+    // Check for cervical cancer screening measure
+    if (isCervicalCancerMeasure(measure)) {
+      const cervicalNumerator = checkCervicalScreeningNumerator(patient, mpStart, mpEnd);
+      if (cervicalNumerator.met) {
+        numerResult = cervicalNumerator;
+        console.log(`Numerator met via standard cervical cancer screening value sets for ${patient.name}`);
       }
     }
   }
@@ -1242,11 +1332,19 @@ function normalizeCodeSystem(system: string): string {
  */
 function checkCommonExclusions(
   patient: TestPatient,
-  _measure: UniversalMeasureSpec
+  measure: UniversalMeasureSpec
 ): { met: boolean; nodes: ValidationNode[] } {
   const nodes: ValidationNode[] = [];
 
-  // Get exclusion value sets for this measure type
+  // For cervical cancer measures, check cervical-specific exclusions first
+  if (isCervicalCancerMeasure(measure)) {
+    const cervicalExclusion = checkCervicalScreeningExclusions(patient, measure);
+    if (cervicalExclusion.met) {
+      return cervicalExclusion;
+    }
+  }
+
+  // Get exclusion value sets for this measure type (CRC and common exclusions)
   const exclusionValueSets = getCRCScreeningExclusionValueSets();
 
   // Check diagnoses against exclusion value sets
@@ -1452,6 +1550,203 @@ function checkCRCScreeningNumerator(
   }
 
   return { met: false, nodes };
+}
+
+/**
+ * Check if patient meets cervical cancer screening numerator criteria using standard value sets
+ *
+ * Cervical cancer screening guidelines (USPSTF):
+ * - Ages 21-29: Cervical cytology (Pap test) every 3 years
+ * - Ages 30-65: Cervical cytology every 3 years, OR hrHPV testing every 5 years, OR co-testing every 5 years
+ * - Over 65: No screening if adequate prior screening and not high risk
+ */
+function checkCervicalScreeningNumerator(
+  patient: TestPatient,
+  mpStart: string,
+  mpEnd: string
+): { met: boolean; nodes: ValidationNode[]; screeningType?: string } {
+  const nodes: ValidationNode[] = [];
+  const numeratorValueSets = getCervicalScreeningNumeratorValueSets();
+  const mpEndDate = new Date(mpEnd);
+
+  // Calculate patient age
+  const birthDate = new Date(patient.demographics.birthDate);
+  const mpStartDate = new Date(mpStart);
+  let patientAge = mpStartDate.getFullYear() - birthDate.getFullYear();
+  const monthDiff = mpStartDate.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && mpStartDate.getDate() < birthDate.getDate())) {
+    patientAge--;
+  }
+
+  // Check procedures for screening tests
+  for (const proc of patient.procedures) {
+    const result = isCodeInValueSets(proc.code, proc.system, numeratorValueSets);
+    if (result.found && result.valueSet) {
+      const procDate = new Date(proc.date);
+
+      // Determine valid period based on test type and patient age
+      let validPeriodYears: number;
+      let screeningType = result.valueSet.name;
+
+      switch (result.valueSet.id) {
+        case 'pap-test':
+          // Pap test is valid for 3 years
+          validPeriodYears = 3;
+          screeningType = 'Cervical Cytology (Pap Test)';
+          break;
+        case 'hpv-test':
+          // HPV test is valid for 5 years (only for ages 30+)
+          if (patientAge >= 30) {
+            validPeriodYears = 5;
+            screeningType = 'High-Risk HPV Test';
+          } else {
+            // HPV testing alone not recommended for ages 21-29
+            continue;
+          }
+          break;
+        default:
+          validPeriodYears = 3;
+      }
+
+      // Check if within valid period
+      const cutoffDate = new Date(mpEndDate);
+      cutoffDate.setFullYear(cutoffDate.getFullYear() - validPeriodYears);
+
+      if (procDate >= cutoffDate) {
+        const node: ValidationNode = {
+          id: `numer-proc-${result.valueSet.id}`,
+          title: `Numerator: ${screeningType}`,
+          type: 'decision',
+          description: `Patient has ${screeningType} within ${validPeriodYears} years (OID: ${result.valueSet.oid})`,
+          status: 'pass',
+          facts: [{
+            code: proc.code,
+            display: proc.display,
+            date: proc.date,
+            source: `Procedures (matched ${result.valueSet.name})`,
+          }],
+          cqlSnippet: `exists ([Procedure: "${result.valueSet.name}"] P where P.performed ${validPeriodYears} years or less before end of "Measurement Period")`,
+          source: `Standard Value Set: ${result.valueSet.oid}`,
+        };
+        nodes.push(node);
+        console.log(`Cervical screening numerator met via ${screeningType}: ${proc.code} on ${proc.date}`);
+        return { met: true, nodes, screeningType };
+      } else {
+        console.log(`${screeningType} found but outside ${validPeriodYears}-year window: ${proc.date}`);
+      }
+    }
+  }
+
+  // Check observations for Pap/HPV test results
+  for (const obs of patient.observations) {
+    const result = isCodeInValueSets(obs.code, obs.system, numeratorValueSets);
+    if (result.found && result.valueSet) {
+      const obsDate = new Date(obs.date);
+
+      let validPeriodYears: number;
+      let screeningType: string;
+
+      if (result.valueSet.id === 'pap-test') {
+        validPeriodYears = 3;
+        screeningType = 'Cervical Cytology (Pap Test)';
+      } else if (result.valueSet.id === 'hpv-test') {
+        if (patientAge < 30) continue; // HPV alone not recommended under 30
+        validPeriodYears = 5;
+        screeningType = 'High-Risk HPV Test';
+      } else {
+        continue;
+      }
+
+      const cutoffDate = new Date(mpEndDate);
+      cutoffDate.setFullYear(cutoffDate.getFullYear() - validPeriodYears);
+
+      if (obsDate >= cutoffDate) {
+        const node: ValidationNode = {
+          id: `numer-obs-${result.valueSet.id}`,
+          title: `Numerator: ${screeningType}`,
+          type: 'decision',
+          description: `Patient has ${screeningType} result within ${validPeriodYears} years (OID: ${result.valueSet.oid})`,
+          status: 'pass',
+          facts: [{
+            code: obs.code,
+            display: obs.display,
+            date: obs.date,
+            source: `Observations (matched ${result.valueSet.name})`,
+          }],
+          cqlSnippet: `exists ([Observation: "${result.valueSet.name}"] O where O.effective ${validPeriodYears} years or less before end of "Measurement Period")`,
+          source: `Standard Value Set: ${result.valueSet.oid}`,
+        };
+        nodes.push(node);
+        console.log(`Cervical screening numerator met via ${screeningType} observation: ${obs.code} on ${obs.date}`);
+        return { met: true, nodes, screeningType };
+      }
+    }
+  }
+
+  return { met: false, nodes };
+}
+
+/**
+ * Check for cervical cancer screening exclusions using standard value sets
+ */
+function checkCervicalScreeningExclusions(
+  patient: TestPatient,
+  _measure: UniversalMeasureSpec
+): { met: boolean; nodes: ValidationNode[] } {
+  const nodes: ValidationNode[] = [];
+  const exclusionValueSets = getCervicalScreeningExclusionValueSets();
+
+  // Check diagnoses for cervical cancer or absence of cervix
+  for (const dx of patient.diagnoses) {
+    const result = isCodeInValueSets(dx.code, dx.system, exclusionValueSets);
+    if (result.found && result.valueSet) {
+      const node: ValidationNode = {
+        id: `excl-dx-${result.valueSet.id}`,
+        title: `Exclusion: ${result.valueSet.name}`,
+        type: 'decision',
+        description: `Patient has ${result.valueSet.name} (OID: ${result.valueSet.oid})`,
+        status: 'pass',
+        facts: [{
+          code: dx.code,
+          display: dx.display,
+          date: dx.onsetDate,
+          source: `Problem List (matched ${result.valueSet.name})`,
+        }],
+        cqlSnippet: `exists ([Condition: "${result.valueSet.name}"])`,
+        source: `Standard Value Set: ${result.valueSet.oid}`,
+      };
+      nodes.push(node);
+      console.log(`Cervical screening exclusion detected: ${result.valueSet.name} - ${dx.code} - ${dx.display}`);
+      return { met: true, nodes };
+    }
+  }
+
+  // Check procedures for hysterectomy
+  for (const proc of patient.procedures) {
+    const result = isCodeInValueSets(proc.code, proc.system, exclusionValueSets);
+    if (result.found && result.valueSet) {
+      const node: ValidationNode = {
+        id: `excl-proc-${result.valueSet.id}`,
+        title: `Exclusion: ${result.valueSet.name}`,
+        type: 'decision',
+        description: `Patient has ${result.valueSet.name} procedure (OID: ${result.valueSet.oid})`,
+        status: 'pass',
+        facts: [{
+          code: proc.code,
+          display: proc.display,
+          date: proc.date,
+          source: `Procedures (matched ${result.valueSet.name})`,
+        }],
+        cqlSnippet: `exists ([Procedure: "${result.valueSet.name}"])`,
+        source: `Standard Value Set: ${result.valueSet.oid}`,
+      };
+      nodes.push(node);
+      console.log(`Cervical screening exclusion detected: ${result.valueSet.name} - ${proc.code} - ${proc.display}`);
+      return { met: true, nodes };
+    }
+  }
+
+  return { met: false, nodes: [] };
 }
 
 function checkTiming(

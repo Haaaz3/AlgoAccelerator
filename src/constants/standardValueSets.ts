@@ -161,6 +161,175 @@ export const CT_COLONOGRAPHY_VALUE_SET: StandardValueSet = {
 };
 
 // =============================================================================
+// CERVICAL CANCER SCREENING MEASURE (CMS124) VALUE SETS
+// =============================================================================
+
+/**
+ * Pap Test (Cervical Cytology) - OID: 2.16.840.1.113883.3.464.1003.108.12.1017
+ * Tests for abnormal cervical cells
+ */
+export const PAP_TEST_VALUE_SET: StandardValueSet = {
+  id: 'pap-test',
+  oid: '2.16.840.1.113883.3.464.1003.108.12.1017',
+  name: 'Pap Test',
+  codes: [
+    // CPT Cytopathology codes
+    { code: '88141', system: CPT, display: 'Cytopathology, cervical or vaginal, requiring interpretation by physician' },
+    { code: '88142', system: CPT, display: 'Cytopathology, cervical or vaginal, collected in preservative fluid, automated thin layer preparation' },
+    { code: '88143', system: CPT, display: 'Cytopathology, cervical or vaginal, collected in preservative fluid, with manual screening' },
+    { code: '88147', system: CPT, display: 'Cytopathology smears, cervical or vaginal, screening by automated system' },
+    { code: '88148', system: CPT, display: 'Cytopathology smears, cervical or vaginal, screening by automated system with manual rescreening' },
+    { code: '88150', system: CPT, display: 'Cytopathology, slides, cervical or vaginal, manual screening under physician supervision' },
+    { code: '88152', system: CPT, display: 'Cytopathology, slides, cervical or vaginal, manual screening and computer-assisted rescreening' },
+    { code: '88153', system: CPT, display: 'Cytopathology, slides, cervical or vaginal, manual screening and rescreening under physician supervision' },
+    { code: '88164', system: CPT, display: 'Cytopathology, slides, cervical or vaginal, TBS, manual screening' },
+    { code: '88165', system: CPT, display: 'Cytopathology, slides, cervical or vaginal, TBS, with manual screening and rescreening' },
+    { code: '88166', system: CPT, display: 'Cytopathology, slides, cervical or vaginal, TBS, with manual screening and computer-assisted rescreening' },
+    { code: '88167', system: CPT, display: 'Cytopathology, slides, cervical or vaginal, TBS, with manual screening and computer-assisted rescreening using cell selection and target' },
+    { code: '88174', system: CPT, display: 'Cytopathology, cervical or vaginal, collected in preservative fluid, automated thin layer preparation, screening by automated system' },
+    { code: '88175', system: CPT, display: 'Cytopathology, cervical or vaginal, collected in preservative fluid, automated thin layer preparation, with screening by automated system and target by physician' },
+    // HCPCS
+    { code: 'G0123', system: HCPCS, display: 'Screening cytopathology, cervical or vaginal, collected in preservative fluid, automated thin layer preparation, screening by cytotechnologist' },
+    { code: 'G0124', system: HCPCS, display: 'Screening cytopathology, cervical or vaginal, collected in preservative fluid, automated thin layer preparation, requiring interpretation by physician' },
+    { code: 'G0141', system: HCPCS, display: 'Screening cytopathology smears, cervical or vaginal, performed by automated system, with manual rescreening, requiring interpretation by physician' },
+    { code: 'G0143', system: HCPCS, display: 'Screening cytopathology, cervical or vaginal, collected in preservative fluid, automated thin layer preparation, with manual screening and rescreening' },
+    { code: 'G0144', system: HCPCS, display: 'Screening cytopathology, cervical or vaginal, collected in preservative fluid, automated thin layer preparation, with screening by automated system, under physician supervision' },
+    { code: 'G0145', system: HCPCS, display: 'Screening cytopathology, cervical or vaginal, collected in preservative fluid, automated thin layer preparation, with screening by automated system and target by physician' },
+    { code: 'G0147', system: HCPCS, display: 'Screening cytopathology smears, cervical or vaginal, performed by automated system under physician supervision' },
+    { code: 'G0148', system: HCPCS, display: 'Screening cytopathology smears, cervical or vaginal, performed by automated system with manual rescreening' },
+    { code: 'Q0091', system: HCPCS, display: 'Screening Papanicolaou smear; obtaining, preparing, and conveyance of cervical or vaginal smear to laboratory' },
+    // LOINC
+    { code: '10524-7', system: LOINC, display: 'Cytology report of Cervical or vaginal smear or scraping Cyto stain' },
+    { code: '18500-9', system: LOINC, display: 'Thin prep cervical cytology report' },
+    { code: '19762-4', system: LOINC, display: 'General categories [Interpretation] in Cervical or vaginal smear or scraping by Cyto stain' },
+    { code: '19764-0', system: LOINC, display: 'Statement of adequacy [Interpretation] in Cervical or vaginal smear or scraping by Cyto stain' },
+    { code: '19765-7', system: LOINC, display: 'Microscopic observation [Identifier] in Cervical or vaginal smear or scraping by Cyto stain' },
+    { code: '19766-5', system: LOINC, display: 'Microscopic observation [Identifier] in Cervical or vaginal smear or scraping by Cyto stain Narrative' },
+    { code: '19774-9', system: LOINC, display: 'Cytology study comment in Cervical or vaginal smear or scraping' },
+    { code: '33717-0', system: LOINC, display: 'Cytology Cervical or vaginal smear or scraping study' },
+    { code: '47527-7', system: LOINC, display: 'Cytology report of Cervical or vaginal smear or scraping Cyto stain.thin prep' },
+  ],
+};
+
+/**
+ * HPV Test (High-Risk Human Papillomavirus) - OID: 2.16.840.1.113883.3.464.1003.110.12.1059
+ * Tests for high-risk HPV strains that can cause cervical cancer
+ */
+export const HPV_TEST_VALUE_SET: StandardValueSet = {
+  id: 'hpv-test',
+  oid: '2.16.840.1.113883.3.464.1003.110.12.1059',
+  name: 'HPV Test',
+  codes: [
+    // CPT codes for HPV testing
+    { code: '87620', system: CPT, display: 'Infectious agent detection by nucleic acid, HPV, direct probe technique' },
+    { code: '87621', system: CPT, display: 'Infectious agent detection by nucleic acid, HPV, amplified probe technique' },
+    { code: '87622', system: CPT, display: 'Infectious agent detection by nucleic acid, HPV, quantification' },
+    { code: '87624', system: CPT, display: 'Infectious agent detection by nucleic acid, HPV, high-risk types' },
+    { code: '87625', system: CPT, display: 'Infectious agent detection by nucleic acid, HPV, types 16 and 18 only' },
+    // HCPCS
+    { code: 'G0476', system: HCPCS, display: 'Infectious agent detection by nucleic acid; HPV high-risk types, includes 16 and 18, cervical, with algorithmic analysis' },
+    // LOINC
+    { code: '21440-3', system: LOINC, display: 'Human papilloma virus 16+18+31+33+35+45+51+52+56 DNA [Presence] in Cervix by Probe' },
+    { code: '30167-1', system: LOINC, display: 'Human papilloma virus DNA [Presence] in Cervix by Probe' },
+    { code: '38372-9', system: LOINC, display: 'Human papilloma virus 6+11+42+43+44 DNA [Presence] in Cervix by Probe' },
+    { code: '59263-4', system: LOINC, display: 'Human papilloma virus 16 DNA [Presence] in Cervix by Probe' },
+    { code: '59264-2', system: LOINC, display: 'Human papilloma virus 18 DNA [Presence] in Cervix by Probe' },
+    { code: '59420-0', system: LOINC, display: 'Human papilloma virus 16+18+31+33+35+39+45+51+52+56+58+59+66+68 DNA [Presence] in Cervix by Probe' },
+    { code: '69002-4', system: LOINC, display: 'Human papilloma virus E6+E7 mRNA [Presence] in Cervix by NAA' },
+    { code: '71431-1', system: LOINC, display: 'Human papilloma virus 31+33+35+39+45+51+52+56+58+59+66+68 DNA [Presence] in Cervix by NAA' },
+    { code: '75694-0', system: LOINC, display: 'Human papilloma virus 18+45 E6+E7 mRNA [Presence] in Cervix by NAA' },
+    { code: '77379-6', system: LOINC, display: 'Human papilloma virus 16 and 18 and 31+33+35+39+45+51+52+56+58+59+66+68 DNA [Interpretation] in Cervix' },
+    { code: '77399-4', system: LOINC, display: 'Human papilloma virus 16 DNA [Presence] in Cervix by NAA' },
+    { code: '77400-0', system: LOINC, display: 'Human papilloma virus 18 DNA [Presence] in Cervix by NAA' },
+    { code: '82354-2', system: LOINC, display: 'Human papilloma virus 16 and 18 and 31+33+35+39+45+51+52+56+58+59+66+68 DNA panel - Cervix by NAA' },
+    { code: '82456-5', system: LOINC, display: 'Human papilloma virus 16 and 18 DNA [Presence] in Cervix by NAA' },
+    { code: '82675-0', system: LOINC, display: 'Human papilloma virus 16+18+31+33+35+39+45+51+52+56+58+59+68 DNA [Presence] in Cervix by NAA' },
+  ],
+};
+
+/**
+ * Hysterectomy with No Residual Cervix - OID: 2.16.840.1.113883.3.464.1003.198.12.1014
+ * Procedures that remove the cervix, making cervical cancer screening unnecessary
+ */
+export const HYSTERECTOMY_NO_CERVIX_VALUE_SET: StandardValueSet = {
+  id: 'hysterectomy-no-cervix',
+  oid: '2.16.840.1.113883.3.464.1003.198.12.1014',
+  name: 'Hysterectomy with No Residual Cervix',
+  codes: [
+    // CPT codes
+    { code: '51925', system: CPT, display: 'Closure of vesicouterine fistula, with hysterectomy' },
+    { code: '57530', system: CPT, display: 'Trachelectomy (cervicectomy), amputation of cervix' },
+    { code: '57531', system: CPT, display: 'Radical trachelectomy, with bilateral total pelvic lymphadenectomy' },
+    { code: '57540', system: CPT, display: 'Excision of cervical stump, abdominal approach' },
+    { code: '57545', system: CPT, display: 'Excision of cervical stump, abdominal approach; with pelvic floor repair' },
+    { code: '57550', system: CPT, display: 'Excision of cervical stump, vaginal approach' },
+    { code: '57555', system: CPT, display: 'Excision of cervical stump, vaginal approach; with anterior and/or posterior repair' },
+    { code: '57556', system: CPT, display: 'Excision of cervical stump, vaginal approach; with repair of enterocele' },
+    { code: '58150', system: CPT, display: 'Total abdominal hysterectomy, with or without removal of tube(s), with or without removal of ovary(s)' },
+    { code: '58152', system: CPT, display: 'Total abdominal hysterectomy, with or without removal of tube(s), with or without removal of ovary(s); with colpo-urethrocystopexy' },
+    { code: '58200', system: CPT, display: 'Total abdominal hysterectomy, including partial vaginectomy, with para-aortic and pelvic lymph node sampling' },
+    { code: '58210', system: CPT, display: 'Radical abdominal hysterectomy, with bilateral total pelvic lymphadenectomy and para-aortic lymph node sampling' },
+    { code: '58240', system: CPT, display: 'Pelvic exenteration for gynecologic malignancy, with total abdominal hysterectomy or cervicectomy' },
+    { code: '58260', system: CPT, display: 'Vaginal hysterectomy, for uterus 250 g or less' },
+    { code: '58262', system: CPT, display: 'Vaginal hysterectomy, for uterus 250 g or less; with removal of tube(s), and/or ovary(s)' },
+    { code: '58263', system: CPT, display: 'Vaginal hysterectomy, for uterus 250 g or less; with removal of tube(s), and/or ovary(s), with repair of enterocele' },
+    { code: '58267', system: CPT, display: 'Vaginal hysterectomy, for uterus 250 g or less; with colpo-urethrocystopexy (Marshall-Marchetti-Krantz type, Pereyra type) with or without endoscopic control' },
+    { code: '58270', system: CPT, display: 'Vaginal hysterectomy, for uterus 250 g or less; with repair of enterocele' },
+    { code: '58275', system: CPT, display: 'Vaginal hysterectomy, with total or partial vaginectomy' },
+    { code: '58280', system: CPT, display: 'Vaginal hysterectomy, with total or partial vaginectomy; with repair of enterocele' },
+    { code: '58285', system: CPT, display: 'Vaginal hysterectomy, radical (Schauta type operation)' },
+    { code: '58290', system: CPT, display: 'Vaginal hysterectomy, for uterus greater than 250 g' },
+    { code: '58291', system: CPT, display: 'Vaginal hysterectomy, for uterus greater than 250 g; with removal of tube(s) and/or ovary(s)' },
+    { code: '58292', system: CPT, display: 'Vaginal hysterectomy, for uterus greater than 250 g; with removal of tube(s) and/or ovary(s), with repair of enterocele' },
+    { code: '58293', system: CPT, display: 'Vaginal hysterectomy, for uterus greater than 250 g; with colpo-urethrocystopexy (Marshall-Marchetti-Krantz type, Pereyra type) with or without endoscopic control' },
+    { code: '58294', system: CPT, display: 'Vaginal hysterectomy, for uterus greater than 250 g; with repair of enterocele' },
+    { code: '58541', system: CPT, display: 'Laparoscopy, surgical, supracervical hysterectomy, for uterus 250 g or less' },
+    { code: '58542', system: CPT, display: 'Laparoscopy, surgical, supracervical hysterectomy, for uterus 250 g or less; with removal of tube(s) and/or ovary(s)' },
+    { code: '58543', system: CPT, display: 'Laparoscopy, surgical, supracervical hysterectomy, for uterus greater than 250 g' },
+    { code: '58544', system: CPT, display: 'Laparoscopy, surgical, supracervical hysterectomy, for uterus greater than 250 g; with removal of tube(s) and/or ovary(s)' },
+    { code: '58548', system: CPT, display: 'Laparoscopy, surgical, with radical hysterectomy, with bilateral total pelvic lymphadenectomy and para-aortic lymph node sampling' },
+    { code: '58550', system: CPT, display: 'Laparoscopy, surgical, with vaginal hysterectomy, for uterus 250 g or less' },
+    { code: '58552', system: CPT, display: 'Laparoscopy, surgical, with vaginal hysterectomy, for uterus 250 g or less; with removal of tube(s) and/or ovary(s)' },
+    { code: '58553', system: CPT, display: 'Laparoscopy, surgical, with vaginal hysterectomy, for uterus greater than 250 g' },
+    { code: '58554', system: CPT, display: 'Laparoscopy, surgical, with vaginal hysterectomy, for uterus greater than 250 g; with removal of tube(s) and/or ovary(s)' },
+    { code: '58570', system: CPT, display: 'Laparoscopy, surgical, with total hysterectomy, for uterus 250 g or less' },
+    { code: '58571', system: CPT, display: 'Laparoscopy, surgical, with total hysterectomy, for uterus 250 g or less; with removal of tube(s) and/or ovary(s)' },
+    { code: '58572', system: CPT, display: 'Laparoscopy, surgical, with total hysterectomy, for uterus greater than 250 g' },
+    { code: '58573', system: CPT, display: 'Laparoscopy, surgical, with total hysterectomy, for uterus greater than 250 g; with removal of tube(s) and/or ovary(s)' },
+    { code: '58575', system: CPT, display: 'Laparoscopy, surgical, total hysterectomy for resection of malignancy, with omentectomy' },
+    // ICD-10-PCS (procedure codes)
+    { code: '0UTC0ZZ', system: 'ICD10PCS', display: 'Resection of Cervix, Open Approach' },
+    { code: '0UTC4ZZ', system: 'ICD10PCS', display: 'Resection of Cervix, Percutaneous Endoscopic Approach' },
+    { code: '0UTC7ZZ', system: 'ICD10PCS', display: 'Resection of Cervix, Via Natural or Artificial Opening' },
+    { code: '0UTC8ZZ', system: 'ICD10PCS', display: 'Resection of Cervix, Via Natural or Artificial Opening Endoscopic' },
+    // ICD-10-CM (history/status codes)
+    { code: 'Z90.710', system: ICD10CM, display: 'Acquired absence of both cervix and uterus' },
+    { code: 'Z90.711', system: ICD10CM, display: 'Acquired absence of uterus with remaining cervical stump' },
+    { code: 'Z90.712', system: ICD10CM, display: 'Acquired absence of cervix with remaining uterus' },
+  ],
+};
+
+/**
+ * Cervical Cancer - diagnosis codes for exclusion
+ */
+export const CERVICAL_CANCER_VALUE_SET: StandardValueSet = {
+  id: 'cervical-cancer',
+  oid: '2.16.840.1.113883.3.464.1003.108.12.1007',
+  name: 'Cervical Cancer',
+  codes: [
+    { code: 'C53.0', system: ICD10CM, display: 'Malignant neoplasm of endocervix' },
+    { code: 'C53.1', system: ICD10CM, display: 'Malignant neoplasm of exocervix' },
+    { code: 'C53.8', system: ICD10CM, display: 'Malignant neoplasm of overlapping sites of cervix uteri' },
+    { code: 'C53.9', system: ICD10CM, display: 'Malignant neoplasm of cervix uteri, unspecified' },
+    { code: 'D06.0', system: ICD10CM, display: 'Carcinoma in situ of endocervix' },
+    { code: 'D06.1', system: ICD10CM, display: 'Carcinoma in situ of exocervix' },
+    { code: 'D06.7', system: ICD10CM, display: 'Carcinoma in situ of other parts of cervix' },
+    { code: 'D06.9', system: ICD10CM, display: 'Carcinoma in situ of cervix, unspecified' },
+    { code: 'Z85.41', system: ICD10CM, display: 'Personal history of malignant neoplasm of cervix uteri' },
+  ],
+};
+
+// =============================================================================
 // CRC SCREENING EXCLUSION VALUE SETS
 // =============================================================================
 
@@ -337,6 +506,27 @@ export function getCRCScreeningExclusionValueSets(): StandardValueSet[] {
     HOSPICE_CARE_VALUE_SET,
     FRAILTY_VALUE_SET,
     DEMENTIA_VALUE_SET,
+  ];
+}
+
+/**
+ * Get all cervical cancer screening numerator value sets
+ */
+export function getCervicalScreeningNumeratorValueSets(): StandardValueSet[] {
+  return [
+    PAP_TEST_VALUE_SET,
+    HPV_TEST_VALUE_SET,
+  ];
+}
+
+/**
+ * Get all cervical cancer screening exclusion value sets
+ */
+export function getCervicalScreeningExclusionValueSets(): StandardValueSet[] {
+  return [
+    HYSTERECTOMY_NO_CERVIX_VALUE_SET,
+    CERVICAL_CANCER_VALUE_SET,
+    HOSPICE_CARE_VALUE_SET,
   ];
 }
 
