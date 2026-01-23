@@ -102,11 +102,10 @@ A guided 8-step process for creating new measures.
 1. **Choose Method** - Select AI-guided, copy, or blank
 2. **Upload Documents** - Add specification files (AI mode)
 3. **Metadata** - Enter measure ID, title, program, steward
-4. **Initial Population** - Define who's eligible for the measure
-5. **Denominator** - Define the target group (often same as initial pop)
+4. **Denominator** - Define who's eligible for the measure (age, diagnoses, encounters)
+5. **Numerator** - Define what qualifies as "success"
 6. **Exclusions** - Define who should be excluded
-7. **Numerator** - Define what qualifies as "success"
-8. **Review & Create** - Preview CQL, confirm, and create
+7. **Review & Create** - Preview CQL, confirm, and create
 
 **Smart Features:**
 - Unsaved changes warning before closing
@@ -226,42 +225,80 @@ Before deploying a measure to production, you need to know it works correctly. T
 | Bonzo Madrid | 30 | Male | Poorly controlled diabetes | Non-compliance |
 | Colonel Graff | 75 | Male | No recent visits | Care gap detection |
 
-**Validation Trace:**
+**Validation Flow:**
 
-For each patient, the system shows step-by-step evaluation:
+The validation harness evaluates patients through three population sections:
+
+1. **Initial Population** - All eligibility criteria (age, gender, diagnoses, encounters)
+2. **Denominator Exclusions** - Conditions that exclude patients (hospice, terminal illness)
+3. **Numerator** - Success criteria (screenings, test results, procedures)
+
+**Visual Status Indicators:**
+
+Each population section has clear visual feedback:
+
+| Status | Visual Indicator |
+|--------|-----------------|
+| **All Criteria Met** | Green background, ✓ checkmark icon, green title, solid green chip |
+| **Criteria Not Met** | Neutral background, ✗ icon, muted title, red outlined chip |
+
+This makes it immediately clear at a glance whether each section passed or failed.
+
+**Detailed Criteria Breakdown:**
+
+Each population section shows ALL individual criteria with pass/fail status:
 
 ```
-Patient: Lady Jessica (47F)
-
-✓ Initial Population: PASSED
-  → Age 47 is within 18-75 range
-  → Has qualifying encounter on 2024-03-15
-
-✓ Denominator: PASSED
-  → Equals Initial Population
-
-✗ Denominator Exclusions: NOT MET (good)
-  → No hospice care found
-  → No terminal illness diagnosis
-
-✓ Numerator: PASSED
-  → HbA1c test on 2024-03-15
-  → Result: 6.8% (controlled)
-
-FINAL OUTCOME: IN NUMERATOR ✓
+┌─────────────────────────────────────────────────────────────────┐
+│ ✓ INITIAL POPULATION                          [IN POPULATION]  │
+│   Patient must meet ALL criteria to be included                 │
+├─────────────────────────────────────────────────────────────────┤
+│ ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
+│ │ ✓ Gender     │AND │ ✓ Age        │AND │ ✓ Diagnosis  │       │
+│ │   Requirement│    │   Requirement│    │   Requirement│       │
+│ │              │    │              │    │              │       │
+│ │ Female meets │    │ Age 47 at MP │    │ I10 - HTN    │       │
+│ │ requirement  │    │ start, 47 at │    │ Matched on   │       │
+│ │              │    │ MP end       │    │ 2024-06-12   │       │
+│ └──────────────┘    └──────────────┘    └──────────────┘       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 **Evidence Facts:**
-Each step shows the specific patient data that matched:
-- Diagnosis codes found
-- Procedure dates
-- Lab values
-- Medication records
+Each criterion card shows:
+- Pass/fail status with checkmark or X
+- "Met" or "Not Met" badge
+- Description of the requirement
+- Associated medical codes (ICD-10, CPT, LOINC, etc.)
+- Date when the code was recorded
+- Source system
+
+**CQL Logic Display:**
+Click any criterion card to see:
+- The generated CQL logic with correct lookback periods
+- All EMR data records used for evaluation
+- Code system and OID references
+
+Example CQL for colonoscopy:
+```
+["Procedure": "Colonoscopy"] P where P.performed 10 years or less before end of "Measurement Period"
+```
+
+**Screening Measure Logic:**
+
+For screening measures (colorectal, cervical, breast cancer), the Numerator section shows:
+- **OR logic** - "ANY ONE screening test qualifies"
+- Each screening option with its valid lookback period:
+  - Colonoscopy: 10 years
+  - Flexible Sigmoidoscopy: 5 years
+  - CT Colonography: 5 years
+  - FIT-DNA: 3 years
+  - FOBT/FIT: 1 year
 
 **"How Close" Analysis:**
-When a patient doesn't meet the numerator, the system explains what's missing:
+When a patient doesn't meet criteria, the system explains what's missing:
 - "Missing: Colonoscopy within 10 years OR FIT test within 1 year"
-- "Missing: HbA1c test during measurement period"
+- "Patient is too young (age 40). Adults 45-75 years of age required"
 
 **Automatic Measure Detection:**
 
@@ -269,9 +306,10 @@ The system recognizes specific measure types and applies appropriate rules:
 
 | Measure Type | Auto-Applied Rules |
 |--------------|-------------------|
-| Cervical Cancer Screening | Female patients only, age 21-64 |
+| Cervical Cancer Screening | Female patients only, age 21-64, Pap test (3yr) or HPV (5yr) |
 | Childhood Immunizations | Children turning 2 during measurement period |
-| Colorectal Cancer Screening | Age 45-75, specific screening tests |
+| Colorectal Cancer Screening | Age 45-75, multiple screening options with different lookbacks |
+| Breast Cancer Screening | Female patients, mammography within 2 years |
 
 ---
 
@@ -579,8 +617,10 @@ This data feeds back to improve AI extraction accuracy over time.
 |---------|---------|
 | 1.0 | Initial release - core measure management, AI extraction, code generation |
 | 1.1 | Added gender/age pre-checks for cervical cancer and childhood immunization measures |
+| 1.2 | Validation harness overhaul - detailed Initial Population breakdown, visual status indicators |
+| 1.3 | Streamlined measure creation wizard - consolidated Denominator step, removed Quick Parse |
 
 ---
 
 *Last Updated: January 2026*
-*MeasureAccelerator Product Specification v1.1*
+*MeasureAccelerator Product Specification v1.3*
