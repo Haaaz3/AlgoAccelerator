@@ -2234,9 +2234,9 @@ export function ValidationTraceViewer() {
               {/* Summary pills */}
               <div className="flex flex-wrap gap-3 mb-6">
                 <SummaryPill
-                  label="Denominator"
-                  value={selectedTrace.populations.initialPopulation.met && selectedTrace.populations.denominator.met ? 'In' : 'Not In'}
-                  positive={selectedTrace.populations.initialPopulation.met && selectedTrace.populations.denominator.met}
+                  label="Initial Population"
+                  value={selectedTrace.populations.initialPopulation.met ? 'In' : 'Not In'}
+                  positive={selectedTrace.populations.initialPopulation.met}
                 />
                 <SummaryPill
                   label="Denominator Exclusions"
@@ -2250,18 +2250,15 @@ export function ValidationTraceViewer() {
                 />
               </div>
 
-              {/* Population sections - Denominator includes IP criteria */}
-              {(selectedTrace.populations.initialPopulation.nodes.length > 0 || selectedTrace.populations.denominator.nodes.length > 0) && (
+              {/* Initial Population - shows each criterion (age, sex, diagnosis, etc.) */}
+              {selectedTrace.populations.initialPopulation.nodes.length > 0 && (
                 <ValidationSection
-                  title="Denominator"
-                  subtitle="ALL criteria must be true to be in the denominator"
-                  nodes={[
-                    ...selectedTrace.populations.initialPopulation.nodes,
-                    ...selectedTrace.populations.denominator.nodes.filter(n => n.title !== 'Equals Initial Population')
-                  ]}
+                  title="Initial Population"
+                  subtitle="Patient must meet ALL criteria to be included in the measure"
+                  nodes={selectedTrace.populations.initialPopulation.nodes}
                   operator="AND"
-                  resultChip={selectedTrace.populations.initialPopulation.met && selectedTrace.populations.denominator.met ? 'IN DENOMINATOR' : 'NOT IN DENOMINATOR'}
-                  resultPositive={selectedTrace.populations.initialPopulation.met && selectedTrace.populations.denominator.met}
+                  resultChip={selectedTrace.populations.initialPopulation.met ? 'IN POPULATION' : 'NOT IN POPULATION'}
+                  resultPositive={selectedTrace.populations.initialPopulation.met}
                   onInspect={setInspectNode}
                 />
               )}
