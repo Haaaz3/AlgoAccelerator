@@ -2333,10 +2333,33 @@ function ValidationSection({
   onInspect: (node: ValidationNode) => void;
 }) {
   return (
-    <div className="mb-6 bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-light)] p-5">
-      <div className="mb-3">
-        <h3 className="text-xs text-[var(--text-muted)] uppercase tracking-wider">{title}</h3>
-        {subtitle && <p className="text-xs text-[var(--text-dim)] mt-1">{subtitle}</p>}
+    <div className={`mb-6 rounded-xl border p-5 transition-colors ${
+      resultPositive
+        ? 'bg-[var(--success)]/5 border-[var(--success)]/30'
+        : 'bg-[var(--bg-secondary)] border-[var(--border-light)]'
+    }`}>
+      {/* Header with status indicator */}
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            {resultPositive ? (
+              <CheckCircle className="w-5 h-5 text-[var(--success)]" />
+            ) : (
+              <XCircle className="w-5 h-5 text-[var(--danger)]" />
+            )}
+            <h3 className={`text-sm font-semibold uppercase tracking-wider ${
+              resultPositive ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'
+            }`}>{title}</h3>
+          </div>
+          {subtitle && <p className="text-xs text-[var(--text-dim)] mt-1 ml-7">{subtitle}</p>}
+        </div>
+        <div className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap ${
+          resultPositive
+            ? 'bg-[var(--success)] text-white'
+            : 'bg-[var(--danger-light)] text-[var(--danger)] border border-[var(--danger)]/30'
+        }`}>
+          {resultChip}
+        </div>
       </div>
 
       <div className="flex items-stretch gap-4 overflow-x-auto pb-2">
@@ -2352,14 +2375,6 @@ function ValidationSection({
             )}
           </div>
         ))}
-
-        <div className={`self-center px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap ${
-          resultPositive
-            ? 'bg-[var(--success-light)] text-[var(--success)] border border-[var(--success)]/30'
-            : 'bg-[var(--danger-light)] text-[var(--danger)] border border-[var(--danger)]/30'
-        }`}>
-          {resultChip}
-        </div>
       </div>
     </div>
   );
