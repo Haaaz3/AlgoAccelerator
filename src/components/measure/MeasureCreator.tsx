@@ -42,12 +42,12 @@ interface MeasureCreatorProps {
 }
 
 // Step configuration - value sets are now integrated into each population step
+// Note: initial_pop is now labeled "Denominator" and the separate denominator step is hidden
 const STEPS: { id: WizardStep; label: string; icon: typeof Users; description: string }[] = [
   { id: 'start', label: 'Start', icon: Plus, description: 'Choose creation method' },
   { id: 'ai_input', label: 'AI Input', icon: Brain, description: 'Paste measure specification for AI analysis' },
   { id: 'metadata', label: 'Basics', icon: FileText, description: 'Measure information' },
-  { id: 'initial_pop', label: 'Initial Pop', icon: Users, description: 'Define eligible patients & value sets' },
-  { id: 'denominator', label: 'Denominator', icon: Target, description: 'Define denominator & value sets' },
+  { id: 'initial_pop', label: 'Denominator', icon: Users, description: 'Define eligible patients & value sets' },
   { id: 'numerator', label: 'Numerator', icon: Check, description: 'Define success criteria & value sets' },
   { id: 'exclusions', label: 'Exclusions', icon: Minus, description: 'Define exclusions & value sets' },
   { id: 'review', label: 'Review', icon: Sparkles, description: 'Review and create' },
@@ -1755,14 +1755,14 @@ This text will be combined with any uploaded documents for AI analysis.`}
             </div>
           )}
 
-          {/* Step: Initial Population */}
+          {/* Step: Denominator (includes Initial Population criteria) */}
           {currentStep === 'initial_pop' && (
             <div className="max-w-3xl mx-auto space-y-6">
               <div className="text-center mb-6">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-500/15 flex items-center justify-center">
                   <Users className="w-8 h-8 text-[var(--accent)]" />
                 </div>
-                <h3 className="text-xl font-semibold text-[var(--text)] mb-2">Initial Population</h3>
+                <h3 className="text-xl font-semibold text-[var(--text)] mb-2">Denominator</h3>
                 <p className="text-[var(--text-muted)]">
                   Define who is eligible to be evaluated by this measure
                 </p>
@@ -1772,14 +1772,14 @@ This text will be combined with any uploaded documents for AI analysis.`}
               <div className="flex items-start gap-3 p-4 bg-[var(--accent-light)] border border-blue-500/20 rounded-lg">
                 <Info className="w-5 h-5 text-[var(--accent)] flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-[var(--text-muted)]">
-                  The Initial Population identifies all patients who share common characteristics.
+                  The Denominator identifies all patients who are eligible for this measure.
                   Build your criteria using the logic builder below - add diagnoses, encounters, procedures, etc. with timing and quantity requirements.
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-[var(--text)] mb-2">
-                  Population Description (narrative)
+                  Denominator Description (narrative)
                 </label>
                 <textarea
                   value={initialPopCriteria.description}
@@ -1834,55 +1834,8 @@ This text will be combined with any uploaded documents for AI analysis.`}
                   criteria={initialPopCriteria.criteriaBlocks || []}
                   onChange={(blocks) => setInitialPopCriteria({ ...initialPopCriteria, criteriaBlocks: blocks })}
                   availableValueSets={availableValueSets}
-                  populationContext="Initial Population"
-                  onCqlGenerated={(cql) => setGeneratedCql(prev => ({ ...prev, initialPop: cql }))}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Step: Denominator */}
-          {currentStep === 'denominator' && (
-            <div className="max-w-3xl mx-auto space-y-6">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-purple-500/15 flex items-center justify-center">
-                  <Target className="w-8 h-8 text-purple-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-[var(--text)] mb-2">Denominator</h3>
-                <p className="text-[var(--text-muted)]">
-                  Define the subset of the Initial Population who are eligible for the quality action
-                </p>
-              </div>
-
-              <div className="flex items-start gap-3 p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-                <Info className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-[var(--text-muted)]">
-                  For most proportion measures, the Denominator equals the Initial Population.
-                  Add criteria below only if you need to further refine who is eligible.
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[var(--text)] mb-2">
-                  Denominator Description (narrative)
-                </label>
-                <textarea
-                  value={denominatorCriteria.description}
-                  onChange={(e) => setDenominatorCriteria({ ...denominatorCriteria, description: e.target.value })}
-                  placeholder="e.g., Equals Initial Population (or describe additional criteria)"
-                  rows={2}
-                  className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-purple-500 resize-none"
-                />
-              </div>
-
-              {/* Clinical Criteria Builder */}
-              <div className="pt-4 border-t border-[var(--border)]">
-                <CriteriaBlockBuilder
-                  criteria={denominatorCriteria.criteriaBlocks || []}
-                  onChange={(blocks) => setDenominatorCriteria({ ...denominatorCriteria, criteriaBlocks: blocks })}
-                  availableValueSets={availableValueSets}
                   populationContext="Denominator"
-                  onCqlGenerated={(cql) => setGeneratedCql(prev => ({ ...prev, denominator: cql }))}
+                  onCqlGenerated={(cql) => setGeneratedCql(prev => ({ ...prev, initialPop: cql }))}
                 />
               </div>
             </div>

@@ -57,7 +57,7 @@ export function UMSEditor() {
 
   const getPopulationLabel = (type: string) => {
     switch (type) {
-      case 'initial_population': return 'Initial Population';
+      case 'initial_population': return 'Denominator'; // IP is merged into Denominator for display
       case 'denominator': return 'Denominator';
       case 'denominator_exclusion': return 'Denominator Exclusions';
       case 'denominator_exception': return 'Denominator Exceptions';
@@ -197,15 +197,28 @@ export function UMSEditor() {
             </div>
           </div>
 
-          {/* Population sections */}
+          {/* Population sections - IP is merged into Denominator for cleaner display */}
           <div className="space-y-4">
-            {measure.populations.map((population) => (
+            {measure.populations
+              .filter((population) => {
+                // Hide denominator if it only references IP (shown under Denominator label via IP)
+                if (population.type === 'denominator') {
+                  const desc = population.description?.toLowerCase() || '';
+                  const narrative = population.narrative?.toLowerCase() || '';
+                  if ((desc.includes('equals initial') || desc.includes('= initial') || narrative.includes('equals initial')) &&
+                      (!population.criteria?.children || population.criteria.children.length === 0)) {
+                    return false;
+                  }
+                }
+                return true;
+              })
+              .map((population) => (
               <PopulationSection
                 key={population.id}
                 population={population}
                 measureId={measure.id}
-                isExpanded={expandedSections.has(population.type.split('_')[0])}
-                onToggle={() => toggleSection(population.type.split('_')[0])}
+                isExpanded={expandedSections.has(population.type === 'initial_population' ? 'denominator' : population.type.split('_')[0])}
+                onToggle={() => toggleSection(population.type === 'initial_population' ? 'denominator' : population.type.split('_')[0])}
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
                 onSelectValueSet={setActiveValueSet}

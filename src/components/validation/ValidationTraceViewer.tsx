@@ -2234,17 +2234,12 @@ export function ValidationTraceViewer() {
               {/* Summary pills */}
               <div className="flex flex-wrap gap-3 mb-6">
                 <SummaryPill
-                  label="Initial Population"
-                  value={selectedTrace.populations.initialPopulation.met ? 'Met' : 'Not Met'}
-                  positive={selectedTrace.populations.initialPopulation.met}
-                />
-                <SummaryPill
                   label="Denominator"
-                  value={selectedTrace.populations.denominator.met ? 'In' : 'Out'}
-                  positive={selectedTrace.populations.denominator.met}
+                  value={selectedTrace.populations.initialPopulation.met && selectedTrace.populations.denominator.met ? 'In' : 'Not In'}
+                  positive={selectedTrace.populations.initialPopulation.met && selectedTrace.populations.denominator.met}
                 />
                 <SummaryPill
-                  label="Exclusions"
+                  label="Denominator Exclusions"
                   value={selectedTrace.populations.exclusions.met ? 'Excluded' : 'None'}
                   positive={!selectedTrace.populations.exclusions.met}
                 />
@@ -2255,26 +2250,18 @@ export function ValidationTraceViewer() {
                 />
               </div>
 
-              {/* Population sections */}
-              {selectedTrace.populations.initialPopulation.nodes.length > 0 && (
-                <ValidationSection
-                  title="Initial Population"
-                  subtitle="ALL criteria must be true"
-                  nodes={selectedTrace.populations.initialPopulation.nodes}
-                  operator="AND"
-                  resultChip={selectedTrace.populations.initialPopulation.met ? 'In IP' : 'Not in IP'}
-                  resultPositive={selectedTrace.populations.initialPopulation.met}
-                  onInspect={setInspectNode}
-                />
-              )}
-
-              {selectedTrace.populations.denominator.nodes.length > 0 && (
+              {/* Population sections - Denominator includes IP criteria */}
+              {(selectedTrace.populations.initialPopulation.nodes.length > 0 || selectedTrace.populations.denominator.nodes.length > 0) && (
                 <ValidationSection
                   title="Denominator"
-                  nodes={selectedTrace.populations.denominator.nodes}
+                  subtitle="ALL criteria must be true to be in the denominator"
+                  nodes={[
+                    ...selectedTrace.populations.initialPopulation.nodes,
+                    ...selectedTrace.populations.denominator.nodes.filter(n => n.title !== 'Equals Initial Population')
+                  ]}
                   operator="AND"
-                  resultChip="Check Exclusions →"
-                  resultPositive={true}
+                  resultChip={selectedTrace.populations.initialPopulation.met && selectedTrace.populations.denominator.met ? 'IN DENOMINATOR' : 'NOT IN DENOMINATOR'}
+                  resultPositive={selectedTrace.populations.initialPopulation.met && selectedTrace.populations.denominator.met}
                   onInspect={setInspectNode}
                 />
               )}
