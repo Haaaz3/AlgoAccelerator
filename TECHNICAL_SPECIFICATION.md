@@ -623,6 +623,88 @@ return {
 
 ---
 
+## CQL Generation
+
+### CQL Generator Service (`src/services/cqlGenerator.ts`)
+
+**Purpose**: Generate Clinical Quality Language (CQL) from Universal Measure Spec (UMS)
+
+**Main Function**:
+
+```typescript
+export function generateCQL(measure: UniversalMeasureSpec): CQLGenerationResult {
+  // Returns { success, cql, errors, warnings, metadata }
+}
+```
+
+**Features**:
+
+| Feature | Description |
+|---------|-------------|
+| Full Library Structure | FHIR R4, QI-Core, eCQM aligned |
+| Value Set Declarations | VSAC canonical URLs with OIDs |
+| Population Definitions | IP, Denominator, Exclusions, Numerator |
+| Measure-Specific Helpers | CRC, Cervical, Breast cancer screening |
+| CQL Validation | Integration with CQL Services API |
+
+**Generated CQL Structure**:
+
+```cql
+library MeasureName version '1.0.0'
+
+using FHIR version '4.0.1'
+
+include FHIRHelpers version '4.0.1' called FHIRHelpers
+include QICoreCommon version '2.0.0' called QICoreCommon
+include MATGlobalCommonFunctions version '7.0.000' called Global
+
+// Value Sets
+valueset "Colonoscopy": 'http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113883.3.464.1003.108.12.1020'
+
+parameter "Measurement Period" Interval<DateTime>
+
+context Patient
+
+define "Initial Population":
+  AgeInYearsAt(date from end of "Measurement Period") in Interval[45, 75]
+
+define "Denominator":
+  "Initial Population"
+
+define "Denominator Exclusion":
+  "Has Hospice Services"
+    or "Has Colorectal Cancer"
+    or "Has Total Colectomy"
+
+define "Numerator":
+  exists "Colonoscopy Performed"
+    or exists "Fecal Occult Blood Test Performed"
+    ...
+```
+
+**CQL Validation**:
+
+```typescript
+// Validate CQL syntax via CQL Services API
+export async function validateCQL(
+  cql: string,
+  serviceUrl: string = 'http://localhost:8080'
+): Promise<CQLValidationResult>
+
+// Check if CQL Services is available
+export async function isCQLServiceAvailable(
+  serviceUrl: string = 'http://localhost:8080'
+): Promise<boolean>
+```
+
+**Running CQL Services Locally**:
+
+```bash
+docker run -p 8080:8080 cqframework/cql-translation-service
+```
+
+---
+
 ## Deployment
 
 ### Vercel Configuration
