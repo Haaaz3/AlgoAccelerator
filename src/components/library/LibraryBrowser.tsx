@@ -370,14 +370,17 @@ function ComponentCard({
   const complexityColor = getComplexityColor(component.complexity.level);
   const complexityDots = getComplexityDots(component.complexity.level);
   const isComposite = component.type === 'composite';
+  const isArchived = component.versionInfo.status === 'archived';
 
   return (
     <div
       onClick={onClick}
-      className={`bg-[var(--bg-elevated,var(--bg))] border rounded-xl p-4 cursor-pointer transition-all group hover:shadow-md ${
-        isSelected
-          ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]/30'
-          : 'border-[var(--border)] hover:border-[var(--accent)]/40'
+      className={`border rounded-xl p-4 cursor-pointer transition-all group ${
+        isArchived
+          ? 'bg-[var(--bg-secondary)] border-[var(--border)] opacity-50 grayscale'
+          : isSelected
+            ? 'bg-[var(--bg-elevated,var(--bg))] border-[var(--accent)] ring-1 ring-[var(--accent)]/30'
+            : 'bg-[var(--bg-elevated,var(--bg))] border-[var(--border)] hover:border-[var(--accent)]/40 hover:shadow-md'
       }`}
     >
       {/* Header: Name + Type Badge */}

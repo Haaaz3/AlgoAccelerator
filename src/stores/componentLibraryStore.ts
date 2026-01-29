@@ -109,7 +109,7 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
       components: [],
       initialized: false,
       selectedComponentId: null,
-      filters: { showArchived: false },
+      filters: { showArchived: true },
       editingComponentId: null,
       importMatcherState: null,
 
@@ -402,16 +402,35 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           }
         }
 
-        // Reset all components' usage and rebuild from usageMap
+        // Reset all components' usage, rebuild from usageMap, and auto-archive/unarchive
         const updatedComponents = state.components.map((c) => {
           const measureIds = usageMap.has(c.id) ? Array.from(usageMap.get(c.id)!) : [];
+          const hasUsage = measureIds.length > 0;
+
+          // Auto-archive if no usage (and not already archived)
+          // Un-archive if it gained usage (restore to approved or draft)
+          let newStatus = c.versionInfo.status;
+          if (!hasUsage && c.versionInfo.status !== 'archived') {
+            newStatus = 'archived';
+          } else if (hasUsage && c.versionInfo.status === 'archived') {
+            // Restore: find the last non-archived status from history, default to 'approved'
+            const lastNonArchived = [...c.versionInfo.versionHistory]
+              .reverse()
+              .find((v) => v.status !== 'archived');
+            newStatus = lastNonArchived?.status || 'approved';
+          }
+
           return {
             ...c,
             usage: {
               ...c.usage,
               measureIds,
               usageCount: measureIds.length,
-              lastUsedAt: measureIds.length > 0 ? new Date().toISOString() : c.usage.lastUsedAt,
+              lastUsedAt: hasUsage ? new Date().toISOString() : c.usage.lastUsedAt,
+            },
+            versionInfo: {
+              ...c.versionInfo,
+              status: newStatus,
             },
           } as LibraryComponent;
         });
