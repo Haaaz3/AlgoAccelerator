@@ -85,6 +85,9 @@ const STATIC_TEST_PATIENTS: TestPatient[] = [
     procedures: [
       { code: '83036', system: CPT, display: 'Hemoglobin A1c', date: '2026-03-10' },
       { code: '2028-9', system: LOINC, display: 'Retinal eye exam', date: '2026-03-10' },
+      { code: '88175', system: CPT, display: 'Cytopathology, cervical or vaginal, collected in preservative fluid, automated thin layer preparation, with screening by automated system and review by physician', date: '2025-07-18' },
+      { code: '87625', system: CPT, display: 'Infectious agent detection by nucleic acid; Human Papillomavirus (HPV), high-risk types', date: '2025-07-18' },
+      { code: '45378', system: CPT, display: 'Colonoscopy, diagnostic', date: '2022-08-15' },
     ],
     observations: [
       { code: '8480-6', system: LOINC, display: 'Systolic blood pressure', date: '2026-11-03', value: 128, unit: 'mm[Hg]' },
@@ -92,6 +95,7 @@ const STATIC_TEST_PATIENTS: TestPatient[] = [
       { code: '4548-4', system: LOINC, display: 'Hemoglobin A1c', date: '2026-03-10', value: 6.8, unit: '%' },
       { code: '2339-0', system: LOINC, display: 'Glucose [Mass/volume] in Blood', date: '2026-11-03', value: 118, unit: 'mg/dL' },
       { code: '2085-9', system: LOINC, display: 'HDL Cholesterol', date: '2026-07-18', value: 55, unit: 'mg/dL' },
+      { code: '10524-7', system: LOINC, display: 'Cytology report of Cervical or vaginal smear or scraping Cyto stain', date: '2025-07-18', value: 0, unit: 'negative' },
     ],
     medications: [
       { code: '860975', system: RXNORM, display: 'Metformin 1000 MG Oral Tablet', startDate: '2019-04-15', status: 'active' },
@@ -132,6 +136,7 @@ const STATIC_TEST_PATIENTS: TestPatient[] = [
       { code: '93000', system: CPT, display: 'Electrocardiogram, routine ECG', date: '2026-02-28' },
       { code: '82565', system: CPT, display: 'Creatinine; blood', date: '2026-06-15' },
       { code: '83036', system: CPT, display: 'Hemoglobin A1c', date: '2026-10-08' },
+      { code: '45378', system: CPT, display: 'Colonoscopy, diagnostic', date: '2020-04-22' },
     ],
     observations: [
       { code: '8480-6', system: LOINC, display: 'Systolic blood pressure', date: '2026-10-08', value: 142, unit: 'mm[Hg]' },
@@ -172,7 +177,10 @@ const STATIC_TEST_PATIENTS: TestPatient[] = [
     encounters: [
       { code: '99395', system: CPT, display: 'Preventive visit, 18-39 years', date: '2026-04-22', type: 'outpatient' },
     ],
-    procedures: [],
+    procedures: [
+      // Pap test from over 3 years ago — outside the valid lookback period, so this should NOT satisfy cervical screening numerator
+      { code: '88175', system: CPT, display: 'Cytopathology, cervical or vaginal, automated thin layer prep', date: '2022-05-10' },
+    ],
     observations: [
       { code: '8480-6', system: LOINC, display: 'Systolic blood pressure', date: '2026-04-22', value: 112, unit: 'mm[Hg]' },
       { code: '8462-4', system: LOINC, display: 'Diastolic blood pressure', date: '2026-04-22', value: 72, unit: 'mm[Hg]' },
@@ -214,6 +222,7 @@ const STATIC_TEST_PATIENTS: TestPatient[] = [
     procedures: [
       { code: '93000', system: CPT, display: 'Electrocardiogram, routine ECG', date: '2026-01-15' },
       { code: '95810', system: CPT, display: 'Polysomnography', date: '2019-09-15' },
+      { code: '82274', system: CPT, display: 'Blood, occult, by fecal hemoglobin determination by immunoassay, qualitative (FIT)', date: '2026-05-20' },
     ],
     observations: [
       { code: '8480-6', system: LOINC, display: 'Systolic blood pressure', date: '2026-10-12', value: 158, unit: 'mm[Hg]' },

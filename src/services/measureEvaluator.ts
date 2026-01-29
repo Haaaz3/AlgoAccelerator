@@ -1581,8 +1581,8 @@ function getCodesFromElement(element: DataElement, measure: UniversalMeasureSpec
 
 function matchCode(code: string, system: string, targetCodes: CodeReference[]): boolean {
   if (targetCodes.length === 0) {
-    // If no specific codes, consider it a match (generic criteria)
-    return true;
+    // No target codes means we can't confirm a match — require actual codes
+    return false;
   }
 
   const normalizedCode = code.replace(/\./g, '').toUpperCase();
@@ -1595,10 +1595,11 @@ function matchCode(code: string, system: string, targetCodes: CodeReference[]): 
     // Match code (with or without dots)
     const codeMatches = normalizedCode === targetCode || code === tc.code;
 
-    // Match system (flexible matching)
+    // Match system — accept if systems match, or if either side is unknown
     const systemMatches = normalizedSystem === targetSystem ||
                           !targetSystem ||
-                          !normalizedSystem;
+                          !normalizedSystem ||
+                          normalizedSystem === targetSystem.toUpperCase();
 
     return codeMatches && systemMatches;
   });
