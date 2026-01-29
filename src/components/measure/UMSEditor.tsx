@@ -710,14 +710,8 @@ function CriteriaNode({
                 <span className="text-xs px-2 py-1 bg-[var(--success-light)] text-[var(--success)] rounded-lg flex items-center gap-1">
                   <span className="font-medium">Age:</span>
                   <span className="font-bold">{element.thresholds.ageMin}</span>
-                  {element.thresholds.ageMax !== undefined ? (
-                    <>
-                      <span>-</span>
-                      <span className="font-bold">{element.thresholds.ageMax}</span>
-                    </>
-                  ) : (
-                    <span className="font-bold">+</span>
-                  )}
+                  <span>-</span>
+                  <span className="font-bold">{element.thresholds.ageMax ?? 150}</span>
                   <span>years</span>
                 </span>
               )}
@@ -890,13 +884,26 @@ function NodeDetailPanel({
     ? (currentMeasure?.valueSets.find(vs => vs.id === node?.valueSet?.id) || allValueSets.find(vs => vs.id === node?.valueSet?.id) || node.valueSet)
     : undefined;
 
+  // Helper to detect "X or older" pattern in text — returns true if open-ended upper bound
+  const isOpenEndedAge = (text: string): boolean => {
+    return /(\d+)\s*(?:or|and)\s*older/i.test(text) || /(\d+)\s*\+/.test(text) || /(\d+)\s*years\s*of\s*age\s*(?:or|and)\s*older/i.test(text);
+  };
+
   // Helper to extract age range from description or additionalRequirements
-  const parseAgeRange = (): { min: number; max: number | null; source: 'description' | 'additionalRequirements' | 'thresholds'; index?: number } | null => {
+  const parseAgeRange = (): { min: number; max: number; source: 'description' | 'additionalRequirements' | 'thresholds'; index?: number } | null => {
+    // Check if description indicates open-ended age (e.g., "18 or older")
+    const descIsOpenEnded = isOpenEndedAge(node.description);
+
     // First check thresholds (most authoritative)
     if (node.thresholds?.ageMin !== undefined || node.thresholds?.ageMax !== undefined) {
+      let max = node.thresholds.ageMax ?? 150;
+      // If thresholds has ageMin == ageMax AND description says "or older", fix to 150
+      if (descIsOpenEnded && (max === node.thresholds.ageMin || max === undefined)) {
+        max = 150;
+      }
       return {
         min: node.thresholds.ageMin ?? 0,
-        max: node.thresholds.ageMax ?? null,
+        max,
         source: 'thresholds'
       };
     }
@@ -907,11 +914,12 @@ function NodeDetailPanel({
       return { min: parseInt(descMatch[1]), max: parseInt(descMatch[2]), source: 'description' };
     }
 
-    // Check for "X or older" / "X and older" / "X+" patterns (no upper bound)
+    // Check for "X or older" / "X and older" / "X+" patterns (upper bound = 150)
     const olderMatch = node.description.match(/(?:age[d]?\s*)?(\d+)\s*(?:or|and)\s*older/i) ||
-                       node.description.match(/(\d+)\s*\+/);
+                       node.description.match(/(\d+)\s*\+/) ||
+                       node.description.match(/(\d+)\s*years\s*of\s*age\s*(?:or|and)\s*older/i);
     if (olderMatch) {
-      return { min: parseInt(olderMatch[1]), max: null, source: 'description' };
+      return { min: parseInt(olderMatch[1]), max: 150, source: 'description' };
     }
 
     // Check for "X or younger" / "under X" patterns (no lower bound)
@@ -937,10 +945,11 @@ function NodeDetailPanel({
           return { min: parseInt(reqMatch[1]), max: parseInt(reqMatch[2]), source: 'additionalRequirements', index: i };
         }
         // Check "X or older" in requirements
-        const reqOlderMatch = req.match(/(?:age[d]?\s*)?(\d+)\s*(?:or|and)\s*older/i) ||
-                              req.match(/(\d+)\s*\+/);
-        if (reqOlderMatch) {
-          return { min: parseInt(reqOlderMatch[1]), max: null, source: 'additionalRequirements', index: i };
+        if (isOpenEndedAge(req)) {
+          const reqOlderMatch = req.match(/(\d+)/);
+          if (reqOlderMatch) {
+            return { min: parseInt(reqOlderMatch[1]), max: 150, source: 'additionalRequirements', index: i };
+          }
         }
         // Fallback single age in requirements
         const singleAgeMatch = req.match(/(?:turns?|age)\s*(\d+)/i);
@@ -1112,21 +1121,15 @@ function NodeDetailPanel({
             {editingField === 'ageRange' ? (
               <AgeRangeEditor
                 min={ageRange.min}
-                max={ageRange.max ?? 120}
+                max={ageRange.max}
                 onSave={saveAgeRange}
                 onCancel={() => setEditingField(null)}
               />
             ) : (
               <div className="flex items-center gap-3">
                 <span className="text-2xl font-bold text-[var(--accent)]">{ageRange.min}</span>
-                {ageRange.max !== null ? (
-                  <>
-                    <span className="text-[var(--text-muted)]">to</span>
-                    <span className="text-2xl font-bold text-[var(--accent)]">{ageRange.max}</span>
-                  </>
-                ) : (
-                  <span className="text-2xl font-bold text-[var(--accent)]">+</span>
-                )}
+                <span className="text-[var(--text-muted)]">to</span>
+                <span className="text-2xl font-bold text-[var(--accent)]">{ageRange.max}</span>
                 <span className="text-sm text-[var(--text-muted)]">years old</span>
               </div>
             )}
