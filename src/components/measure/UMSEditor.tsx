@@ -57,13 +57,17 @@ export function UMSEditor() {
 
   const getPopulationLabel = (type: string) => {
     switch (type) {
-      case 'initial_population': return 'Denominator'; // IP is merged into Denominator for display
+      case 'initial-population':
+      case 'initial_population': return 'Initial Population';
       case 'denominator': return 'Denominator';
+      case 'denominator-exclusion':
       case 'denominator_exclusion': return 'Denominator Exclusions';
+      case 'denominator-exception':
       case 'denominator_exception': return 'Denominator Exceptions';
       case 'numerator': return 'Numerator';
+      case 'numerator-exclusion':
       case 'numerator_exclusion': return 'Numerator Exclusions';
-      default: return type;
+      default: return type.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
   };
 

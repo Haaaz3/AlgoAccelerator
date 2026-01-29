@@ -7,8 +7,11 @@ import { validateHDISQL, type SQLValidationResult as HDISQLValidationResult } fr
 import type { SQLGenerationResult, SQLGenerationConfig } from '../../types/hdiDataModels';
 
 export function CodeGeneration() {
-  const { getActiveMeasure, selectedCodeFormat, setSelectedCodeFormat, setActiveTab } = useMeasureStore();
-  const measure = getActiveMeasure();
+  const { selectedCodeFormat, setSelectedCodeFormat, setActiveTab } = useMeasureStore();
+  // Use Zustand selector for reactive updates when measure is edited
+  const measure = useMeasureStore((state) =>
+    state.measures.find((m) => m.id === state.activeMeasureId) || null
+  );
   const format = selectedCodeFormat;
   const setFormat = setSelectedCodeFormat;
   const [isGenerating, setIsGenerating] = useState(false);
