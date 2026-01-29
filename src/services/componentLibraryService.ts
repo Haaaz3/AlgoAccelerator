@@ -258,14 +258,25 @@ export function searchComponents(
     result = result.filter((c) => c.metadata.category === filters.category);
   }
 
-  // Status filter
-  if (filters.status) {
+  // Status filter (multiselect)
+  if (filters.statuses && filters.statuses.length > 0) {
+    result = result.filter((c) => filters.statuses!.includes(c.versionInfo.status));
+  } else if (filters.status) {
+    // Legacy single-select fallback
     result = result.filter((c) => c.versionInfo.status === filters.status);
   }
 
-  // Complexity filter
-  if (filters.complexity) {
+  // Complexity filter (multiselect)
+  if (filters.complexities && filters.complexities.length > 0) {
+    result = result.filter((c) => filters.complexities!.includes(c.complexity.level));
+  } else if (filters.complexity) {
+    // Legacy single-select fallback
     result = result.filter((c) => c.complexity.level === filters.complexity);
+  }
+
+  // Minimum usage filter
+  if (filters.minUsage != null && filters.minUsage > 0) {
+    result = result.filter((c) => c.usage.usageCount >= filters.minUsage!);
   }
 
   // Archived filter

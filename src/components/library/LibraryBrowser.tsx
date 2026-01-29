@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search,
   Filter,
@@ -13,6 +13,9 @@ import {
   Clock,
   FileEdit,
   Archive,
+  Users,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useMeasureStore } from '../../stores/measureStore';
@@ -38,19 +41,25 @@ const CATEGORIES: { key: ComponentCategory | 'all'; label: string }[] = [
   { key: 'other', label: 'Other' },
 ];
 
-const STATUS_OPTIONS: { value: ApprovalStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All Statuses' },
+const STATUS_OPTIONS: { value: ApprovalStatus; label: string }[] = [
   { value: 'draft', label: 'Draft' },
-  { value: 'pending_review', label: 'Pending Review' },
+  { value: 'pending_review', label: 'Pending' },
   { value: 'approved', label: 'Approved' },
   { value: 'archived', label: 'Archived' },
 ];
 
-const COMPLEXITY_OPTIONS: { value: ComplexityLevel | 'all'; label: string }[] = [
-  { value: 'all', label: 'All Complexity' },
+const COMPLEXITY_OPTIONS: { value: ComplexityLevel; label: string }[] = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
+];
+
+const USAGE_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: 'Any usage' },
+  { value: 1, label: '1+ measures' },
+  { value: 2, label: '2+ measures' },
+  { value: 3, label: '3+ measures' },
+  { value: 5, label: '5+ measures' },
 ];
 
 function getStatusBadge(status: ApprovalStatus) {
@@ -131,14 +140,25 @@ export function LibraryBrowser() {
     setFilters({ searchQuery: e.target.value });
   };
 
-  const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value as ApprovalStatus | 'all';
-    setFilters({ status: value === 'all' ? undefined : value });
+  const handleStatusToggle = (status: ApprovalStatus) => {
+    const current = filters.statuses ?? [];
+    const next = current.includes(status)
+      ? current.filter((s) => s !== status)
+      : [...current, status];
+    setFilters({ statuses: next.length > 0 ? next : undefined });
   };
 
-  const handleComplexityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value as ComplexityLevel | 'all';
-    setFilters({ complexity: value === 'all' ? undefined : value });
+  const handleComplexityToggle = (level: ComplexityLevel) => {
+    const current = filters.complexities ?? [];
+    const next = current.includes(level)
+      ? current.filter((l) => l !== level)
+      : [...current, level];
+    setFilters({ complexities: next.length > 0 ? next : undefined });
+  };
+
+  const handleUsageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = parseInt(e.target.value, 10);
+    setFilters({ minUsage: value > 0 ? value : undefined });
   };
 
   const handleNewComponent = () => {
@@ -240,30 +260,33 @@ export function LibraryBrowser() {
               />
             </div>
 
-            {/* Status Dropdown */}
+            {/* Status Multiselect */}
+            <MultiSelectDropdown
+              icon={<Filter className="w-3.5 h-3.5" />}
+              label="Status"
+              options={STATUS_OPTIONS}
+              selected={filters.statuses ?? []}
+              onToggle={handleStatusToggle}
+            />
+
+            {/* Complexity Multiselect */}
+            <MultiSelectDropdown
+              icon={null}
+              label="Complexity"
+              options={COMPLEXITY_OPTIONS}
+              selected={filters.complexities ?? []}
+              onToggle={handleComplexityToggle}
+            />
+
+            {/* Usage Filter */}
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-dim)] pointer-events-none" />
+              <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-dim)] pointer-events-none" />
               <select
-                value={filters.status ?? 'all'}
-                onChange={handleStatusChange}
+                value={filters.minUsage ?? 0}
+                onChange={handleUsageChange}
                 className="pl-8 pr-8 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] appearance-none cursor-pointer focus:outline-none focus:border-[var(--accent)] transition-colors"
               >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Complexity Dropdown */}
-            <div className="relative">
-              <select
-                value={filters.complexity ?? 'all'}
-                onChange={handleComplexityChange}
-                className="pl-4 pr-8 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] appearance-none cursor-pointer focus:outline-none focus:border-[var(--accent)] transition-colors"
-              >
-                {COMPLEXITY_OPTIONS.map((opt) => (
+                {USAGE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
@@ -316,7 +339,7 @@ export function LibraryBrowser() {
                     <button
                       onClick={() => {
                         setSelectedCategory('all');
-                        setFilters({ searchQuery: '', status: undefined, complexity: undefined, category: undefined });
+                        setFilters({ searchQuery: '', statuses: undefined, complexities: undefined, minUsage: undefined, category: undefined });
                       }}
                       className="mt-2 text-sm text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
                     >
@@ -433,6 +456,108 @@ function ComponentCard({
           {statusBadge.label}
         </span>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MultiSelectDropdown
+// ---------------------------------------------------------------------------
+
+function MultiSelectDropdown<T extends string>({
+  icon,
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  options: { value: T; label: string }[];
+  selected: T[];
+  onToggle: (value: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const hasSelection = selected.length > 0;
+  const displayLabel =
+    selected.length === 0
+      ? `All ${label}`
+      : selected.length === 1
+        ? options.find((o) => o.value === selected[0])?.label ?? label
+        : `${selected.length} ${label}`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm cursor-pointer transition-colors focus:outline-none ${
+          hasSelection
+            ? 'bg-[var(--accent-light)] border-[var(--accent)]/40 text-[var(--accent)]'
+            : 'bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text)]'
+        }`}
+      >
+        {icon && <span className="text-[var(--text-dim)]">{icon}</span>}
+        <span className="whitespace-nowrap">{displayLabel}</span>
+        {hasSelection ? (
+          <X
+            className="w-3.5 h-3.5 ml-0.5 hover:text-[var(--text)]"
+            onClick={(e) => {
+              e.stopPropagation();
+              // Clear all selections
+              selected.forEach((s) => onToggle(s));
+            }}
+          />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 bg-[var(--bg-elevated,var(--bg))] border border-[var(--border)] rounded-lg shadow-lg py-1 min-w-[160px]">
+          {options.map((opt) => {
+            const isSelected = selected.includes(opt.value);
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => onToggle(opt.value)}
+                className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors ${
+                  isSelected
+                    ? 'text-[var(--accent)] bg-[var(--accent-light)]'
+                    : 'text-[var(--text)] hover:bg-[var(--bg-tertiary)]'
+                }`}
+              >
+                <span
+                  className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                    isSelected
+                      ? 'bg-[var(--accent)] border-[var(--accent)]'
+                      : 'border-[var(--border)]'
+                  }`}
+                >
+                  {isSelected && (
+                    <CheckCircle className="w-3 h-3 text-white" />
+                  )}
+                </span>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

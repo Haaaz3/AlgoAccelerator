@@ -444,10 +444,18 @@ export interface ArchiveComponentPayload {
 
 export interface LibraryBrowserFilters {
   category?: ComponentCategory;
-  status?: ApprovalStatus;
-  complexity?: ComplexityLevel;
+  /** Multiple statuses can be selected at once */
+  statuses?: ApprovalStatus[];
+  /** Multiple complexity levels can be selected at once */
+  complexities?: ComplexityLevel[];
+  /** Minimum number of measures using the component */
+  minUsage?: number;
   searchQuery?: string;
   showArchived: boolean;
+  /** @deprecated Use statuses[] instead */
+  status?: ApprovalStatus;
+  /** @deprecated Use complexities[] instead */
+  complexity?: ComplexityLevel;
 }
 
 export interface ImportMatcherState {
