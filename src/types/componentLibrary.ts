@@ -448,8 +448,8 @@ export interface LibraryBrowserFilters {
   statuses?: ApprovalStatus[];
   /** Multiple complexity levels can be selected at once */
   complexities?: ComplexityLevel[];
-  /** Minimum number of measures using the component */
-  minUsage?: number;
+  /** Sort by usage count: 'desc' = most shared first, 'asc' = least shared first */
+  usageSort?: 'asc' | 'desc';
   searchQuery?: string;
   showArchived: boolean;
   /** @deprecated Use statuses[] instead */

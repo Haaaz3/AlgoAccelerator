@@ -274,11 +274,6 @@ export function searchComponents(
     result = result.filter((c) => c.complexity.level === filters.complexity);
   }
 
-  // Minimum usage filter
-  if (filters.minUsage != null && filters.minUsage > 0) {
-    result = result.filter((c) => c.usage.usageCount >= filters.minUsage!);
-  }
-
   // Archived filter
   if (!filters.showArchived) {
     result = result.filter((c) => c.versionInfo.status !== 'archived');
@@ -297,11 +292,17 @@ export function searchComponents(
     );
   }
 
-  // Sort archived components to the bottom
+  // Sort: archived always at bottom, then by usage if requested
   result.sort((a, b) => {
     const aArchived = a.versionInfo.status === 'archived' ? 1 : 0;
     const bArchived = b.versionInfo.status === 'archived' ? 1 : 0;
-    return aArchived - bArchived;
+    if (aArchived !== bArchived) return aArchived - bArchived;
+
+    if (filters.usageSort) {
+      const diff = a.usage.usageCount - b.usage.usageCount;
+      return filters.usageSort === 'desc' ? -diff : diff;
+    }
+    return 0;
   });
 
   return result;

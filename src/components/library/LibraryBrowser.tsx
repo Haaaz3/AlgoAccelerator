@@ -54,13 +54,6 @@ const COMPLEXITY_OPTIONS: { value: ComplexityLevel; label: string }[] = [
   { value: 'high', label: 'High' },
 ];
 
-const USAGE_OPTIONS: { value: number; label: string }[] = [
-  { value: 0, label: 'Any usage' },
-  { value: 1, label: '1+ measures' },
-  { value: 2, label: '2+ measures' },
-  { value: 3, label: '3+ measures' },
-  { value: 5, label: '5+ measures' },
-];
 
 function getStatusBadge(status: ApprovalStatus) {
   switch (status) {
@@ -156,9 +149,11 @@ export function LibraryBrowser() {
     setFilters({ complexities: next.length > 0 ? next : undefined });
   };
 
-  const handleUsageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = parseInt(e.target.value, 10);
-    setFilters({ minUsage: value > 0 ? value : undefined });
+  const handleUsageSortToggle = () => {
+    const current = filters.usageSort;
+    // Cycle: none → desc → asc → none
+    const next = current === undefined ? 'desc' : current === 'desc' ? 'asc' : undefined;
+    setFilters({ usageSort: next });
   };
 
   const handleNewComponent = () => {
@@ -278,21 +273,37 @@ export function LibraryBrowser() {
               onToggle={handleComplexityToggle}
             />
 
-            {/* Usage Filter */}
-            <div className="relative">
-              <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-dim)] pointer-events-none" />
-              <select
-                value={filters.minUsage ?? 0}
-                onChange={handleUsageChange}
-                className="pl-8 pr-8 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] appearance-none cursor-pointer focus:outline-none focus:border-[var(--accent)] transition-colors"
-              >
-                {USAGE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Usage Sort Toggle */}
+            <button
+              type="button"
+              onClick={handleUsageSortToggle}
+              className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm cursor-pointer transition-colors focus:outline-none ${
+                filters.usageSort
+                  ? 'bg-[var(--accent-light)] border-[var(--accent)]/40 text-[var(--accent)]'
+                  : 'bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text)]'
+              }`}
+              title={
+                filters.usageSort === 'desc'
+                  ? 'Sorted: most shared first'
+                  : filters.usageSort === 'asc'
+                    ? 'Sorted: least shared first'
+                    : 'Sort by shared usage'
+              }
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span className="whitespace-nowrap">
+                {filters.usageSort === 'desc'
+                  ? 'Most shared'
+                  : filters.usageSort === 'asc'
+                    ? 'Least shared'
+                    : 'Shared usage'}
+              </span>
+              {filters.usageSort && (
+                <span className="text-[10px]">
+                  {filters.usageSort === 'desc' ? '\u2193' : '\u2191'}
+                </span>
+              )}
+            </button>
 
             {/* Result Count */}
             <span className="text-xs text-[var(--text-dim)] ml-auto">
@@ -339,7 +350,7 @@ export function LibraryBrowser() {
                     <button
                       onClick={() => {
                         setSelectedCategory('all');
-                        setFilters({ searchQuery: '', statuses: undefined, complexities: undefined, minUsage: undefined, category: undefined });
+                        setFilters({ searchQuery: '', statuses: undefined, complexities: undefined, usageSort: undefined, category: undefined });
                       }}
                       className="mt-2 text-sm text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
                     >
