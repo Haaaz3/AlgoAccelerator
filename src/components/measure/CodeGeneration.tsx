@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Code, Copy, Check, Download, RefreshCw, FileCode, Database, Sparkles, Library, ChevronRight, CheckCircle, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { Code, Copy, Check, Download, RefreshCw, FileCode, Database, Sparkles, Library, ChevronRight, CheckCircle, XCircle, AlertTriangle, Loader2, Server } from 'lucide-react';
 import { useMeasureStore, type CodeOutputFormat } from '../../stores/measureStore';
 import { generateCQL, validateCQL, isCQLServiceAvailable, type CQLGenerationResult, type CQLValidationResult } from '../../services/cqlGenerator';
+import { generateHDISQL, DEFAULT_HDI_CONFIG } from '../../services/hdiSqlGenerator';
+import { validateHDISQL, type SQLValidationResult as HDISQLValidationResult } from '../../services/hdiSqlValidator';
+import type { SQLGenerationResult, SQLGenerationConfig } from '../../types/hdiDataModels';
 
 export function CodeGeneration() {
   const { getActiveMeasure, selectedCodeFormat, setSelectedCodeFormat, setActiveTab } = useMeasureStore();
@@ -15,6 +18,11 @@ export function CodeGeneration() {
   const [validationResult, setValidationResult] = useState<CQLValidationResult | null>(null);
   const [generationResult, setGenerationResult] = useState<CQLGenerationResult | null>(null);
 
+  // HDI SQL state
+  const [hdiResult, setHdiResult] = useState<SQLGenerationResult | null>(null);
+  const [hdiValidation, setHdiValidation] = useState<HDISQLValidationResult | null>(null);
+  const [isValidatingHDI, setIsValidatingHDI] = useState(false);
+
   // Check CQL service availability on mount
   useEffect(() => {
     isCQLServiceAvailable().then(setCqlServiceAvailable);
@@ -25,7 +33,29 @@ export function CodeGeneration() {
     if (measure && format === 'cql') {
       const result = generateCQL(measure);
       setGenerationResult(result);
-      setValidationResult(null); // Reset validation when measure changes
+      setValidationResult(null);
+    }
+  }, [measure, format]);
+
+  // Generate HDI SQL when format is 'hdi'
+  useEffect(() => {
+    if (measure && format === 'hdi') {
+      const result = generateHDISQL(measure, {
+        ...DEFAULT_HDI_CONFIG,
+        measurementPeriod: measure.metadata.measurementPeriod ? {
+          start: measure.metadata.measurementPeriod.start || '',
+          end: measure.metadata.measurementPeriod.end || '',
+        } : undefined,
+        ontologyContexts: [
+          'HEALTHE INTENT Demographics',
+          'HEALTHE INTENT Encounters',
+          'HEALTHE INTENT Procedures',
+          'HEALTHE INTENT Conditions',
+          'HEALTHE INTENT Results',
+        ],
+      });
+      setHdiResult(result);
+      setHdiValidation(null);
     }
   }, [measure, format]);
 
@@ -53,7 +83,9 @@ export function CodeGeneration() {
   }
 
   const handleCopy = async () => {
-    const code = getGeneratedCode(measure, format);
+    const code = format === 'hdi' && hdiResult?.sql
+      ? hdiResult.sql
+      : getGeneratedCode(measure, format);
     await navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -66,7 +98,51 @@ export function CodeGeneration() {
       setGenerationResult(result);
       setValidationResult(null);
     }
+    if (measure && format === 'hdi') {
+      const result = generateHDISQL(measure, {
+        ...DEFAULT_HDI_CONFIG,
+        measurementPeriod: measure.metadata.measurementPeriod ? {
+          start: measure.metadata.measurementPeriod.start || '',
+          end: measure.metadata.measurementPeriod.end || '',
+        } : undefined,
+        ontologyContexts: [
+          'HEALTHE INTENT Demographics',
+          'HEALTHE INTENT Encounters',
+          'HEALTHE INTENT Procedures',
+          'HEALTHE INTENT Conditions',
+          'HEALTHE INTENT Results',
+        ],
+      });
+      setHdiResult(result);
+      setHdiValidation(null);
+    }
     setTimeout(() => setIsGenerating(false), 500);
+  };
+
+  const handleValidateHDI = () => {
+    if (!hdiResult?.sql) return;
+    setIsValidatingHDI(true);
+    try {
+      const config: SQLGenerationConfig = {
+        ...DEFAULT_HDI_CONFIG,
+        measurementPeriod: measure.metadata.measurementPeriod ? {
+          start: measure.metadata.measurementPeriod.start || '',
+          end: measure.metadata.measurementPeriod.end || '',
+        } : undefined,
+      };
+      const result = validateHDISQL(hdiResult.sql, config);
+      setHdiValidation(result);
+    } catch (err) {
+      setHdiValidation({
+        valid: false,
+        score: 0,
+        errors: [{ severity: 'error', code: 'VALIDATION_ERROR', message: err instanceof Error ? err.message : 'Validation failed' }],
+        warnings: [],
+        suggestions: [],
+      });
+    } finally {
+      setIsValidatingHDI(false);
+    }
   };
 
   const handleValidateCQL = async () => {
@@ -144,6 +220,7 @@ export function CodeGeneration() {
           <div className="flex gap-2">
             {[
               { id: 'cql' as const, label: 'CQL', icon: FileCode },
+              { id: 'hdi' as const, label: 'HDI SQL', icon: Server },
               { id: 'synapse' as const, label: 'Synapse SQL', icon: Database },
               { id: 'sql' as const, label: 'Standard SQL', icon: Code },
             ].map((f) => (
@@ -201,6 +278,25 @@ export function CodeGeneration() {
                   {isValidating ? 'Validating...' : validationResult?.valid ? 'Valid' : 'Validate CQL'}
                 </button>
               )}
+              {format === 'hdi' && (
+                <button
+                  onClick={handleValidateHDI}
+                  disabled={isValidatingHDI || !hdiResult?.success}
+                  className="px-3 py-1.5 text-sm bg-[var(--bg-tertiary)] text-[var(--text)] rounded-lg flex items-center gap-2 hover:bg-[var(--bg)] transition-colors disabled:opacity-50"
+                  title="Validate HDI SQL pattern compliance"
+                >
+                  {isValidatingHDI ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : hdiValidation?.valid ? (
+                    <CheckCircle className="w-4 h-4 text-[var(--success)]" />
+                  ) : hdiValidation ? (
+                    <XCircle className="w-4 h-4 text-[var(--danger)]" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4" />
+                  )}
+                  {isValidatingHDI ? 'Validating...' : hdiValidation ? `Score: ${hdiValidation.score}/100` : 'Validate HDI'}
+                </button>
+              )}
               <button
                 onClick={handleCopy}
                 className="px-3 py-1.5 text-sm bg-[var(--bg-tertiary)] text-[var(--text)] rounded-lg flex items-center gap-2 hover:bg-[var(--bg)] transition-colors"
@@ -229,6 +325,8 @@ export function CodeGeneration() {
               <code className={!canGenerate ? 'opacity-50' : ''}>
                 {format === 'cql' && generationResult?.cql
                   ? generationResult.cql
+                  : format === 'hdi' && hdiResult?.sql
+                  ? hdiResult.sql
                   : getGeneratedCode(measure, format)}
               </code>
             </pre>
@@ -302,6 +400,93 @@ export function CodeGeneration() {
           </div>
         )}
 
+        {/* HDI Validation Results */}
+        {format === 'hdi' && hdiValidation && (
+          <div className={`mt-6 p-4 rounded-xl border ${
+            hdiValidation.valid
+              ? 'bg-[var(--success)]/5 border-[var(--success)]/30'
+              : 'bg-[var(--danger)]/5 border-[var(--danger)]/30'
+          }`}>
+            <div className="flex items-center gap-2 mb-3">
+              {hdiValidation.valid ? (
+                <>
+                  <CheckCircle className="w-5 h-5 text-[var(--success)]" />
+                  <h3 className="text-sm font-medium text-[var(--success)]">HDI SQL Validation Passed</h3>
+                  <span className="ml-auto text-sm font-mono text-[var(--success)]">Score: {hdiValidation.score}/100</span>
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-5 h-5 text-[var(--danger)]" />
+                  <h3 className="text-sm font-medium text-[var(--danger)]">HDI SQL Validation Issues Found</h3>
+                  <span className="ml-auto text-sm font-mono text-[var(--danger)]">Score: {hdiValidation.score}/100</span>
+                </>
+              )}
+            </div>
+
+            {hdiValidation.errors.length > 0 && (
+              <div className="space-y-2 mb-3">
+                <h4 className="text-xs font-medium text-[var(--danger)] uppercase tracking-wider">Errors ({hdiValidation.errors.length})</h4>
+                {hdiValidation.errors.map((error, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm text-[var(--danger)]">
+                    <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-mono text-xs text-[var(--text-dim)] mr-2">[{error.code}]</span>
+                      <span>{error.message}</span>
+                      {error.suggestion && (
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">{error.suggestion}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {hdiValidation.warnings.length > 0 && (
+              <div className="space-y-2 mb-3">
+                <h4 className="text-xs font-medium text-[var(--warning)] uppercase tracking-wider">Warnings ({hdiValidation.warnings.length})</h4>
+                {hdiValidation.warnings.map((warning, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm text-[var(--warning)]">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-mono text-xs text-[var(--text-dim)] mr-2">[{warning.code}]</span>
+                      <span>{warning.message}</span>
+                      {warning.suggestion && (
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">{warning.suggestion}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {hdiValidation.suggestions.length > 0 && (
+              <div className="space-y-1">
+                <h4 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Suggestions</h4>
+                {hdiValidation.suggestions.map((suggestion, i) => (
+                  <p key={i} className="text-sm text-[var(--text-muted)]">{suggestion}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* HDI Generation Metadata */}
+        {format === 'hdi' && hdiResult && (
+          <div className="mt-4 p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border)]">
+            <div className="flex items-center gap-4 text-xs text-[var(--text-muted)]">
+              <span>Predicates: <strong className="text-[var(--text)]">{hdiResult.metadata.predicateCount}</strong></span>
+              <span>Data Models: <strong className="text-[var(--text)]">{hdiResult.metadata.dataModelsUsed.join(', ') || 'none'}</strong></span>
+              <span>Complexity: <strong className="text-[var(--text)]">{hdiResult.metadata.estimatedComplexity}</strong></span>
+              {hdiResult.warnings.length > 0 && (
+                <span className="text-[var(--warning)]">{hdiResult.warnings.length} warning(s)</span>
+              )}
+              {hdiResult.errors.length > 0 && (
+                <span className="text-[var(--danger)]">{hdiResult.errors.length} error(s)</span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* CQL Service Status */}
         {format === 'cql' && cqlServiceAvailable === false && !validationResult && (
           <div className="mt-6 p-4 bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)]">
@@ -341,6 +526,18 @@ export function CodeGeneration() {
                 <span className="text-[var(--accent)] mt-0.5">•</span>
                 {generationResult.metadata.definitionCount} CQL definitions generated
               </li>
+            )}
+            {format === 'hdi' && hdiResult && (
+              <>
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--accent)] mt-0.5">•</span>
+                  HDI SQL: {hdiResult.metadata.predicateCount} predicates across {hdiResult.metadata.dataModelsUsed.length} data models
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--accent)] mt-0.5">•</span>
+                  Target: Snowflake / HealtheIntent Data Warehouse (CTE pattern with ONT, DEMOG, PRED_*)
+                </li>
+              </>
             )}
             {!canGenerate && (
               <li className="flex items-start gap-2 text-[var(--warning)]">

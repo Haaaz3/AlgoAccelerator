@@ -7,6 +7,7 @@ import { evaluatePatient, type TestPatient } from '../../services/measureEvaluat
 
 const CODE_FORMAT_INFO: Record<CodeOutputFormat, { label: string; icon: typeof Code; color: string }> = {
   cql: { label: 'CQL (Clinical Quality Language)', icon: FileCode, color: 'text-purple-400' },
+  hdi: { label: 'HDI SQL (HealtheIntent)', icon: Database, color: 'text-blue-400' },
   synapse: { label: 'Azure Synapse SQL', icon: Database, color: 'text-[var(--accent)]' },
   sql: { label: 'Standard SQL', icon: Code, color: 'text-[var(--success)]' },
 };

@@ -13,7 +13,7 @@ import type {
 import { syncAgeConstraints } from '../utils/constraintSync';
 import { migrateMeasure, needsMigration } from '../utils/measureMigration';
 
-export type CodeOutputFormat = 'cql' | 'synapse' | 'sql';
+export type CodeOutputFormat = 'cql' | 'hdi' | 'synapse' | 'sql';
 
 interface MeasureState {
   // Measures library
