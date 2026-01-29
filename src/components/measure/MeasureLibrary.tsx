@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
-import { Upload, FileText, Trash2, Clock, CheckCircle, AlertTriangle, Lock, Unlock, Shield, Brain, Zap, ChevronDown, Send, Edit3, Plus, Copy } from 'lucide-react';
+import { useState, useCallback, useMemo, useRef } from 'react';
+import { Upload, FileText, Trash2, Clock, CheckCircle, AlertTriangle, Lock, Unlock, Shield, Brain, Zap, ChevronDown, Send, Edit3, Plus, Copy, X } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { ingestMeasureFiles, type IngestionProgress } from '../../services/measureIngestion';
@@ -35,6 +35,16 @@ export function MeasureLibrary() {
   const [error, setError] = useState<string | null>(null);
   const [showCreator, setShowCreator] = useState(false);
 
+  // Batch queue state
+  const [batchQueue, setBatchQueue] = useState<File[][]>([]);
+  const [batchIndex, setBatchIndex] = useState(0);
+  const [batchTotal, setBatchTotal] = useState(0);
+  const [queueDragActive, setQueueDragActive] = useState(false);
+  const queueInputRef = useRef<HTMLInputElement>(null);
+  const batchQueueRef = useRef<File[][]>([]);
+  const processingRef = useRef(false);
+  const batchCounterRef = useRef({ index: 0, total: 0 });
+
   // Filtering state
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
@@ -50,6 +60,60 @@ export function MeasureLibrary() {
     return SUPPORTED_EXTENSIONS.includes(ext);
   };
 
+  // Process the next item in the queue (or the first file group)
+  const processNext = useCallback(async () => {
+    const queue = batchQueueRef.current;
+    if (queue.length === 0) {
+      // All done
+      processingRef.current = false;
+      setIsProcessing(false);
+      setBatchIndex(0);
+      setBatchTotal(0);
+      setTimeout(() => setProgress(null), 3000);
+      return;
+    }
+
+    const [files, ...rest] = queue;
+    batchQueueRef.current = rest;
+    setBatchQueue(rest);
+
+    const counter = batchCounterRef.current;
+    counter.index++;
+    setBatchIndex(counter.index);
+
+    const activeApiKey = getActiveApiKey();
+    const customConfig = selectedProvider === 'custom' ? getCustomLlmConfig() : undefined;
+
+    const label = counter.total > 1 ? `[${counter.index}/${counter.total}] ` : '';
+    setProgress({ stage: 'loading', message: `${label}Starting...`, progress: 0 });
+
+    const wrappedSetProgress = (p: IngestionProgress) => {
+      const ct = batchCounterRef.current;
+      const lbl = ct.total > 1 ? `[${ct.index}/${ct.total}] ` : '';
+      setProgress({ ...p, message: `${lbl}${p.message}` });
+    };
+
+    try {
+      const result = await ingestMeasureFiles(files, activeApiKey, wrappedSetProgress, selectedProvider, selectedModel, customConfig);
+
+      if (result.success && result.ums) {
+        const measureWithStatus = { ...result.ums, status: 'in_progress' as MeasureStatus };
+        addMeasure(measureWithStatus);
+        const ct = batchCounterRef.current;
+        const lbl = ct.total > 1 ? `[${ct.index}/${ct.total}] ` : '';
+        setProgress({ stage: 'complete', message: `${lbl}Successfully imported "${result.ums.metadata.title}"`, progress: 100 });
+      } else {
+        setError(result.error || 'Failed to extract measure specification');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+    }
+
+    // Brief pause then process next
+    setTimeout(() => processNext(), 1500);
+  }, [getActiveApiKey, addMeasure, selectedProvider, selectedModel, getCustomLlmConfig]);
+
+  // Handle files: either start processing or add to queue
   const handleFiles = useCallback(async (files: File[]) => {
     const supportedFiles = files.filter(isFileSupported);
 
@@ -58,7 +122,7 @@ export function MeasureLibrary() {
       return;
     }
 
-    // AI extraction requires API key (except for custom provider where it's optional)
+    // Validate API key upfront
     const activeApiKey = getActiveApiKey();
     const activeProvider = getActiveProvider();
     const customConfig = selectedProvider === 'custom' ? getCustomLlmConfig() : undefined;
@@ -73,32 +137,21 @@ export function MeasureLibrary() {
       return;
     }
 
-    setIsProcessing(true);
-    setError(null);
-    setProgress({ stage: 'loading', message: 'Starting...', progress: 0 });
+    // Add to queue
+    batchQueueRef.current = [...batchQueueRef.current, supportedFiles];
+    setBatchQueue([...batchQueueRef.current]);
+    batchCounterRef.current.total++;
+    setBatchTotal(batchCounterRef.current.total);
 
-    try {
-      const result = await ingestMeasureFiles(supportedFiles, activeApiKey, setProgress, selectedProvider, selectedModel, customConfig);
-
-      if (result.success && result.ums) {
-        // New measures start as "in_progress"
-        const measureWithStatus = { ...result.ums, status: 'in_progress' as MeasureStatus };
-        addMeasure(measureWithStatus);
-        setProgress({ stage: 'complete', message: `Successfully imported "${result.ums.metadata.title}"`, progress: 100 });
-
-        // Clear progress after a delay
-        setTimeout(() => setProgress(null), 3000);
-      } else {
-        setError(result.error || 'Failed to extract measure specification');
-        setProgress(null);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
-      setProgress(null);
-    } finally {
-      setIsProcessing(false);
+    if (!processingRef.current) {
+      // Start processing
+      processingRef.current = true;
+      setIsProcessing(true);
+      setError(null);
+      batchCounterRef.current.index = 0;
+      processNext();
     }
-  }, [getActiveApiKey, getActiveProvider, addMeasure, selectedProvider, selectedModel, getCustomLlmConfig]);
+  }, [getActiveApiKey, getActiveProvider, selectedProvider, selectedModel, getCustomLlmConfig, processNext]);
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
@@ -113,6 +166,40 @@ export function MeasureLibrary() {
     await handleFiles(Array.from(files));
     e.target.value = '';
   }, [handleFiles]);
+
+  // Queue-specific drop handler
+  const handleQueueDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setQueueDragActive(false);
+    const files = Array.from(e.dataTransfer.files).filter(isFileSupported);
+    if (files.length > 0) {
+      batchQueueRef.current = [...batchQueueRef.current, files];
+      setBatchQueue([...batchQueueRef.current]);
+      batchCounterRef.current.total++;
+      setBatchTotal(batchCounterRef.current.total);
+    }
+  }, []);
+
+  const handleQueueFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const supported = Array.from(files).filter(isFileSupported);
+    if (supported.length > 0) {
+      batchQueueRef.current = [...batchQueueRef.current, supported];
+      setBatchQueue([...batchQueueRef.current]);
+      batchCounterRef.current.total++;
+      setBatchTotal(batchCounterRef.current.total);
+    }
+    e.target.value = '';
+  }, []);
+
+  const removeFromQueue = useCallback((index: number) => {
+    batchQueueRef.current = batchQueueRef.current.filter((_, i) => i !== index);
+    setBatchQueue([...batchQueueRef.current]);
+    batchCounterRef.current.total = Math.max(batchCounterRef.current.total - 1, 0);
+    setBatchTotal(batchCounterRef.current.total);
+  }, []);
 
   const getConfidenceColor = (confidence: string) => {
     switch (confidence) {
@@ -216,67 +303,133 @@ export function MeasureLibrary() {
         <div className="max-w-5xl mx-auto">
 
         {/* Upload Zone */}
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-          onDragLeave={() => setDragActive(false)}
-          onDrop={handleDrop}
-          className={`
-            relative border-2 border-dashed rounded-xl p-10 text-center transition-all mb-6 bg-[var(--bg-tertiary)]
-            ${isProcessing
-              ? 'border-[var(--primary)]/50 bg-[var(--primary-light)]'
-              : dragActive
+        {isProcessing || batchQueue.length > 0 ? (
+          <div className="border-2 border-[var(--primary)]/50 rounded-xl mb-6 bg-[var(--bg-tertiary)] overflow-hidden">
+            {/* Current processing */}
+            <div className="p-8 text-center">
+              {progress?.stage === 'complete' ? (
+                <div className="space-y-3">
+                  <CheckCircle className="w-10 h-10 mx-auto text-[var(--success)]" />
+                  <p className="text-[var(--success)] font-medium">{progress.message}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-center">
+                    <div className="relative">
+                      <Brain className="w-12 h-12 text-[var(--accent)]" />
+                      <Zap className="w-5 h-5 text-[var(--warning)] absolute -right-1 -bottom-1 animate-pulse" />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[var(--text)] font-medium mb-2">{progress?.message || 'Processing...'}</p>
+                    <div className="w-80 mx-auto h-2 bg-[var(--border)] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[var(--accent)] transition-all duration-500"
+                        style={{ width: `${progress?.progress || 0}%` }}
+                      />
+                    </div>
+                    {progress?.details && (
+                      <p className="text-xs text-[var(--text-dim)] mt-2">{progress.details}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Queued items */}
+            {batchQueue.length > 0 && (
+              <div className="border-t border-[var(--border)]">
+                {batchQueue.map((files, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between px-5 py-3 border-b border-[var(--border)] last:border-b-0 bg-[var(--bg-elevated)]/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-4 h-4 text-[var(--text-dim)]" />
+                      <span className="text-sm text-[var(--text)]">
+                        Queued: {files.map(f => f.name).join(', ')}
+                      </span>
+                      <span className="text-xs text-[var(--text-dim)]">
+                        ({files.length} file{files.length !== 1 ? 's' : ''})
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => removeFromQueue(idx)}
+                      className="p-1 text-[var(--text-dim)] hover:text-[var(--danger)] hover:bg-[var(--danger-light)] rounded transition-colors"
+                      title="Remove from queue"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Queue drop zone */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setQueueDragActive(true); }}
+              onDragLeave={(e) => { e.stopPropagation(); setQueueDragActive(false); }}
+              onDrop={handleQueueDrop}
+              className={`relative border-t-2 border-dashed p-5 text-center transition-all cursor-pointer ${
+                queueDragActive
+                  ? 'border-[var(--primary)] bg-[var(--primary-light)]'
+                  : 'border-[var(--border)] hover:border-[var(--primary)]/50 hover:bg-[var(--bg-elevated)]'
+              }`}
+            >
+              <input
+                ref={queueInputRef}
+                type="file"
+                accept={SUPPORTED_EXTENSIONS.join(',')}
+                multiple
+                onChange={handleQueueFileInput}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              <div className="flex items-center justify-center gap-2">
+                <Plus className={`w-4 h-4 ${queueDragActive ? 'text-[var(--accent)]' : 'text-[var(--text-dim)]'}`} />
+                <span className={`text-sm font-medium ${queueDragActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}>
+                  Drop files for another measure
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={handleDrop}
+            className={`
+              relative border-2 border-dashed rounded-xl p-10 text-center transition-all mb-6 bg-[var(--bg-tertiary)]
+              ${dragActive
                 ? 'border-[var(--primary)] bg-[var(--primary-light)]'
                 : 'border-[var(--border)] hover:border-[var(--primary)]/50 hover:bg-[var(--bg-elevated)]'
-            }
-          `}
-        >
-          <input
-            type="file"
-            accept={SUPPORTED_EXTENSIONS.join(',')}
-            multiple
-            onChange={handleFileInput}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            disabled={isProcessing}
-          />
-
-          {isProcessing && progress ? (
-            <div className="space-y-4">
-              <div className="flex justify-center">
-                <div className="relative">
-                  <Brain className="w-12 h-12 text-[var(--accent)]" />
-                  <Zap className="w-5 h-5 text-[var(--warning)] absolute -right-1 -bottom-1 animate-pulse" />
-                </div>
+              }
+            `}
+          >
+            <input
+              type="file"
+              accept={SUPPORTED_EXTENSIONS.join(',')}
+              multiple
+              onChange={handleFileInput}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+            {progress?.stage === 'complete' ? (
+              <div className="space-y-4">
+                <CheckCircle className="w-12 h-12 mx-auto text-[var(--success)]" />
+                <p className="text-[var(--success)] font-medium">{progress.message}</p>
               </div>
-              <div>
-                <p className="text-[var(--text)] font-medium mb-2">{progress.message}</p>
-                <div className="w-80 mx-auto h-2 bg-[var(--border)] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[var(--accent)] transition-all duration-500"
-                    style={{ width: `${progress.progress}%` }}
-                  />
-                </div>
-                {progress.details && (
-                  <p className="text-xs text-[var(--text-dim)] mt-2">{progress.details}</p>
-                )}
-              </div>
-            </div>
-          ) : progress?.stage === 'complete' ? (
-            <div className="space-y-4">
-              <CheckCircle className="w-12 h-12 mx-auto text-[var(--success)]" />
-              <p className="text-[var(--success)] font-medium">{progress.message}</p>
-            </div>
-          ) : (
-            <>
-              <Upload className={`w-10 h-10 mx-auto mb-3 ${dragActive ? 'text-[var(--accent)]' : 'text-[var(--text-dim)]'}`} />
-              <p className="text-[var(--text)] font-medium mb-1">
-                Drop measure specification files here
-              </p>
-              <p className="text-sm text-[var(--text-muted)]">
-                Supports PDF, HTML, Excel, XML, JSON, CQL, and ZIP packages
-              </p>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <Upload className={`w-10 h-10 mx-auto mb-3 ${dragActive ? 'text-[var(--accent)]' : 'text-[var(--text-dim)]'}`} />
+                <p className="text-[var(--text)] font-medium mb-1">
+                  Drop measure specification files here
+                </p>
+                <p className="text-sm text-[var(--text-muted)]">
+                  Supports PDF, HTML, Excel, XML, JSON, CQL, and ZIP packages
+                </p>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Error display */}
         {error && (
