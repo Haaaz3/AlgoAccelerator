@@ -1,0 +1,271 @@
+/**
+ * Component Library Store
+ *
+ * Zustand store for managing the reusable component library.
+ * Follows the same pattern as measureStore.ts with persist middleware.
+ */
+
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type {
+  LibraryComponent,
+  AtomicComponent,
+  CompositeComponent,
+  ComponentId,
+  LibraryBrowserFilters,
+  ImportMatcherState,
+  ComponentCategory,
+  ApprovalStatus,
+  ComponentChanges,
+  EditAction,
+} from '../types/componentLibrary';
+import { calculateAtomicComplexity, calculateCompositeComplexity } from '../services/complexityCalculator';
+import {
+  createNewVersion,
+  archiveVersion,
+  approveComponent,
+  addUsageReference,
+  removeUsageReference,
+  searchComponents,
+} from '../services/componentLibraryService';
+import { sampleAtomics, sampleComposites, sampleCategories } from '../data/sampleLibraryData';
+
+// ============================================================================
+// State Interface
+// ============================================================================
+
+interface ComponentLibraryState {
+  // Data
+  components: LibraryComponent[];
+  initialized: boolean;
+
+  // UI State
+  selectedComponentId: ComponentId | null;
+  filters: LibraryBrowserFilters;
+  editingComponentId: ComponentId | null;
+  importMatcherState: ImportMatcherState | null;
+
+  // Actions
+  initializeWithSampleData: () => void;
+  addComponent: (component: LibraryComponent) => void;
+  updateComponent: (id: ComponentId, updates: Partial<LibraryComponent>) => void;
+  deleteComponent: (id: ComponentId) => void;
+  setSelectedComponent: (id: ComponentId | null) => void;
+  setFilters: (filters: Partial<LibraryBrowserFilters>) => void;
+  setEditingComponent: (id: ComponentId | null) => void;
+  setImportMatcherState: (state: ImportMatcherState | null) => void;
+
+  // Versioning actions
+  createVersion: (id: ComponentId, changes: ComponentChanges, updatedBy: string) => void;
+  archiveComponentVersion: (id: ComponentId, supersededBy: string) => void;
+  approve: (id: ComponentId, approvedBy: string) => void;
+
+  // Usage actions
+  addUsage: (componentId: ComponentId, measureId: string) => void;
+  removeUsage: (componentId: ComponentId, measureId: string) => void;
+
+  // Edit workflow
+  handleSharedEdit: (
+    id: ComponentId,
+    changes: ComponentChanges,
+    action: EditAction,
+    updatedBy: string,
+  ) => void;
+
+  // Computed / Selectors
+  getComponent: (id: ComponentId) => LibraryComponent | null;
+  getFilteredComponents: () => LibraryComponent[];
+  getComponentsByCategory: (category: ComponentCategory) => LibraryComponent[];
+  getComponentsByStatus: (status: ApprovalStatus) => LibraryComponent[];
+  getCategoryCounts: () => Record<ComponentCategory, number>;
+}
+
+// ============================================================================
+// Store
+// ============================================================================
+
+export const useComponentLibraryStore = create<ComponentLibraryState>()(
+  persist(
+    (set, get) => ({
+      // Initial state
+      components: [],
+      initialized: false,
+      selectedComponentId: null,
+      filters: { showArchived: false },
+      editingComponentId: null,
+      importMatcherState: null,
+
+      // Initialize with sample data
+      initializeWithSampleData: () => {
+        if (get().initialized) return;
+
+        // Hydrate atomics with complexity scores
+        const hydratedAtomics: AtomicComponent[] = sampleAtomics.map((atomic) => ({
+          ...atomic,
+          complexity: calculateAtomicComplexity(atomic),
+        }));
+
+        // Build component lookup for composite complexity resolution
+        const componentMap = new Map<string, LibraryComponent>();
+        hydratedAtomics.forEach((a) => componentMap.set(a.id, a));
+
+        // Hydrate composites with complexity scores
+        const hydratedComposites: CompositeComponent[] = sampleComposites.map((composite) => ({
+          ...composite,
+          complexity: calculateCompositeComplexity(
+            composite,
+            (id) => componentMap.get(id) || null,
+          ),
+        }));
+
+        set({
+          components: [...hydratedAtomics, ...hydratedComposites],
+          initialized: true,
+        });
+      },
+
+      // CRUD Actions
+      addComponent: (component) =>
+        set((state) => ({
+          components: [...state.components, component],
+        })),
+
+      updateComponent: (id, updates) =>
+        set((state) => ({
+          components: state.components.map((c) =>
+            c.id === id ? ({ ...c, ...updates } as LibraryComponent) : c
+          ),
+        })),
+
+      deleteComponent: (id) =>
+        set((state) => ({
+          components: state.components.filter((c) => c.id !== id),
+          selectedComponentId: state.selectedComponentId === id ? null : state.selectedComponentId,
+          editingComponentId: state.editingComponentId === id ? null : state.editingComponentId,
+        })),
+
+      // UI State
+      setSelectedComponent: (id) => set({ selectedComponentId: id }),
+
+      setFilters: (filters) =>
+        set((state) => ({
+          filters: { ...state.filters, ...filters },
+        })),
+
+      setEditingComponent: (id) => set({ editingComponentId: id }),
+
+      setImportMatcherState: (importState) => set({ importMatcherState: importState }),
+
+      // Versioning
+      createVersion: (id, changes, updatedBy) =>
+        set((state) => {
+          const component = state.components.find((c) => c.id === id);
+          if (!component) return state;
+          const updated = createNewVersion(component, changes, updatedBy);
+          return {
+            components: state.components.map((c) => (c.id === id ? updated : c)),
+          };
+        }),
+
+      archiveComponentVersion: (id, supersededBy) =>
+        set((state) => {
+          const component = state.components.find((c) => c.id === id);
+          if (!component) return state;
+          const archived = archiveVersion(component, supersededBy);
+          return {
+            components: state.components.map((c) => (c.id === id ? archived : c)),
+          };
+        }),
+
+      approve: (id, approvedBy) =>
+        set((state) => {
+          const component = state.components.find((c) => c.id === id);
+          if (!component) return state;
+          const approved = approveComponent(component, approvedBy);
+          return {
+            components: state.components.map((c) => (c.id === id ? approved : c)),
+          };
+        }),
+
+      // Usage
+      addUsage: (componentId, measureId) =>
+        set((state) => {
+          const component = state.components.find((c) => c.id === componentId);
+          if (!component) return state;
+          const updated = addUsageReference(component, measureId);
+          return {
+            components: state.components.map((c) => (c.id === componentId ? updated : c)),
+          };
+        }),
+
+      removeUsage: (componentId, measureId) =>
+        set((state) => {
+          const component = state.components.find((c) => c.id === componentId);
+          if (!component) return state;
+          const updated = removeUsageReference(component, measureId);
+          return {
+            components: state.components.map((c) => (c.id === componentId ? updated : c)),
+          };
+        }),
+
+      // Shared edit workflow
+      handleSharedEdit: (id, changes, action, updatedBy) => {
+        const state = get();
+        const component = state.components.find((c) => c.id === id);
+        if (!component) return;
+
+        if (action === 'update_all') {
+          // Create new version, archive old one
+          const updated = createNewVersion(component, changes, updatedBy);
+          set({
+            components: state.components.map((c) => (c.id === id ? updated : c)),
+          });
+        } else {
+          // create_version: duplicate the component with changes for this measure only
+          const duplicated = createNewVersion(component, changes, updatedBy);
+          const newId = `${id}-v${Date.now()}`;
+          const duplicatedWithNewId = { ...duplicated, id: newId } as LibraryComponent;
+          set({
+            components: [...state.components, duplicatedWithNewId],
+          });
+        }
+      },
+
+      // Selectors
+      getComponent: (id) => {
+        return get().components.find((c) => c.id === id) || null;
+      },
+
+      getFilteredComponents: () => {
+        const state = get();
+        return searchComponents(state.components, state.filters);
+      },
+
+      getComponentsByCategory: (category) => {
+        return get().components.filter((c) => c.metadata.category === category);
+      },
+
+      getComponentsByStatus: (status) => {
+        return get().components.filter((c) => c.versionInfo.status === status);
+      },
+
+      getCategoryCounts: () => {
+        const components = get().components.filter(
+          (c) => c.versionInfo.status !== 'archived'
+        );
+        const counts: Record<string, number> = {};
+        for (const c of components) {
+          counts[c.metadata.category] = (counts[c.metadata.category] || 0) + 1;
+        }
+        return counts as Record<ComponentCategory, number>;
+      },
+    }),
+    {
+      name: 'measure-accelerator-component-library',
+      partialize: (state) => ({
+        components: state.components,
+        initialized: state.initialized,
+      }),
+    }
+  )
+);

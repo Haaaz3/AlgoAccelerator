@@ -6,6 +6,7 @@ import { ValidationTraceViewer } from './components/validation/ValidationTraceVi
 import { CodeGeneration } from './components/measure/CodeGeneration';
 import { ValueSetManager } from './components/valueset/ValueSetManager';
 import { SettingsPage } from './components/settings/SettingsPage';
+import { LibraryBrowser } from './components/library/LibraryBrowser';
 
 function App() {
   const { activeTab } = useMeasureStore();
@@ -20,6 +21,7 @@ function App() {
         {activeTab === 'validation' && <ValidationTraceViewer />}
         {activeTab === 'codegen' && <CodeGeneration />}
         {activeTab === 'settings' && <SettingsPage />}
+        {activeTab === 'components' && <LibraryBrowser />}
       </main>
     </div>
   );

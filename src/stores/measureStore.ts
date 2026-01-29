@@ -21,7 +21,7 @@ interface MeasureState {
   activeMeasureId: string | null;
 
   // UI state
-  activeTab: 'library' | 'editor' | 'validation' | 'codegen' | 'valuesets' | 'settings';
+  activeTab: 'library' | 'editor' | 'validation' | 'codegen' | 'valuesets' | 'settings' | 'components';
   editorSection: string | null;
   isUploading: boolean;
   uploadProgress: number;

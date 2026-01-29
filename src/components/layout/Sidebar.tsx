@@ -1,4 +1,4 @@
-import { FileText, CheckCircle, Code, Library, Activity, Database, Settings, X, ChevronRight } from 'lucide-react';
+import { FileText, CheckCircle, Code, Library, Activity, Database, Settings, X, ChevronRight, Layers } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
 
 export function Sidebar() {
@@ -12,6 +12,7 @@ export function Sidebar() {
   // Main navigation - always accessible
   const mainNavItems = [
     { id: 'library' as const, icon: Library, label: 'Measure Library' },
+    { id: 'components' as const, icon: Layers, label: 'Component Library' },
     { id: 'valuesets' as const, icon: Database, label: 'Value Set Library', badge: uniqueValueSetCount > 0 ? uniqueValueSetCount : undefined },
     { id: 'settings' as const, icon: Settings, label: 'Settings' },
   ];
