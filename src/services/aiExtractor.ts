@@ -307,6 +307,13 @@ You must respond with ONLY a valid JSON object (no markdown, no explanation). Th
       "description": "Brief one-line description",
       "narrative": "Complete narrative definition from the spec",
       "logicOperator": "AND" | "OR",
+      "nestedGroups": [
+        {
+          "groupOperator": "OR",
+          "description": "Group description (e.g., Qualifying Encounters)",
+          "criteriaIndices": [0, 1, 2]
+        }
+      ],
       "cqlExpression": "Full CQL definition if present",
       "criteria": [
         {
@@ -348,7 +355,16 @@ You must respond with ONLY a valid JSON object (no markdown, no explanation). Th
 EXTRACTION RULES:
 1. POPULATIONS: Extract ALL population types with structured criteria objects, not just strings
 2. CRITERIA DETAIL: Each criterion must specify its type and link to a valueSetName/valueSetOid
-3. VALUE SETS - CRITICAL:
+3. AND vs OR LOGIC - CRITICAL:
+   - The TOP-LEVEL logicOperator for a population is almost always "AND" (patient must meet age requirement AND have a qualifying encounter AND meet other criteria)
+   - When multiple ALTERNATIVE encounter types are listed (Office Visit OR Annual Wellness OR Preventive Care etc.), these are ALTERNATIVES — the patient needs ANY ONE, not ALL of them
+   - Use "nestedGroups" to group alternative criteria under OR logic within an AND population
+   - Example: Initial population = age 51-74 AND (Office Visit OR Annual Wellness OR Preventive Care) → logicOperator: "AND" with nestedGroups: [{"groupOperator": "OR", "description": "Qualifying Encounters", "criteriaIndices": [1,2,3]}]
+   - Qualifying encounter lists are ALWAYS OR logic — a patient does NOT need every encounter type
+   - Denominator exclusions with multiple conditions are usually OR (any one exclusion qualifies)
+   - Numerator criteria for screening measures are usually OR (any qualifying screening method)
+   - Numerator criteria for immunization measures are AND (all vaccines required)
+4. VALUE SETS - CRITICAL:
    - Extract EVERY value set referenced in the measure
    - Include the FULL OID (2.16.840.1.113883.x.xxx.xxx...)
    - Extract ALL codes listed in each value set (ICD-10, CPT, SNOMED, LOINC, HCPCS, RxNorm, CVX)
@@ -850,6 +866,56 @@ function convertToUMS(data: ExtractedMeasureData): UniversalMeasureSpec {
       });
     }
 
+    // Post-process: group sibling encounter elements into OR subclause
+    // When 3+ encounter-type elements are siblings in an AND clause, they are almost
+    // certainly alternatives (Office Visit OR Annual Wellness OR Preventive Care), not
+    // requirements (patient does NOT need every encounter type).
+    const topOperator = (pop.logicOperator || 'AND') as LogicalOperator;
+    let finalChildren: (DataElement | LogicalClause)[] = children;
+
+    if (topOperator === 'AND') {
+      const encounterChildren = children.filter((c: any) => c.type === 'encounter');
+      const nonEncounterChildren = children.filter((c: any) => c.type !== 'encounter');
+
+      if (encounterChildren.length >= 3) {
+        // Group encounters into an OR subclause
+        const orClause: LogicalClause = {
+          id: `${popType}-enc-or-${idx}`,
+          operator: 'OR',
+          description: 'Qualifying Encounters',
+          confidence: 'high' as ConfidenceLevel,
+          reviewStatus: 'approved' as const,
+          children: encounterChildren,
+        };
+        finalChildren = [...nonEncounterChildren, orClause];
+        console.log(`Auto-grouped ${encounterChildren.length} encounter criteria into OR clause for ${popType}`);
+      }
+
+      // Also check for AI-provided nestedGroups
+      if ((pop as any).nestedGroups && Array.isArray((pop as any).nestedGroups)) {
+        for (const group of (pop as any).nestedGroups) {
+          if (group.groupOperator === 'OR' && Array.isArray(group.criteriaIndices)) {
+            const groupedIndices = new Set(group.criteriaIndices as number[]);
+            const grouped = children.filter((_: any, i: number) => groupedIndices.has(i));
+            const ungrouped = children.filter((_: any, i: number) => !groupedIndices.has(i));
+
+            if (grouped.length >= 2) {
+              const nestedClause: LogicalClause = {
+                id: `${popType}-group-${idx}`,
+                operator: 'OR',
+                description: group.description || 'Grouped criteria',
+                confidence: 'high' as ConfidenceLevel,
+                reviewStatus: 'pending' as const,
+                children: grouped,
+              };
+              finalChildren = [...ungrouped, nestedClause];
+              console.log(`Applied AI nestedGroup: ${grouped.length} criteria grouped as OR`);
+            }
+          }
+        }
+      }
+    }
+
     return {
       id: `${popType}-${idx}`,
       type: popType,
@@ -859,11 +925,11 @@ function convertToUMS(data: ExtractedMeasureData): UniversalMeasureSpec {
       reviewStatus: 'pending' as const,
       criteria: {
         id: `${popType}-criteria-${idx}`,
-        operator: (pop.logicOperator || 'AND') as LogicalOperator,
+        operator: topOperator,
         description: pop.description || '',
         confidence: 'high' as ConfidenceLevel,
         reviewStatus: 'pending' as const,
-        children,
+        children: finalChildren,
       },
       cqlDefinition: pop.cqlExpression,
     };
