@@ -180,6 +180,65 @@ export function findExactMatch(
     }
   }
 
+  // Fallback: try matching by normalized value set name + timing + negation
+  return findNameMatch(incoming, library);
+}
+
+/**
+ * Normalize a value set name for fallback matching.
+ * Lowercases, trims whitespace, and strips common suffixes.
+ */
+function normalizeValueSetName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\s+value\s*set$/i, '')
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Fallback matching by normalized value set name + timing + negation.
+ *
+ * Only used when OID-based hash matching fails. Matches if:
+ *   1. Normalized value set names are equal
+ *   2. Timing operator and reference match
+ *   3. Negation matches
+ */
+export function findNameMatch(
+  incoming: ParsedComponent,
+  library: Record<string, LibraryComponent>
+): LibraryComponent | null {
+  // Only works for atomic incoming components with a name
+  if (incoming.children && incoming.children.length > 0) return null;
+
+  const incomingName = incoming.valueSetName || incoming.name;
+  if (!incomingName) return null;
+
+  const normalizedIncoming = normalizeValueSetName(incomingName);
+  if (!normalizedIncoming) return null;
+
+  const incomingTimingOp = incoming.timing?.operator ?? 'during';
+  const incomingTimingRef = incoming.timing?.reference ?? 'Measurement Period';
+  const incomingNegation = incoming.negation ?? false;
+
+  for (const component of Object.values(library)) {
+    if (component.type !== 'atomic') continue;
+
+    const normalizedLib = normalizeValueSetName(component.valueSet.name);
+    if (normalizedLib !== normalizedIncoming) continue;
+
+    // Also check timing operator, reference, and negation match
+    const libTimingOp = component.timing?.operator ?? 'during';
+    const libTimingRef = component.timing?.reference ?? 'Measurement Period';
+    const libNegation = component.negation ?? false;
+
+    if (libTimingOp === incomingTimingOp &&
+        libTimingRef === incomingTimingRef &&
+        libNegation === incomingNegation) {
+      return component;
+    }
+  }
+
   return null;
 }
 

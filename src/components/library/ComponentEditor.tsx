@@ -12,11 +12,14 @@ import {
   Zap,
   ToggleLeft,
   ToggleRight,
+  Trash2,
+  Code,
 } from 'lucide-react';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useMeasureStore } from '../../stores/measureStore';
 import { createAtomicComponent, createCompositeComponent } from '../../services/componentLibraryService';
 import type { TimingOperator, ComponentCategory } from '../../types/componentLibrary';
+import type { CodeReference } from '../../types/ums';
 import SharedEditWarning from './SharedEditWarning';
 
 // ============================================================================
@@ -127,6 +130,9 @@ export default function ComponentEditor({ componentId, onSave, onClose }: Compon
   );
   const [negation, setNegation] = useState(
     existingComponent?.type === 'atomic' ? existingComponent.negation : false
+  );
+  const [codes, setCodes] = useState<CodeReference[]>(
+    existingComponent?.type === 'atomic' ? (existingComponent.valueSet.codes || []) : []
   );
   const [tagsInput, setTagsInput] = useState(
     existingComponent?.metadata.tags.join(', ') ?? ''
@@ -243,10 +249,13 @@ export default function ComponentEditor({ componentId, onSave, onClose }: Compon
         tags,
       });
 
+      // Attach codes to the component's valueSet
+      (component as any).valueSet.codes = codes;
+
       if (isEditMode && existingComponent) {
         const updates = {
           name: component.name,
-          valueSet: component.valueSet,
+          valueSet: { ...component.valueSet, codes },
           timing: component.timing,
           negation: component.negation,
           complexity: component.complexity,
@@ -267,11 +276,11 @@ export default function ComponentEditor({ componentId, onSave, onClose }: Compon
         }
 
         updateComponent(existingComponent.id, updates);
-        // Sync changes to any linked measures
+        // Sync changes to any linked measures (including codes)
         if (existingComponent.usage.usageCount >= 1) {
           syncComponentToMeasures(
             existingComponent.id,
-            { changeDescription: 'Component updated', name: component.name, timing: component.timing, negation: component.negation },
+            { changeDescription: 'Component updated', name: component.name, timing: component.timing, negation: component.negation, codes },
             measures,
             updateMeasure,
           );
@@ -519,6 +528,88 @@ export default function ComponentEditor({ componentId, onSave, onClose }: Compon
                     />
                   </div>
                 </div>
+              </fieldset>
+
+              {/* Codes Section */}
+              <fieldset
+                className="border rounded-lg p-4 space-y-3"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <legend
+                  className="text-xs font-semibold uppercase tracking-wide px-2"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Code size={12} /> Codes ({codes.length})
+                  </span>
+                </legend>
+
+                {codes.length > 0 && (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {codes.map((codeEntry, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={codeEntry.code}
+                          onChange={(e) => {
+                            const updated = [...codes];
+                            updated[idx] = { ...updated[idx], code: e.target.value };
+                            setCodes(updated);
+                          }}
+                          placeholder="Code"
+                          className="w-24 px-2 py-1.5 rounded border text-xs outline-none font-mono"
+                          style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                        />
+                        <input
+                          type="text"
+                          value={codeEntry.display}
+                          onChange={(e) => {
+                            const updated = [...codes];
+                            updated[idx] = { ...updated[idx], display: e.target.value };
+                            setCodes(updated);
+                          }}
+                          placeholder="Display name"
+                          className="flex-1 px-2 py-1.5 rounded border text-xs outline-none"
+                          style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                        />
+                        <select
+                          value={codeEntry.system}
+                          onChange={(e) => {
+                            const updated = [...codes];
+                            updated[idx] = { ...updated[idx], system: e.target.value as CodeReference['system'] };
+                            setCodes(updated);
+                          }}
+                          className="w-24 px-2 py-1.5 rounded border text-xs outline-none"
+                          style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                        >
+                          <option value="CPT">CPT</option>
+                          <option value="ICD10">ICD10</option>
+                          <option value="SNOMED">SNOMED</option>
+                          <option value="HCPCS">HCPCS</option>
+                          <option value="LOINC">LOINC</option>
+                          <option value="RxNorm">RxNorm</option>
+                          <option value="CVX">CVX</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setCodes(codes.filter((_, i) => i !== idx))}
+                          className="p-1 rounded hover:bg-red-500/20 text-red-400 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setCodes([...codes, { code: '', display: '', system: 'CPT' as CodeReference['system'] }])}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border transition-colors hover:bg-[var(--bg-tertiary)]"
+                  style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}
+                >
+                  <Plus size={12} /> Add Code
+                </button>
               </fieldset>
 
               {/* Timing Section */}

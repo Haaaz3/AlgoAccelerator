@@ -707,6 +707,16 @@ function CriteriaNode({
           </div>
           <p className="text-sm text-[var(--text)]">{element.description}</p>
 
+          {/* Zero-code ingestion warning */}
+          {element.ingestionWarning && (
+            <div className="mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+              <span className="text-xs font-medium text-red-400">
+                {element.ingestionWarning}
+              </span>
+            </div>
+          )}
+
           {/* Thresholds for demographics (age) and observations */}
           {element.thresholds && (element.thresholds.ageMin !== undefined || element.thresholds.valueMin !== undefined) && (
             <div className="mt-2 flex items-center gap-2">

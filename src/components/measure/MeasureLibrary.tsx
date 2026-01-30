@@ -108,12 +108,17 @@ export function MeasureLibrary() {
           measureWithStatus.populations,
         );
 
-        // Write libraryComponentId back onto DataElements in the measure
+        // Write libraryComponentId (or ingestionWarning for zero-code elements)
         if (Object.keys(linkMap).length > 0) {
           const stampLinks = (node: any): any => {
             if (!node) return node;
             if (node.id && linkMap[node.id]) {
-              node = { ...node, libraryComponentId: linkMap[node.id] };
+              if (linkMap[node.id] === '__ZERO_CODES__') {
+                // Zero codes — set warning instead of linking
+                node = { ...node, ingestionWarning: 'No codes found for this logic block. Add codes in the component library or re-upload with terminology.' };
+              } else {
+                node = { ...node, libraryComponentId: linkMap[node.id] };
+              }
             }
             if (node.children) {
               node = { ...node, children: node.children.map(stampLinks) };

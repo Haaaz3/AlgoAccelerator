@@ -320,6 +320,16 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
               libraryRecord[match.id] = updated;
             }
           } else {
+            // Check if the element has any codes before creating a component
+            const hasCodes = (element.valueSet?.codes?.length ?? 0) > 0 ||
+                             (element.directCodes?.length ?? 0) > 0;
+
+            if (!hasCodes) {
+              // Zero codes — do NOT create a component. Mark with sentinel for warning.
+              linkMap[element.id] = '__ZERO_CODES__';
+              continue;
+            }
+
             // Create new atomic component from this element
             const categoryMap: Record<string, ComponentCategory> = {
               demographic: 'demographics',
@@ -351,6 +361,13 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
               tags: [element.type],
               createdBy: 'auto-import',
             });
+
+            // Copy codes onto the new component
+            if (element.valueSet?.codes) {
+              (newComp as any).valueSet.codes = element.valueSet.codes;
+            } else if (element.directCodes) {
+              (newComp as any).valueSet.codes = element.directCodes;
+            }
 
             // Add usage
             const withUsage = addUsageReference(newComp, measureId);
@@ -572,6 +589,14 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
               }
               if (changes.negation !== undefined) {
                 updated.negation = changes.negation;
+              }
+              // Sync codes to the DataElement's valueSet
+              if (changes.codes && updated.valueSet) {
+                updated.valueSet = {
+                  ...updated.valueSet,
+                  codes: changes.codes,
+                  totalCodeCount: changes.codes.length,
+                };
               }
             }
             return updated;

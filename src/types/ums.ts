@@ -254,6 +254,9 @@ export interface DataElement {
 
   /** Link to component library */
   libraryComponentId?: string;
+
+  /** Warning from ingestion pipeline (e.g., zero codes found) */
+  ingestionWarning?: string;
 }
 
 // ============================================================================

@@ -104,6 +104,7 @@ export interface AtomicComponent {
     oid: ValueSetOid;
     version: string;
     name: string;
+    codes?: import('./ums').CodeReference[];
   };
 
   /** Timing constraint */
@@ -392,6 +393,9 @@ export interface ComponentChanges {
 
   /** New negation value (if changed) - for atomics */
   negation?: boolean;
+
+  /** New codes (if changed) - for atomics */
+  codes?: import('./ums').CodeReference[];
 
   /** New children (if changed) - for composites */
   children?: ComponentReference[];

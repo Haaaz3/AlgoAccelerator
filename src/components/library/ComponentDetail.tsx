@@ -13,6 +13,8 @@ import {
   GitBranch,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
+  Code,
 } from 'lucide-react';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { getComplexityColor, getComplexityDots } from '../../services/complexityCalculator';
@@ -397,6 +399,11 @@ export function ComponentDetail({ componentId, onClose, onEdit }: ComponentDetai
 // ============================================================================
 
 function AtomicDetails({ component }: { component: AtomicComponent }) {
+  const [showAllCodes, setShowAllCodes] = useState(false);
+  const codes = component.valueSet.codes || [];
+  const codeCount = codes.length;
+  const visibleCodes = showAllCodes ? codes : codes.slice(0, 10);
+
   return (
     <div className="space-y-4">
       {/* Value Set */}
@@ -415,6 +422,53 @@ function AtomicDetails({ component }: { component: AtomicComponent }) {
           <dt className="text-[var(--text-dim)]">Version</dt>
           <dd className="text-[var(--text-muted)]">{component.valueSet.version}</dd>
         </dl>
+      </div>
+
+      {/* Codes */}
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-3 space-y-2">
+        <h3 className="text-sm font-medium text-[var(--text)] flex items-center gap-2">
+          <Code size={14} className="text-emerald-400" />
+          Codes
+          <span className="text-xs text-[var(--text-dim)]">({codeCount})</span>
+        </h3>
+
+        {codeCount === 0 ? (
+          <div className="flex items-center gap-2 rounded-md bg-red-500/10 border border-red-500/30 px-3 py-2">
+            <AlertTriangle size={14} className="text-red-400 flex-shrink-0" />
+            <span className="text-xs text-red-400 font-medium">
+              No codes defined for this component. Edit to add codes.
+            </span>
+          </div>
+        ) : (
+          <>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="text-left py-1.5 pr-2 text-[var(--text-dim)] font-medium">Code</th>
+                  <th className="text-left py-1.5 pr-2 text-[var(--text-dim)] font-medium">Display</th>
+                  <th className="text-left py-1.5 text-[var(--text-dim)] font-medium">System</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleCodes.map((code, i) => (
+                  <tr key={`${code.code}-${i}`} className="border-b border-[var(--border)] last:border-0">
+                    <td className="py-1.5 pr-2 font-mono text-[var(--accent)]">{code.code}</td>
+                    <td className="py-1.5 pr-2 text-[var(--text-muted)] truncate max-w-[200px]">{code.display}</td>
+                    <td className="py-1.5 text-[var(--text-dim)]">{code.system}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {codeCount > 10 && (
+              <button
+                onClick={() => setShowAllCodes(!showAllCodes)}
+                className="text-xs text-[var(--accent)] hover:underline"
+              >
+                {showAllCodes ? 'Show less' : `Show all ${codeCount} codes`}
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       {/* Timing */}
