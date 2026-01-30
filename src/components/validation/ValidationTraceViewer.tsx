@@ -2333,6 +2333,9 @@ function ValidationSection({
   resultPositive: boolean;
   onInspect: (node: ValidationNode) => void;
 }) {
+  const useListLayout = nodes.length > 4;
+  const metCount = nodes.filter(n => n.status === 'pass').length;
+
   return (
     <div className={`mb-6 rounded-xl border p-5 transition-colors ${
       resultPositive
@@ -2354,29 +2357,119 @@ function ValidationSection({
           </div>
           {subtitle && <p className="text-xs text-[var(--text-dim)] mt-1 ml-7">{subtitle}</p>}
         </div>
-        <div className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap ${
-          resultPositive
-            ? 'bg-[var(--success)] text-white'
-            : 'bg-[var(--danger-light)] text-[var(--danger)] border border-[var(--danger)]/30'
-        }`}>
-          {resultChip}
+        <div className="flex items-center gap-3">
+          {useListLayout && (
+            <span className="text-xs text-[var(--text-muted)]">
+              {metCount} of {nodes.length} met
+            </span>
+          )}
+          <div className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap ${
+            resultPositive
+              ? 'bg-[var(--success)] text-white'
+              : 'bg-[var(--danger-light)] text-[var(--danger)] border border-[var(--danger)]/30'
+          }`}>
+            {resultChip}
+          </div>
         </div>
       </div>
 
-      <div className="flex items-stretch gap-4 overflow-x-auto pb-2">
-        {nodes.map((node, i) => (
-          <div key={node.id} className="contents">
-            <ValidationNodeCard node={node} onClick={() => onInspect(node)} />
-            {i < nodes.length - 1 && (
-              <span className={`self-center text-xs font-semibold tracking-wider ${
-                operator === 'AND' ? 'text-[var(--success)]' : 'text-[var(--warning)]'
-              }`}>
-                {operator}
+      {useListLayout ? (
+        /* Vertical list layout for many criteria */
+        <div className="space-y-1">
+          {nodes.map((node) => (
+            <ValidationNodeRow key={node.id} node={node} onClick={() => onInspect(node)} />
+          ))}
+        </div>
+      ) : (
+        /* Horizontal card layout for few criteria */
+        <div className="flex items-stretch gap-4 overflow-x-auto pb-2">
+          {nodes.map((node, i) => (
+            <div key={node.id} className="contents">
+              <ValidationNodeCard node={node} onClick={() => onInspect(node)} />
+              {i < nodes.length - 1 && (
+                <span className={`self-center text-xs font-semibold tracking-wider ${
+                  operator === 'AND' ? 'text-[var(--success)]' : 'text-[var(--warning)]'
+                }`}>
+                  {operator}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ValidationNodeRow({ node, onClick }: { node: ValidationNode; onClick: () => void }) {
+  // Get the most relevant facts to show inline (skip summary/progress facts)
+  const detailFacts = node.facts.filter(f =>
+    f.code !== 'PROGRESS' && f.code !== 'NO_MATCH' && f.code !== 'NO_IMMUNIZATIONS'
+  );
+  const doseFact = node.facts.find(f => f.code === 'DOSE_COUNT' || f.code === 'INSUFFICIENT_DOSES');
+  const noMatchFact = node.facts.find(f => f.code === 'NO_MATCH' || f.code === 'NO_IMMUNIZATIONS');
+
+  return (
+    <div
+      onClick={onClick}
+      className={`flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors border ${
+        node.status === 'pass'
+          ? 'bg-[var(--success)]/5 border-[var(--success)]/20 hover:border-[var(--success)]/40'
+          : node.status === 'not_applicable'
+          ? 'bg-[var(--bg-tertiary)] border-white/[0.08] hover:border-white/[0.15]'
+          : 'bg-[var(--danger)]/5 border-[var(--danger)]/20 hover:border-[var(--danger)]/40'
+      }`}
+    >
+      {/* Pass/Fail icon */}
+      <div className="flex-shrink-0">
+        {node.status === 'pass' ? (
+          <CheckCircle className="w-5 h-5 text-[var(--success)]" />
+        ) : node.status === 'not_applicable' ? (
+          <div className="w-5 h-5 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-xs text-[var(--text-muted)]">—</div>
+        ) : (
+          <XCircle className="w-5 h-5 text-[var(--danger)]" />
+        )}
+      </div>
+
+      {/* Criterion title and description */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <h4 className="font-medium text-[var(--text)] text-sm truncate">{node.title}</h4>
+          {doseFact && (
+            <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
+              node.status === 'pass'
+                ? 'bg-[var(--success)]/15 text-[var(--success)]'
+                : 'bg-[var(--danger)]/15 text-[var(--danger)]'
+            }`}>
+              {doseFact.display}
+            </span>
+          )}
+        </div>
+        {/* Show key supporting facts inline */}
+        {detailFacts.length > 0 ? (
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+            {detailFacts.slice(0, 5).map((fact, i) => (
+              <span key={i} className="text-xs text-[var(--text-muted)]">
+                {fact.code && fact.code !== '—' && fact.code !== 'DOSE_COUNT' && fact.code !== 'INSUFFICIENT_DOSES' && (
+                  <code className="text-[var(--accent)] bg-[var(--accent-light)] px-1 rounded text-[10px] font-mono mr-1">{fact.code}</code>
+                )}
+                {fact.display}
+                {fact.date && <span className="text-[var(--text-dim)]"> ({fact.date})</span>}
               </span>
+            ))}
+            {detailFacts.length > 5 && (
+              <span className="text-xs text-[var(--text-dim)]">+{detailFacts.length - 5} more</span>
             )}
           </div>
-        ))}
+        ) : noMatchFact ? (
+          <p className="text-xs text-[var(--text-dim)] mt-0.5">{noMatchFact.display}</p>
+        ) : (
+          <p className="text-xs text-[var(--text-dim)] mt-0.5">{node.description}</p>
+        )}
       </div>
+
+      {/* Click-to-inspect indicator */}
+      <ChevronRight className="w-4 h-4 text-[var(--text-dim)] flex-shrink-0" />
     </div>
   );
 }

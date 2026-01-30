@@ -660,21 +660,6 @@ function evaluateClause(
   switch (clause.operator) {
     case 'AND':
       met = results.every(r => r);
-      // Add a summary node for AND clauses showing partial progress
-      if (totalCount > 1) {
-        childNodes.unshift({
-          id: `${clause.operator}-summary`,
-          title: `Progress: ${metCount} of ${totalCount} criteria met`,
-          type: 'decision',
-          description: met ? 'All criteria satisfied' : `${totalCount - metCount} criteria remaining`,
-          status: met ? 'pass' : (metCount > 0 ? 'partial' : 'fail'),
-          facts: [{
-            code: 'PROGRESS',
-            display: `${metCount}/${totalCount} criteria met`,
-            source: 'Clause Evaluation',
-          }],
-        });
-      }
       break;
     case 'OR':
       met = results.some(r => r);
