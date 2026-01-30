@@ -10,6 +10,8 @@ import type {
   CodeReference,
   CorrectionExport,
 } from '../types/ums';
+import { setOperatorBetween } from '../types/ums';
+import type { LogicalOperator } from '../types/ums';
 import { syncAgeConstraints } from '../utils/constraintSync';
 import { calculateDataElementComplexity } from '../services/complexityCalculator';
 import { migrateMeasure, needsMigration } from '../utils/measureMigration';
@@ -78,6 +80,7 @@ interface MeasureState {
   toggleLogicalOperator: (measureId: string, clauseId: string) => void;
   reorderComponent: (measureId: string, parentClauseId: string, componentId: string, direction: 'up' | 'down') => void;
   moveComponentToIndex: (measureId: string, parentClauseId: string, componentId: string, targetIndex: number) => void;
+  setOperatorBetweenSiblings: (measureId: string, clauseId: string, index1: number, index2: number, operator: LogicalOperator) => void;
   deleteComponent: (measureId: string, componentId: string) => void;
 
   // Correction management
@@ -711,6 +714,37 @@ export const useMeasureStore = create<MeasureState>()(
               return {
                 ...m,
                 populations: m.populations.map(moveInTree),
+                updatedAt: new Date().toISOString(),
+              };
+            }),
+          };
+        }),
+
+      // Set operator between two specific siblings in a clause
+      setOperatorBetweenSiblings: (measureId, clauseId, index1, index2, operator) =>
+        set((state) => {
+          const updateClause = (obj: any): any => {
+            if (!obj) return obj;
+
+            if (obj.id === clauseId && 'operator' in obj && 'children' in obj) {
+              return setOperatorBetween(obj, index1, index2, operator);
+            }
+
+            if (obj.criteria) {
+              return { ...obj, criteria: updateClause(obj.criteria) };
+            }
+            if (obj.children) {
+              return { ...obj, children: obj.children.map(updateClause) };
+            }
+            return obj;
+          };
+
+          return {
+            measures: state.measures.map((m) => {
+              if (m.id !== measureId) return m;
+              return {
+                ...m,
+                populations: m.populations.map(updateClause),
                 updatedAt: new Date().toISOString(),
               };
             }),

@@ -5,7 +5,8 @@ import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useComponentCodeStore } from '../../stores/componentCodeStore';
 import { ComponentBuilder } from './ComponentBuilder';
 import { ComponentDetailPanel } from './ComponentDetailPanel';
-import type { PopulationDefinition, LogicalClause, DataElement, ConfidenceLevel, ReviewStatus, ValueSetReference, CodeReference, CodeSystem } from '../../types/ums';
+import type { PopulationDefinition, LogicalClause, DataElement, ConfidenceLevel, ReviewStatus, ValueSetReference, CodeReference, CodeSystem, LogicalOperator } from '../../types/ums';
+import { getOperatorBetween } from '../../types/ums';
 import type { ComplexityLevel, LibraryComponent } from '../../types/componentLibrary';
 import { getComplexityColor, getComplexityDots, getComplexityLevel, calculateDataElementComplexity, calculatePopulationComplexity, calculateMeasureComplexity } from '../../services/complexityCalculator';
 import { getAllStandardValueSets, searchStandardValueSets, type StandardValueSet } from '../../constants/standardValueSets';
@@ -22,7 +23,7 @@ function cleanDescription(desc: string | undefined): string {
 }
 
 export function UMSEditor() {
-  const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, deleteComponent, setActiveTab, syncAgeRange } = useMeasureStore();
+  const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, setOperatorBetweenSiblings, deleteComponent, setActiveTab, syncAgeRange } = useMeasureStore();
   const measure = getActiveMeasure();
   const { components: libraryComponents, linkMeasureComponents, initializeWithSampleData, getComponent, recalculateUsage, syncComponentToMeasures } = useComponentLibraryStore();
   const { updateMeasure } = useMeasureStore();
@@ -309,6 +310,7 @@ export function UMSEditor() {
                 onToggleOperator={(clauseId) => toggleLogicalOperator(measure.id, clauseId)}
                 onReorder={(parentId, childId, dir) => reorderComponent(measure.id, parentId, childId, dir)}
                 onDeleteComponent={(componentId) => deleteComponent(measure.id, componentId)}
+                onSetOperatorBetween={(clauseId, i1, i2, op) => setOperatorBetweenSiblings(measure.id, clauseId, i1, i2, op)}
                 dragState={dragState}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
@@ -520,6 +522,7 @@ function PopulationSection({
   onToggleOperator,
   onReorder,
   onDeleteComponent,
+  onSetOperatorBetween,
   dragState,
   onDragStart,
   onDragEnd,
@@ -543,6 +546,7 @@ function PopulationSection({
   onToggleOperator: (clauseId: string) => void;
   onReorder: (parentId: string, childId: string, direction: 'up' | 'down') => void;
   onDeleteComponent: (componentId: string) => void;
+  onSetOperatorBetween: (clauseId: string, index1: number, index2: number, operator: LogicalOperator) => void;
   dragState: { draggedId: string | null; dragOverId: string | null; dragOverPosition: 'before' | 'after' | null };
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
@@ -615,6 +619,7 @@ function PopulationSection({
               onToggleOperator={onToggleOperator}
               onReorder={onReorder}
               onDeleteComponent={onDeleteComponent}
+              onSetOperatorBetween={onSetOperatorBetween}
               dragState={dragState}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
@@ -664,6 +669,7 @@ function CriteriaNode({
   onToggleOperator,
   onReorder,
   onDeleteComponent,
+  onSetOperatorBetween,
   dragState,
   onDragStart,
   onDragEnd,
@@ -685,6 +691,7 @@ function CriteriaNode({
   onToggleOperator: (clauseId: string) => void;
   onReorder: (parentId: string, childId: string, direction: 'up' | 'down') => void;
   onDeleteComponent: (componentId: string) => void;
+  onSetOperatorBetween: (clauseId: string, index1: number, index2: number, operator: LogicalOperator) => void;
   dragState: { draggedId: string | null; dragOverId: string | null; dragOverPosition: 'before' | 'after' | null };
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
@@ -748,49 +755,63 @@ function CriteriaNode({
             </div>
           )}
         </div>
-        {clause.children.map((child, idx) => (
-          <Fragment key={child.id}>
-            {idx > 0 && (
-              <div className="flex items-center gap-2 ml-4">
-                <div className="w-px h-3 bg-[var(--border)]" />
-                <button
-                  onClick={() => onToggleOperator(clause.id)}
-                  className={`px-2 py-0.5 rounded font-mono text-[10px] cursor-pointer hover:ring-2 hover:ring-white/20 hover:opacity-80 transition-all ${
-                    clause.operator === 'AND' ? 'bg-[var(--success-light)] text-[var(--success)]' :
-                    clause.operator === 'OR' ? 'bg-[var(--warning-light)] text-[var(--warning)]' :
-                    'bg-[var(--danger-light)] text-[var(--danger)]'
-                  }`}
-                  title="Click to toggle: AND → OR → NOT"
-                >
-                  {clause.operator}
-                </button>
-                <div className="w-px h-3 bg-[var(--border)]" />
+        {clause.children.map((child, idx) => {
+          const siblingOp = idx > 0 ? getOperatorBetween(clause, idx - 1, idx) : clause.operator;
+          const isOverride = idx > 0 && siblingOp !== clause.operator;
+
+          return (
+            <Fragment key={child.id}>
+              {idx > 0 && (
+                <div className={`flex items-center gap-2 ${isOverride ? 'ml-8' : 'ml-4'}`}>
+                  <div className="w-px h-3 bg-[var(--border)]" />
+                  <button
+                    onClick={() => {
+                      const newOp = siblingOp === 'AND' ? 'OR' : 'AND';
+                      onSetOperatorBetween(clause.id, idx - 1, idx, newOp);
+                    }}
+                    className={`px-2 py-0.5 rounded font-mono text-[10px] cursor-pointer hover:ring-2 hover:ring-white/20 hover:opacity-80 transition-all ${
+                      siblingOp === 'AND' ? 'bg-[var(--success-light)] text-[var(--success)]' :
+                      siblingOp === 'OR' ? 'bg-[var(--warning-light)] text-[var(--warning)]' :
+                      'bg-[var(--danger-light)] text-[var(--danger)]'
+                    } ${isOverride ? 'ring-1 ring-[var(--accent)]/30' : ''}`}
+                    title={`Click to toggle between AND / OR (currently ${siblingOp})`}
+                  >
+                    {siblingOp}
+                  </button>
+                  <div className="w-px h-3 bg-[var(--border)]" />
+                  {isOverride && (
+                    <span className="text-[9px] text-[var(--text-dim)] italic">override</span>
+                  )}
+                </div>
+              )}
+              <div className={isOverride ? 'ml-4 pl-3 border-l-2 border-[var(--accent)]/20' : ''}>
+                <CriteriaNode
+                  node={child}
+                  parentId={clause.id}
+                  measureId={measureId}
+                  depth={depth + 1}
+                  index={idx}
+                  totalSiblings={clause.children.length}
+                  selectedNode={selectedNode}
+                  onSelectNode={onSelectNode}
+                  onSelectValueSet={onSelectValueSet}
+                  updateReviewStatus={updateReviewStatus}
+                  allValueSets={allValueSets}
+                  deepMode={deepMode}
+                  onToggleOperator={onToggleOperator}
+                  onReorder={onReorder}
+                  onDeleteComponent={onDeleteComponent}
+                  onSetOperatorBetween={onSetOperatorBetween}
+                  dragState={dragState}
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
+                  onDragOver={onDragOver}
+                  onDrop={onDrop}
+                />
               </div>
-            )}
-            <CriteriaNode
-              node={child}
-              parentId={clause.id}
-              measureId={measureId}
-              depth={depth + 1}
-              index={idx}
-              totalSiblings={clause.children.length}
-              selectedNode={selectedNode}
-              onSelectNode={onSelectNode}
-              onSelectValueSet={onSelectValueSet}
-              updateReviewStatus={updateReviewStatus}
-              allValueSets={allValueSets}
-              deepMode={deepMode}
-              onToggleOperator={onToggleOperator}
-              onReorder={onReorder}
-              onDeleteComponent={onDeleteComponent}
-              dragState={dragState}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onDragOver={onDragOver}
-              onDrop={onDrop}
-            />
-          </Fragment>
-        ))}
+            </Fragment>
+          );
+        })}
       </div>
     );
   }
