@@ -76,12 +76,18 @@ export function calculateAtomicComplexity(
   const negations = component.negation ? 1 : 0;
   const negationScore = component.negation ? 2 : 0;
 
-  const score = base + timingClauses + negationScore;
+  // Components with zero codes require manual review — floor at medium
+  const codeCount = component.valueSet?.codes?.length ?? 0;
+  const zeroCodes = codeCount === 0;
+  const zeroCodesPenalty = zeroCodes ? 4 : 0; // Pushes score to at least medium
+
+  const score = Math.max(base + timingClauses + negationScore, zeroCodesPenalty);
 
   const factors: ComplexityFactors = {
     base,
     timingClauses,
     negations,
+    ...(zeroCodes ? { zeroCodes: true } : {}),
   };
 
   return {
@@ -174,7 +180,8 @@ export function calculateDataElementComplexity(element: {
     description?: string;
     window?: { value: number; unit: string; direction: string };
   }>;
-  valueSet?: { oid?: string };
+  valueSet?: { oid?: string; codes?: unknown[] };
+  directCodes?: unknown[];
 }): ComplexityLevel {
   let score = 1; // base
 
@@ -192,6 +199,12 @@ export function calculateDataElementComplexity(element: {
   const desc = element.description?.toLowerCase() || '';
   if (element.negation || desc.includes('absence of') || desc.includes('without')) {
     score += 2;
+  }
+
+  // Elements with zero codes require manual review — floor at medium
+  const codeCount = (element.valueSet?.codes?.length ?? 0) + (element.directCodes?.length ?? 0);
+  if (codeCount === 0 && element.type !== 'demographic') {
+    score = Math.max(score, 4);
   }
 
   return getComplexityLevel(score);

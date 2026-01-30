@@ -40,6 +40,8 @@ export interface ComplexityFactors {
   andOperators?: number;
   /** For composites: nesting depth beyond 1 level */
   nestingDepth?: number;
+  /** Component has zero codes — requires manual review */
+  zeroCodes?: boolean;
 }
 
 export interface ComponentComplexity {
