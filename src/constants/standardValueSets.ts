@@ -677,6 +677,16 @@ export function getChildhoodImmunizationValueSets(): StandardValueSet[] {
   ];
 }
 
+/**
+ * Get childhood immunization exclusion value sets
+ * CMS117 excludes patients in hospice care
+ */
+export function getChildhoodImmunizationExclusionValueSets(): StandardValueSet[] {
+  return [
+    HOSPICE_CARE_VALUE_SET,
+  ];
+}
+
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================

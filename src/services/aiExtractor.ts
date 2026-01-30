@@ -25,6 +25,7 @@ import {
   getCRCScreeningNumeratorValueSets,
   getCRCScreeningExclusionValueSets,
   getChildhoodImmunizationValueSets,
+  getChildhoodImmunizationExclusionValueSets,
   type StandardValueSet,
 } from '../constants/standardValueSets';
 
@@ -149,7 +150,7 @@ export async function extractMeasureWithAI(
   };
 
   try {
-    onProgress?.({ stage: 'extracting', message: `Sending to ${providerNames[provider]} for analysis...`, progress: 10 });
+    onProgress?.({ stage: 'extracting', message: `Sending to ${providerNames[provider]} for extraction...`, progress: 10 });
 
     // Truncate content if too long
     const maxContentLength = provider === 'google' ? 100000 : 150000;
@@ -184,7 +185,7 @@ export async function extractMeasureWithAI(
       throw new Error(`Unsupported provider: ${provider}`);
     }
 
-    onProgress?.({ stage: 'parsing', message: 'Parsing AI response...', progress: 60 });
+    onProgress?.({ stage: 'parsing', message: 'Parsing extraction results...', progress: 40 });
 
     // Debug logging
     console.log('=== AI EXTRACTION DEBUG ===');
@@ -208,8 +209,48 @@ export async function extractMeasureWithAI(
       console.log('First population criteria count:', extractedData.populations[0].criteria?.length || 0);
     }
 
+    // --- Verification Pass: second AI call to audit extraction completeness ---
+    onProgress?.({ stage: 'parsing', message: 'Verifying extraction completeness...', progress: 50 });
+
+    const actualModelStr = provider === 'custom'
+      ? (customConfig?.modelName || 'default')
+      : (model || DEFAULT_MODELS[provider as keyof typeof DEFAULT_MODELS]);
+
+    const verificationResult = await runVerificationPass(
+      truncatedContent,
+      extractedData,
+      provider,
+      apiKey,
+      actualModelStr,
+      customConfig,
+    );
+
+    if (verificationResult) {
+      if (verificationResult.isComplete) {
+        console.log('Verification pass: extraction is complete, no corrections needed');
+      } else {
+        const totalMissingPops = verificationResult.missingPopulations.length;
+        const totalMissingCriteria = Object.values(verificationResult.missingCriteria)
+          .reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+        const totalTypeFixes = verificationResult.typeFixes.length;
+        const totalMissingVS = verificationResult.missingValueSets.length;
+        console.log(`Verification found gaps: ${totalMissingPops} missing populations, ${totalMissingCriteria} missing criteria, ${totalTypeFixes} type fixes, ${totalMissingVS} missing value sets`);
+
+        extractedData = mergeVerificationResults(extractedData, verificationResult);
+
+        console.log('After verification merge:');
+        console.log('  populations count:', extractedData.populations?.length || 0);
+        extractedData.populations.forEach(p => {
+          console.log(`  ${p.type}: ${p.criteria.length} criteria`);
+        });
+        console.log('  valueSets count:', extractedData.valueSets?.length || 0);
+      }
+    } else {
+      console.log('Verification pass: skipped (parse failure or API error), continuing with original extraction');
+    }
+
     // Enrich value sets with complete codes from standard sources
-    onProgress?.({ stage: 'building', message: 'Enriching value sets from standard sources...', progress: 70 });
+    onProgress?.({ stage: 'building', message: 'Enriching value sets from standard sources...', progress: 65 });
     extractedData = enrichValueSetsFromStandards(extractedData);
     console.log('After enrichment, valueSets count:', extractedData.valueSets?.length || 0);
 
@@ -1155,6 +1196,15 @@ function detectMissingValueSets(data: ExtractedMeasureData, existingOids: Set<st
         existingOids.add(vs.oid);
       }
     }
+
+    // Add immunization exclusion value sets (hospice) if missing
+    const immunizationExclusionSets = getChildhoodImmunizationExclusionValueSets();
+    for (const vs of immunizationExclusionSets) {
+      if (!existingOids.has(vs.oid)) {
+        missing.push(vs);
+        existingOids.add(vs.oid);
+      }
+    }
   }
 
   // TODO: Add detection for other measure types:
@@ -1204,4 +1254,354 @@ function mapCodeSystemFromUri(uri: string): string {
   };
 
   return uriMap[uri] || uri;
+}
+
+// =============================================================================
+// VERIFICATION PASS — Second AI call to audit extraction completeness
+// =============================================================================
+
+interface VerificationResult {
+  isComplete: boolean;
+  missingPopulations: ExtractedPopulation[];
+  missingCriteria: Record<string, ExtractedCriterion[]>;
+  typeFixes: Array<{ population: string; description: string; correctType: string }>;
+  missingValueSets: ExtractedValueSet[];
+}
+
+/**
+ * Build system prompt for the verification/audit pass
+ */
+function buildVerificationSystemPrompt(): string {
+  return `You are a clinical quality measure auditor. You will receive an ORIGINAL DOCUMENT and an AI EXTRACTION of that document. Your job is to find anything the extraction MISSED or got WRONG by comparing it against the original document.
+
+You must respond with ONLY valid JSON (no markdown, no code fences, no explanation).
+
+RULES:
+1. Only report things that are CLEARLY stated in the original document but MISSING from the extraction
+2. Do NOT invent criteria or value sets that aren't in the document
+3. Pay special attention to:
+   - Denominator exclusion criteria (these are commonly missed or incomplete)
+   - Denominator exception criteria
+   - All numerator sub-criteria (e.g., immunization measures need EVERY vaccine group as a separate criterion)
+   - Correct criterion types: use "immunization" for vaccines (never "procedure"), "diagnosis" for conditions, "encounter" for visits
+4. Check that the number of criteria in each population matches what the document describes
+5. Check that value sets mentioned in exclusions/exceptions are included in the valueSets array`;
+}
+
+/**
+ * Build user prompt for the verification pass
+ */
+function buildVerificationPrompt(documentContent: string, extractedData: ExtractedMeasureData): string {
+  // Summarize the extraction concisely to save tokens
+  const extractionSummary = {
+    measureId: extractedData.measureId,
+    title: extractedData.title,
+    populations: extractedData.populations.map(p => ({
+      type: p.type,
+      description: p.description,
+      criteriaCount: p.criteria.length,
+      criteria: p.criteria.map(c => ({
+        type: c.type,
+        description: c.description,
+        valueSetName: c.valueSetName,
+        valueSetOid: c.valueSetOid,
+      })),
+    })),
+    valueSetNames: extractedData.valueSets.map(vs => ({
+      name: vs.name,
+      oid: vs.oid,
+      codeCount: vs.codes.length,
+    })),
+  };
+
+  // Truncate document for verification — we need less detail than extraction
+  const maxDocLength = 80000;
+  const truncatedDoc = documentContent.length > maxDocLength
+    ? documentContent.substring(0, maxDocLength) + '\n\n[Document truncated...]'
+    : documentContent;
+
+  return `Audit this measure extraction for completeness and correctness.
+
+EXTRACTED DATA:
+${JSON.stringify(extractionSummary, null, 2)}
+
+ORIGINAL DOCUMENT:
+${truncatedDoc}
+
+Compare the extraction against the document. Return ONLY valid JSON:
+{
+  "isComplete": true or false,
+  "missingPopulations": [
+    {
+      "type": "denominator_exclusion",
+      "description": "Description of the missing population",
+      "narrative": "Full narrative from the document",
+      "logicOperator": "AND" or "OR",
+      "criteria": [
+        {
+          "type": "diagnosis" | "encounter" | "procedure" | "observation" | "medication" | "demographic" | "assessment" | "immunization",
+          "description": "What this criterion checks",
+          "valueSetName": "Value set name if mentioned",
+          "valueSetOid": "OID if mentioned"
+        }
+      ]
+    }
+  ],
+  "missingCriteria": {
+    "denominator_exclusion": [
+      {
+        "type": "diagnosis",
+        "description": "Missing criterion description",
+        "valueSetName": "Value set name",
+        "valueSetOid": "OID if available"
+      }
+    ]
+  },
+  "typeFixes": [
+    {
+      "population": "numerator",
+      "description": "Criterion description to fix",
+      "correctType": "immunization"
+    }
+  ],
+  "missingValueSets": [
+    {
+      "name": "Value set name",
+      "oid": "OID",
+      "purpose": "What it's used for",
+      "codeSystem": "Primary code system",
+      "codes": []
+    }
+  ]
+}
+
+If the extraction is complete and correct, return: { "isComplete": true, "missingPopulations": [], "missingCriteria": {}, "typeFixes": [], "missingValueSets": [] }`;
+}
+
+/**
+ * Parse the verification response JSON
+ * Lenient — returns null on failure so we gracefully degrade
+ */
+function parseVerificationResponse(content: string): VerificationResult | null {
+  try {
+    // Try direct parse
+    const parsed = JSON.parse(content);
+    if (parsed && typeof parsed.isComplete === 'boolean') {
+      return {
+        isComplete: parsed.isComplete,
+        missingPopulations: Array.isArray(parsed.missingPopulations) ? parsed.missingPopulations : [],
+        missingCriteria: (parsed.missingCriteria && typeof parsed.missingCriteria === 'object') ? parsed.missingCriteria : {},
+        typeFixes: Array.isArray(parsed.typeFixes) ? parsed.typeFixes : [],
+        missingValueSets: Array.isArray(parsed.missingValueSets) ? parsed.missingValueSets : [],
+      };
+    }
+  } catch {
+    // Try extracting JSON from markdown/text
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed && typeof parsed.isComplete === 'boolean') {
+          return {
+            isComplete: parsed.isComplete,
+            missingPopulations: Array.isArray(parsed.missingPopulations) ? parsed.missingPopulations : [],
+            missingCriteria: (parsed.missingCriteria && typeof parsed.missingCriteria === 'object') ? parsed.missingCriteria : {},
+            typeFixes: Array.isArray(parsed.typeFixes) ? parsed.typeFixes : [],
+            missingValueSets: Array.isArray(parsed.missingValueSets) ? parsed.missingValueSets : [],
+          };
+        }
+      } catch {
+        // Fall through
+      }
+    }
+  }
+
+  console.warn('Verification pass: failed to parse response, skipping verification');
+  return null;
+}
+
+/**
+ * Merge verification corrections into the extracted data
+ */
+function mergeVerificationResults(
+  data: ExtractedMeasureData,
+  verification: VerificationResult
+): ExtractedMeasureData {
+  const merged = { ...data };
+
+  // 1. Add entirely missing populations
+  if (verification.missingPopulations.length > 0) {
+    const existingTypes = new Set(merged.populations.map(p => p.type));
+    for (const pop of verification.missingPopulations) {
+      // Normalize criteria in missing populations
+      const normalizedCriteria: ExtractedCriterion[] = (pop.criteria || []).map((c: any) => ({
+        type: c.type || 'assessment',
+        description: c.description || '',
+        valueSetName: c.valueSetName,
+        valueSetOid: c.valueSetOid,
+        directCodes: c.directCodes,
+        timing: c.timing,
+        ageRange: c.ageRange,
+        thresholds: c.thresholds,
+      }));
+
+      if (!existingTypes.has(pop.type)) {
+        // Entirely new population type
+        merged.populations.push({
+          type: pop.type,
+          description: pop.description || '',
+          narrative: pop.narrative || pop.description || '',
+          logicOperator: (pop.logicOperator || 'AND') as 'AND' | 'OR',
+          criteria: normalizedCriteria,
+        });
+        console.log(`Verification: added missing population "${pop.type}" with ${normalizedCriteria.length} criteria`);
+      } else {
+        // Population type exists but might need the criteria merged
+        const existing = merged.populations.find(p => p.type === pop.type);
+        if (existing && normalizedCriteria.length > 0) {
+          const existingDescs = new Set(existing.criteria.map(c => c.description.toLowerCase()));
+          for (const crit of normalizedCriteria) {
+            if (!existingDescs.has(crit.description.toLowerCase())) {
+              existing.criteria.push(crit);
+            }
+          }
+          console.log(`Verification: merged criteria into existing population "${pop.type}"`);
+        }
+      }
+    }
+  }
+
+  // 2. Add missing criteria to existing populations
+  for (const [popType, criteria] of Object.entries(verification.missingCriteria)) {
+    if (!Array.isArray(criteria) || criteria.length === 0) continue;
+
+    const targetPop = merged.populations.find(p => p.type === popType);
+    if (targetPop) {
+      const existingDescs = new Set(targetPop.criteria.map(c => c.description.toLowerCase()));
+      for (const crit of criteria) {
+        const normalized: ExtractedCriterion = {
+          type: (crit.type || 'assessment') as ExtractedCriterion['type'],
+          description: crit.description || '',
+          valueSetName: crit.valueSetName,
+          valueSetOid: crit.valueSetOid,
+          directCodes: crit.directCodes,
+          timing: crit.timing,
+          ageRange: crit.ageRange,
+          thresholds: crit.thresholds,
+        };
+        if (!existingDescs.has(normalized.description.toLowerCase())) {
+          targetPop.criteria.push(normalized);
+          console.log(`Verification: added missing criterion "${normalized.description}" to "${popType}"`);
+        }
+      }
+    } else {
+      // Population doesn't exist yet — create it
+      merged.populations.push({
+        type: popType,
+        description: `${popType.replace(/_/g, ' ')}`,
+        narrative: '',
+        logicOperator: 'OR',
+        criteria: criteria.map((c: any) => ({
+          type: c.type || 'assessment',
+          description: c.description || '',
+          valueSetName: c.valueSetName,
+          valueSetOid: c.valueSetOid,
+          directCodes: c.directCodes,
+          timing: c.timing,
+          ageRange: c.ageRange,
+          thresholds: c.thresholds,
+        })),
+      });
+      console.log(`Verification: created population "${popType}" with ${criteria.length} missing criteria`);
+    }
+  }
+
+  // 3. Apply type fixes
+  for (const fix of verification.typeFixes) {
+    const targetPop = merged.populations.find(p => p.type === fix.population);
+    if (targetPop) {
+      const targetCrit = targetPop.criteria.find(
+        c => c.description.toLowerCase().includes(fix.description.toLowerCase()) ||
+             fix.description.toLowerCase().includes(c.description.toLowerCase())
+      );
+      if (targetCrit) {
+        const oldType = targetCrit.type;
+        targetCrit.type = fix.correctType as ExtractedCriterion['type'];
+        console.log(`Verification: fixed type "${oldType}" → "${fix.correctType}" for "${targetCrit.description}"`);
+      }
+    }
+  }
+
+  // 4. Add missing value sets
+  if (verification.missingValueSets.length > 0) {
+    const existingOids = new Set(merged.valueSets.filter(vs => vs.oid).map(vs => vs.oid));
+    const existingNames = new Set(merged.valueSets.map(vs => vs.name.toLowerCase()));
+
+    for (const vs of verification.missingValueSets) {
+      const isDuplicate = (vs.oid && existingOids.has(vs.oid)) ||
+                          existingNames.has((vs.name || '').toLowerCase());
+      if (!isDuplicate) {
+        merged.valueSets.push({
+          name: vs.name || 'Unknown',
+          oid: vs.oid,
+          version: vs.version,
+          purpose: vs.purpose,
+          codeSystem: vs.codeSystem || 'ICD10',
+          codes: Array.isArray(vs.codes) ? vs.codes.map((c: any) => ({
+            code: c.code || '',
+            display: c.display || '',
+            system: c.system || 'ICD10',
+          })) : [],
+        });
+        console.log(`Verification: added missing value set "${vs.name}"`);
+      }
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * Run the verification pass — calls the same AI provider to audit the extraction
+ * Returns null on any failure (graceful degradation)
+ */
+async function runVerificationPass(
+  documentContent: string,
+  extractedData: ExtractedMeasureData,
+  provider: LLMProvider,
+  apiKey: string,
+  model: string,
+  customConfig?: CustomLLMConfig,
+): Promise<VerificationResult | null> {
+  try {
+    const systemPrompt = buildVerificationSystemPrompt();
+    const userPrompt = buildVerificationPrompt(documentContent, extractedData);
+
+    let content: string;
+
+    if (provider === 'anthropic') {
+      const result = await callAnthropicAPI(apiKey, model, systemPrompt, userPrompt);
+      content = result.content;
+    } else if (provider === 'openai') {
+      const result = await callOpenAIAPI(apiKey, model, systemPrompt, userPrompt);
+      content = result.content;
+    } else if (provider === 'google') {
+      const result = await callGoogleAPI(apiKey, model, systemPrompt, userPrompt);
+      content = result.content;
+    } else if (provider === 'custom' && customConfig) {
+      const result = await callCustomAPI(customConfig.baseUrl, apiKey, model, systemPrompt, userPrompt);
+      content = result.content;
+    } else {
+      return null;
+    }
+
+    console.log('=== VERIFICATION PASS DEBUG ===');
+    console.log('Verification response length:', content.length);
+    console.log('First 500 chars:', content.substring(0, 500));
+
+    return parseVerificationResponse(content);
+  } catch (err) {
+    console.warn('Verification pass failed, continuing with original extraction:', err);
+    return null;
+  }
 }
