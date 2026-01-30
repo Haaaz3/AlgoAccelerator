@@ -263,6 +263,19 @@ export interface DataElement {
 // Logical Clauses (CQL expression trees)
 // ============================================================================
 
+/**
+ * Represents an operator override between two sibling children in a clause.
+ * Allows different operators between different pairs of siblings.
+ */
+export interface SiblingConnection {
+  /** Index of the first child */
+  fromIndex: number;
+  /** Index of the second child */
+  toIndex: number;
+  /** The operator connecting them */
+  operator: LogicalOperator;
+}
+
 export interface LogicalClause {
   id: string;
   /** Logical operator: AND (conjunction), OR (disjunction), NOT (negation) */
@@ -275,6 +288,11 @@ export interface LogicalClause {
   cqlSnippet?: string;
   /** CQL definition name */
   cqlDefinitionName?: string;
+  /**
+   * Optional: Per-sibling operator overrides.
+   * If not present, all siblings use the clause's main operator.
+   */
+  siblingConnections?: SiblingConnection[];
 }
 
 // ============================================================================
@@ -698,5 +716,128 @@ export function toFHIRMeasure(ums: UniversalMeasureSpec): FHIRMeasure {
         expression: sd.name
       }
     }))
+  };
+}
+
+// ============================================================================
+// Logic Tree Helper Functions
+// ============================================================================
+
+/**
+ * Check if a clause/element node is a DataElement (vs LogicalClause)
+ */
+export function isDataElement(node: DataElement | LogicalClause): node is DataElement {
+  return 'type' in node && !('children' in node);
+}
+
+/**
+ * Check if a clause/element node is a LogicalClause
+ */
+export function isLogicalClause(node: DataElement | LogicalClause): node is LogicalClause {
+  return 'operator' in node && 'children' in node;
+}
+
+/**
+ * Get the operator between two sibling indices, respecting per-sibling overrides
+ */
+export function getOperatorBetween(
+  clause: LogicalClause,
+  index1: number,
+  index2: number
+): LogicalOperator {
+  if (clause.siblingConnections) {
+    const connection = clause.siblingConnections.find(
+      c => (c.fromIndex === index1 && c.toIndex === index2) ||
+           (c.fromIndex === index2 && c.toIndex === index1)
+    );
+    if (connection) {
+      return connection.operator;
+    }
+  }
+  return clause.operator;
+}
+
+/**
+ * Set the operator between two sibling indices (immutable)
+ */
+export function setOperatorBetween(
+  clause: LogicalClause,
+  index1: number,
+  index2: number,
+  operator: LogicalOperator
+): LogicalClause {
+  const connections = clause.siblingConnections || [];
+
+  // Remove existing connection for these indices
+  const filtered = connections.filter(
+    c => !((c.fromIndex === index1 && c.toIndex === index2) ||
+           (c.fromIndex === index2 && c.toIndex === index1))
+  );
+
+  // Add new connection if different from default
+  if (operator !== clause.operator) {
+    filtered.push({
+      fromIndex: Math.min(index1, index2),
+      toIndex: Math.max(index1, index2),
+      operator,
+    });
+  }
+
+  return {
+    ...clause,
+    siblingConnections: filtered.length > 0 ? filtered : undefined,
+  };
+}
+
+/**
+ * Walk all DataElements in a clause tree (generator)
+ */
+export function* walkDataElements(
+  clause: LogicalClause
+): Generator<DataElement, void, unknown> {
+  for (const child of clause.children) {
+    if (isDataElement(child)) {
+      yield child;
+    } else if (isLogicalClause(child)) {
+      yield* walkDataElements(child);
+    }
+  }
+}
+
+/**
+ * Find a DataElement by ID in a clause tree
+ */
+export function findDataElementById(
+  clause: LogicalClause,
+  id: string
+): DataElement | null {
+  for (const element of walkDataElements(clause)) {
+    if (element.id === id) {
+      return element;
+    }
+  }
+  return null;
+}
+
+/**
+ * Update a DataElement in a clause tree (immutable)
+ */
+export function updateDataElementInClause(
+  clause: LogicalClause,
+  id: string,
+  updates: Partial<DataElement>
+): LogicalClause {
+  return {
+    ...clause,
+    children: clause.children.map(child => {
+      if (isDataElement(child)) {
+        if (child.id === id) {
+          return { ...child, ...updates };
+        }
+        return child;
+      } else {
+        return updateDataElementInClause(child, id, updates);
+      }
+    }),
   };
 }

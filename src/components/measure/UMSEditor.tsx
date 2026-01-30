@@ -2,7 +2,9 @@ import { useState, useRef, useEffect, Fragment } from 'react';
 import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, Send, Bot, User, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
+import { useComponentCodeStore } from '../../stores/componentCodeStore';
 import { ComponentBuilder } from './ComponentBuilder';
+import { ComponentDetailPanel } from './ComponentDetailPanel';
 import type { PopulationDefinition, LogicalClause, DataElement, ConfidenceLevel, ReviewStatus, ValueSetReference, CodeReference, CodeSystem } from '../../types/ums';
 import type { ComplexityLevel, LibraryComponent } from '../../types/componentLibrary';
 import { getComplexityColor, getComplexityDots, getComplexityLevel, calculateDataElementComplexity, calculatePopulationComplexity, calculateMeasureComplexity } from '../../services/complexityCalculator';
@@ -32,6 +34,7 @@ export function UMSEditor() {
   const [deepMode, setDeepMode] = useState(false);
   const [showValueSetBrowser, setShowValueSetBrowser] = useState(false);
   const [componentLinkMap, setComponentLinkMap] = useState<Record<string, string>>({});
+  const [detailPanelMode, setDetailPanelMode] = useState<'edit' | 'code'>('edit');
 
   // Initialize component library and link measure components
   useEffect(() => {
@@ -345,14 +348,51 @@ export function UMSEditor() {
 
       {/* Detail panel for selected node */}
       {selectedNode && (
-        <NodeDetailPanel
-          measureId={measure.id}
-          nodeId={selectedNode}
-          allValueSets={measure.valueSets}
-          onClose={() => setSelectedNode(null)}
-          onSelectValueSet={setActiveValueSet}
-          updateReviewStatus={updateReviewStatus}
-        />
+        <div className="flex flex-col border-l border-[var(--border)]">
+          {/* Panel mode toggle */}
+          <div className="flex border-b border-[var(--border)] bg-[var(--bg-secondary)]">
+            <button
+              onClick={() => setDetailPanelMode('edit')}
+              className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                detailPanelMode === 'edit'
+                  ? 'text-[var(--accent)] border-b-2 border-[var(--accent)] bg-[var(--bg)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+              }`}
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => setDetailPanelMode('code')}
+              className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                detailPanelMode === 'code'
+                  ? 'text-[var(--accent)] border-b-2 border-[var(--accent)] bg-[var(--bg)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+              }`}
+            >
+              Code & Details
+            </button>
+          </div>
+
+          {detailPanelMode === 'edit' ? (
+            <NodeDetailPanel
+              measureId={measure.id}
+              nodeId={selectedNode}
+              allValueSets={measure.valueSets}
+              onClose={() => setSelectedNode(null)}
+              onSelectValueSet={setActiveValueSet}
+              updateReviewStatus={updateReviewStatus}
+            />
+          ) : (
+            <SelectedComponentDetailPanel
+              measureId={measure.id}
+              nodeId={selectedNode}
+              onClose={() => setSelectedNode(null)}
+              onNavigateToLibrary={(id) => {
+                setActiveTab('components');
+              }}
+            />
+          )}
+        </div>
       )}
 
       {/* Value Set detail modal */}
@@ -851,6 +891,62 @@ function CriteriaNode({
         </div>
       </div>
     </div>
+  );
+}
+
+function SelectedComponentDetailPanel({
+  measureId,
+  nodeId,
+  onClose,
+  onNavigateToLibrary,
+}: {
+  measureId: string;
+  nodeId: string;
+  onClose: () => void;
+  onNavigateToLibrary: (id: string) => void;
+}) {
+  const { measures } = useMeasureStore();
+  const currentMeasure = measures.find(m => m.id === measureId);
+
+  // Find the DataElement in the criteria tree
+  const findElement = (obj: any): DataElement | null => {
+    if (obj?.id === nodeId && obj?.type && !obj?.children) return obj;
+    if (obj?.criteria) {
+      const found = findElement(obj.criteria);
+      if (found) return found;
+    }
+    if (obj?.children) {
+      for (const child of obj.children) {
+        const found = findElement(child);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  let element: DataElement | null = null;
+  if (currentMeasure) {
+    for (const pop of currentMeasure.populations) {
+      element = findElement(pop);
+      if (element) break;
+    }
+  }
+
+  if (!element) {
+    return (
+      <div className="w-[450px] flex items-center justify-center p-8 text-[var(--text-muted)] text-sm">
+        Component not found. Select a data element to view code details.
+      </div>
+    );
+  }
+
+  return (
+    <ComponentDetailPanel
+      element={element}
+      onClose={onClose}
+      onNavigateToLibrary={onNavigateToLibrary}
+      className="w-[450px]"
+    />
   );
 }
 
