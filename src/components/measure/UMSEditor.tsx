@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, Send, Bot, User, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link } from 'lucide-react';
+import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, Send, Bot, User, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { ComponentBuilder } from './ComponentBuilder';
 import type { PopulationDefinition, LogicalClause, DataElement, ConfidenceLevel, ReviewStatus, ValueSetReference, CodeReference, CodeSystem } from '../../types/ums';
-import type { ComplexityLevel } from '../../types/componentLibrary';
+import type { ComplexityLevel, LibraryComponent } from '../../types/componentLibrary';
 import { getComplexityColor, getComplexityDots, getComplexityLevel, calculateDataElementComplexity, calculatePopulationComplexity, calculateMeasureComplexity } from '../../services/complexityCalculator';
 import { getAllStandardValueSets, searchStandardValueSets, type StandardValueSet } from '../../constants/standardValueSets';
 
@@ -675,6 +675,10 @@ function CriteriaNode({
 
   const element = node as DataElement;
 
+  // Look up linked library component for status badge
+  const { getComponent } = useComponentLibraryStore();
+  const linkedComponent = element.libraryComponentId ? getComponent(element.libraryComponentId) ?? undefined : undefined;
+
   // Find the full value set with codes from allValueSets
   const fullValueSet = element.valueSet
     ? allValueSets.find(vs => vs.id === element.valueSet?.id) || element.valueSet
@@ -698,10 +702,7 @@ function CriteriaNode({
             <ComplexityBadge level={calculateDataElementComplexity(element)} size="sm" />
             <ReviewStatusBadge status={element.reviewStatus} size="sm" />
             {element.libraryComponentId && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent)]/30" title="Linked to component library">
-                <Link className="w-3 h-3" />
-                Library
-              </span>
+              <LibraryStatusBadge component={linkedComponent} size="sm" />
             )}
           </div>
           <p className="text-sm text-[var(--text)]">{element.description}</p>
@@ -840,6 +841,7 @@ function NodeDetailPanel({
   updateReviewStatus: (measureId: string, componentId: string, status: ReviewStatus, notes?: string) => void;
 }) {
   const { updateDataElement, measures, syncAgeRange } = useMeasureStore();
+  const { getComponent } = useComponentLibraryStore();
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string; action?: string }>>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -1064,10 +1066,7 @@ function NodeDetailPanel({
           <ComplexityBadge level={calculateDataElementComplexity(node)} />
           <ReviewStatusBadge status={node.reviewStatus} />
           {node.libraryComponentId && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent)]/30">
-              <Link className="w-3.5 h-3.5" />
-              Linked to Library
-            </span>
+            <LibraryStatusBadge component={getComponent(node.libraryComponentId) ?? undefined} size="md" />
           )}
         </div>
 
@@ -2023,6 +2022,62 @@ function ReviewStatusBadge({ status, size = 'md' }: { status: ReviewStatus; size
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded border ${styles[status]} ${size === 'sm' ? 'text-[10px]' : 'text-xs'}`}>
       {status.replace('_', ' ')}
+    </span>
+  );
+}
+
+function LibraryStatusBadge({ component, size = 'sm' }: { component: LibraryComponent | undefined; size?: 'sm' | 'md' }) {
+  const textSize = size === 'sm' ? 'text-[10px]' : 'text-xs';
+  const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5';
+
+  if (!component) {
+    // Fallback: linked but component not found in library
+    return (
+      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${textSize} bg-[var(--accent-light)] text-[var(--accent)] border-[var(--accent)]/30`} title="Linked to component library">
+        <Link className={iconSize} />
+        Library
+      </span>
+    );
+  }
+
+  const isApproved = component.versionInfo.status === 'approved';
+  const usageCount = component.usage?.usageCount ?? component.usage?.measureIds?.length ?? 0;
+  const isWidelyUsed = usageCount >= 3;
+
+  if (isApproved && isWidelyUsed) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${textSize} bg-[var(--success-light)] text-[var(--success)] border-[var(--success)]/30`}
+        title={`${component.name} — Approved and used in ${usageCount} measures`}
+      >
+        <ShieldCheck className={iconSize} />
+        Verified · Used in {usageCount} measures
+      </span>
+    );
+  }
+
+  if (isApproved) {
+    const usageLabel = usageCount === 1 ? '1 measure' : `${usageCount} measures`;
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${textSize} bg-[var(--accent-light)] text-[var(--accent)] border-[var(--accent)]/30`}
+        title={`${component.name} — Approved, used in ${usageLabel}`}
+      >
+        <CheckCircle className={iconSize} />
+        Approved · Used in {usageLabel}
+      </span>
+    );
+  }
+
+  // Draft or pending
+  const statusLabel = component.versionInfo.status === 'pending_review' ? 'Pending' : 'Draft';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${textSize} bg-[var(--bg-tertiary)] text-[var(--text-dim)] border-[var(--border)]`}
+      title={`${component.name} — ${statusLabel}`}
+    >
+      <Link className={iconSize} />
+      Library · {statusLabel}
     </span>
   );
 }
