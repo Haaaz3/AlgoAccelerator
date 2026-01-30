@@ -269,16 +269,40 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           return [node as DataElement];
         };
 
+        // Collect all OR/AND clauses whose children are all DataElements (composite candidates)
+        const collectClausesWithElements = (node: LogicalClause | DataElement): LogicalClause[] => {
+          if (!('operator' in node && 'children' in node)) return [];
+          const clause = node as LogicalClause;
+          const results: LogicalClause[] = [];
+          // Check if ALL children are DataElements (not nested clauses)
+          const allDataElements = clause.children.every(
+            (c) => !('operator' in c && 'children' in c)
+          );
+          if (allDataElements && clause.children.length >= 2) {
+            results.push(clause);
+          }
+          // Also recurse into nested clauses
+          for (const child of clause.children) {
+            if ('operator' in child && 'children' in child) {
+              results.push(...collectClausesWithElements(child as LogicalClause));
+            }
+          }
+          return results;
+        };
+
         const allElements: DataElement[] = [];
+        const allClauses: LogicalClause[] = [];
         for (const pop of populations) {
           if (pop.criteria) {
             allElements.push(...collectElements(pop.criteria as LogicalClause | DataElement));
+            allClauses.push(...collectClausesWithElements(pop.criteria as LogicalClause | DataElement));
           }
         }
 
         const newComponents: LibraryComponent[] = [];
         const updatedComponents: LibraryComponent[] = [];
 
+        // Step 1: Match individual data elements (atomics)
         for (const element of allElements) {
           const parsed = parseDataElementToComponent(element);
           if (!parsed) continue; // Skip elements without value sets
@@ -336,6 +360,35 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           }
         }
 
+        // Step 2: Match composite patterns (OR/AND clauses of data elements against library composites)
+        for (const clause of allClauses) {
+          const childElements = clause.children as DataElement[];
+          const childParsed = childElements
+            .map((el) => parseDataElementToComponent(el))
+            .filter((p): p is NonNullable<typeof p> => p !== null);
+
+          if (childParsed.length < 2) continue;
+
+          // Build a composite ParsedComponent to match against library composites
+          const compositeParsed = {
+            name: clause.description || 'Composite',
+            children: childParsed,
+            operator: clause.operator as 'AND' | 'OR',
+          };
+
+          const compositeMatch = findExactMatch(compositeParsed, libraryRecord);
+          if (compositeMatch) {
+            // Link the clause ID to the composite
+            linkMap[clause.id] = compositeMatch.id;
+            if (!compositeMatch.usage.measureIds.includes(measureId)) {
+              const updated = addUsageReference(compositeMatch, measureId);
+              updatedComponents.push(updated);
+              libraryRecord[compositeMatch.id] = updated;
+            }
+            console.log(`Composite match: "${compositeMatch.name}" linked to measure ${measureId}`);
+          }
+        }
+
         // Update store
         if (newComponents.length > 0 || updatedComponents.length > 0) {
           set((s) => {
@@ -365,6 +418,25 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           return [node as DataElement];
         };
 
+        // Helper to collect clauses whose children are all DataElements (composite candidates)
+        const collectClausesWithElements = (node: LogicalClause | DataElement): LogicalClause[] => {
+          if (!('operator' in node && 'children' in node)) return [];
+          const clause = node as LogicalClause;
+          const results: LogicalClause[] = [];
+          const allDataElements = clause.children.every(
+            (c) => !('operator' in c && 'children' in c)
+          );
+          if (allDataElements && clause.children.length >= 2) {
+            results.push(clause);
+          }
+          for (const child of clause.children) {
+            if ('operator' in child && 'children' in child) {
+              results.push(...collectClausesWithElements(child as LogicalClause));
+            }
+          }
+          return results;
+        };
+
         // Build a set of (componentId -> Set<measureId>) from actual measures
         const usageMap = new Map<string, Set<string>>();
 
@@ -376,12 +448,12 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           const measureId = measure.metadata.measureId;
           for (const pop of measure.populations) {
             if (!pop.criteria) continue;
+
+            // Match individual data elements (atomics)
             const elements = collectElements(pop.criteria as LogicalClause | DataElement);
             for (const element of elements) {
-              // Check if element is linked to a library component
               let componentId = element.libraryComponentId;
 
-              // If not linked, try to match
               if (!componentId) {
                 const parsed = parseDataElementToComponent(element);
                 if (parsed) {
@@ -397,6 +469,29 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
                   usageMap.set(componentId, new Set());
                 }
                 usageMap.get(componentId)!.add(measureId);
+              }
+            }
+
+            // Match composite patterns (OR/AND clauses against library composites)
+            const clauses = collectClausesWithElements(pop.criteria as LogicalClause | DataElement);
+            for (const clause of clauses) {
+              const childElements = clause.children as DataElement[];
+              const childParsed = childElements
+                .map((el) => parseDataElementToComponent(el))
+                .filter((p): p is NonNullable<typeof p> => p !== null);
+              if (childParsed.length < 2) continue;
+
+              const compositeParsed = {
+                name: clause.description || 'Composite',
+                children: childParsed,
+                operator: clause.operator as 'AND' | 'OR',
+              };
+              const compositeMatch = findExactMatch(compositeParsed, libraryRecord);
+              if (compositeMatch) {
+                if (!usageMap.has(compositeMatch.id)) {
+                  usageMap.set(compositeMatch.id, new Set());
+                }
+                usageMap.get(compositeMatch.id)!.add(measureId);
               }
             }
           }

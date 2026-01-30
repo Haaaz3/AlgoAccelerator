@@ -155,21 +155,74 @@ export function generateParsedComponentHash(parsed: ParsedComponent): string {
  *
  * Returns the matching library component, or null if no exact match exists.
  * Exact match = 100% identical identity fields. No fuzzy tolerance.
+ *
+ * For composite incoming components, also checks library composites by resolving
+ * their child component references to atomic identity hashes.
  */
 export function findExactMatch(
   incoming: ParsedComponent,
   library: Record<string, LibraryComponent>
 ): LibraryComponent | null {
   const incomingHash = generateParsedComponentHash(incoming);
+  const isComposite = incoming.children && incoming.children.length > 0;
 
   for (const component of Object.values(library)) {
+    // Standard hash comparison works for atomics
     const libraryHash = generateComponentHash(component);
     if (libraryHash === incomingHash) {
       return component;
     }
+
+    // For composite incoming vs composite library: resolve children and compare
+    if (isComposite && component.type === 'composite') {
+      const match = matchCompositeByChildren(incoming, component, library);
+      if (match) return component;
+    }
   }
 
   return null;
+}
+
+/**
+ * Match a parsed composite against a library composite by resolving the library
+ * composite's child references to their atomic identities and comparing.
+ *
+ * This bridges the gap between:
+ *   - Parsed composites (children are inline ParsedComponents with OID+timing)
+ *   - Library composites (children are { componentId, versionId } references)
+ */
+function matchCompositeByChildren(
+  incoming: ParsedComponent,
+  libraryComposite: CompositeComponent,
+  library: Record<string, LibraryComponent>
+): boolean {
+  // Operators must match
+  const incomingOp = incoming.operator ?? 'AND';
+  if (incomingOp !== libraryComposite.operator) return false;
+
+  const incomingChildren = incoming.children ?? [];
+  if (incomingChildren.length !== libraryComposite.children.length) return false;
+
+  // Build sorted hashes from incoming children (atomic identity hashes)
+  const incomingChildHashes = incomingChildren
+    .map((child) => generateParsedComponentHash(child))
+    .sort();
+
+  // Resolve library composite children to their atomic components, then hash
+  const libraryChildHashes: string[] = [];
+  for (const childRef of libraryComposite.children) {
+    const childComponent = library[childRef.componentId];
+    if (!childComponent || childComponent.type !== 'atomic') return false;
+    // Hash the atomic using the same identity key as parsed components
+    const identityKey = buildAtomicIdentityKey(childComponent);
+    const hash = djb2Hash(JSON.stringify(identityKey));
+    libraryChildHashes.push(hash);
+  }
+  libraryChildHashes.sort();
+
+  // Compare sorted hash arrays
+  if (incomingChildHashes.length !== libraryChildHashes.length) return false;
+  return incomingChildHashes.every((h, i) => h === libraryChildHashes[i]);
 }
 
 // ============================================================================
