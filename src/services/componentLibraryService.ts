@@ -43,7 +43,7 @@ function generateId(prefix: string): ComponentId {
 export interface CreateAtomicParams {
   name: string;
   description?: string;
-  valueSet: { oid: string; version: string; name: string };
+  valueSet: { oid: string; version: string; name: string; codes?: import('../types/ums').CodeReference[] };
   timing: TimingExpression;
   negation: boolean;
   category: ComponentCategory;

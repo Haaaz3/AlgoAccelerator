@@ -313,11 +313,27 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           if (match) {
             // Link to existing component
             linkMap[element.id] = match.id;
+
+            // Sync codes: if the matched component has no codes but the element does, update it
+            const elementCodes = element.valueSet?.codes || element.directCodes || [];
+            const matchCodes = (match.type === 'atomic' && (match as AtomicComponent).valueSet.codes) || [];
+            let componentToUpdate = match;
+            if (elementCodes.length > 0 && matchCodes.length === 0 && match.type === 'atomic') {
+              componentToUpdate = {
+                ...match,
+                valueSet: { ...(match as AtomicComponent).valueSet, codes: elementCodes },
+              } as AtomicComponent;
+              libraryRecord[match.id] = componentToUpdate;
+            }
+
             // Add usage if not already tracked
-            if (!match.usage.measureIds.includes(measureId)) {
-              const updated = addUsageReference(match, measureId);
+            if (!componentToUpdate.usage.measureIds.includes(measureId)) {
+              const updated = addUsageReference(componentToUpdate, measureId);
               updatedComponents.push(updated);
               libraryRecord[match.id] = updated;
+            } else if (componentToUpdate !== match) {
+              // Codes were updated but usage was already tracked — still need to push the update
+              updatedComponents.push(componentToUpdate);
             }
           } else {
             // Check if the element has any codes before creating a component
@@ -343,6 +359,7 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
 
             const vsOid = element.valueSet?.oid || '';
             const vsName = element.valueSet?.name || element.description;
+            const elementCodes = element.valueSet?.codes || element.directCodes || [];
             const newComp = createAtomicComponent({
               name: vsName,
               description: element.description,
@@ -350,6 +367,7 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
                 oid: vsOid,
                 version: vsOid,
                 name: vsName,
+                codes: elementCodes,
               },
               timing: parsed.timing || {
                 operator: 'during',
@@ -361,13 +379,6 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
               tags: [element.type],
               createdBy: 'auto-import',
             });
-
-            // Copy codes onto the new component
-            if (element.valueSet?.codes) {
-              (newComp as any).valueSet.codes = element.valueSet.codes;
-            } else if (element.directCodes) {
-              (newComp as any).valueSet.codes = element.directCodes;
-            }
 
             // Add usage
             const withUsage = addUsageReference(newComp, measureId);
