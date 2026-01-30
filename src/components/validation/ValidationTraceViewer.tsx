@@ -2373,30 +2373,76 @@ function ValidationSection({
         </div>
       </div>
 
-      {useListLayout ? (
-        /* Vertical list layout for many criteria */
-        <div className="space-y-1">
-          {nodes.map((node) => (
-            <ValidationNodeRow key={node.id} node={node} onClick={() => onInspect(node)} />
-          ))}
-        </div>
-      ) : (
-        /* Horizontal card layout for few criteria */
-        <div className="flex items-stretch gap-4 overflow-x-auto pb-2">
-          {nodes.map((node, i) => (
-            <div key={node.id} className="contents">
-              <ValidationNodeCard node={node} onClick={() => onInspect(node)} />
-              {i < nodes.length - 1 && (
-                <span className={`self-center text-xs font-semibold tracking-wider ${
-                  operator === 'AND' ? 'text-[var(--success)]' : 'text-[var(--warning)]'
+      <ValidationNodeList nodes={nodes} operator={operator} onInspect={onInspect} />
+    </div>
+  );
+}
+
+function OperatorSeparator({ operator }: { operator: 'AND' | 'OR' | string }) {
+  return (
+    <div className="flex items-center gap-2 ml-4 my-1">
+      <div className="w-px h-3 bg-[var(--border)]" />
+      <span className={`px-2 py-0.5 rounded font-mono text-[10px] ${
+        operator === 'AND' ? 'bg-[var(--success-light)] text-[var(--success)]' :
+        operator === 'OR' ? 'bg-[var(--warning-light)] text-[var(--warning)]' :
+        'bg-[var(--danger-light)] text-[var(--danger)]'
+      }`}>
+        {operator}
+      </span>
+      <div className="w-px h-3 bg-[var(--border)]" />
+    </div>
+  );
+}
+
+function ValidationNodeList({
+  nodes,
+  operator,
+  onInspect,
+}: {
+  nodes: ValidationNode[];
+  operator: 'AND' | 'OR' | string;
+  onInspect: (node: ValidationNode) => void;
+}) {
+  return (
+    <div className="space-y-0">
+      {nodes.map((node, i) => (
+        <div key={node.id}>
+          {i > 0 && <OperatorSeparator operator={operator} />}
+          {node.children && node.children.length > 0 ? (
+            /* Group node — render as a nested section */
+            <div className="ml-2 rounded-lg border border-[var(--border-light)] bg-[var(--bg-tertiary)]/50 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                {node.status === 'pass' ? (
+                  <CheckCircle className="w-4 h-4 text-[var(--success)]" />
+                ) : node.status === 'partial' ? (
+                  <AlertTriangle className="w-4 h-4 text-[var(--warning)]" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-[var(--danger)]" />
+                )}
+                <span className={`px-2 py-0.5 rounded font-mono text-[10px] ${
+                  node.operator === 'AND' ? 'bg-[var(--success-light)] text-[var(--success)]' :
+                  node.operator === 'OR' ? 'bg-[var(--warning-light)] text-[var(--warning)]' :
+                  'bg-[var(--danger-light)] text-[var(--danger)]'
                 }`}>
-                  {operator}
+                  {node.operator}
                 </span>
-              )}
+                <h4 className="text-sm font-medium text-[var(--text-muted)]">{node.title}</h4>
+                {node.facts[0] && (
+                  <span className="text-xs text-[var(--text-dim)]">{node.facts[0].display}</span>
+                )}
+              </div>
+              <ValidationNodeList
+                nodes={node.children}
+                operator={node.operator || 'AND'}
+                onInspect={onInspect}
+              />
             </div>
-          ))}
+          ) : (
+            /* Leaf node — render as a row */
+            <ValidationNodeRow node={node} onClick={() => onInspect(node)} />
+          )}
         </div>
-      )}
+      ))}
     </div>
   );
 }

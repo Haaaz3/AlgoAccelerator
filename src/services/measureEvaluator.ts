@@ -470,16 +470,30 @@ function evaluateClause(
 
   for (const child of clause.children) {
     if ('operator' in child) {
-      // It's a nested LogicalClause
-      const { met, childNodes: nestedNodes } = evaluateClause(
+      // It's a nested LogicalClause — produce a group node to preserve tree structure
+      const nestedClause = child as LogicalClause;
+      const { met, childNodes: nestedNodes, matchCount } = evaluateClause(
         patient,
-        child as LogicalClause,
+        nestedClause,
         measure,
         mpStart,
         mpEnd
       );
       results.push(met);
-      childNodes.push(...nestedNodes);
+      const groupNode: ValidationNode = {
+        id: nestedClause.id,
+        title: nestedClause.description || `${nestedClause.operator} Group`,
+        type: 'collector',
+        description: nestedClause.description || '',
+        status: met ? 'pass' : matchCount && matchCount.met > 0 ? 'partial' : 'fail',
+        facts: matchCount ? [{
+          code: 'GROUP_MATCH',
+          display: `${matchCount.met} of ${matchCount.total} criteria met`,
+        }] : [],
+        children: nestedNodes,
+        operator: nestedClause.operator,
+      };
+      childNodes.push(groupNode);
     } else {
       // It's a DataElement
       const { met, node } = evaluateDataElement(

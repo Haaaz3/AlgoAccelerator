@@ -598,6 +598,10 @@ export interface ValidationNode {
   facts: ValidationFact[];
   cqlSnippet?: string;
   source?: string;
+  /** For group nodes: nested children */
+  children?: ValidationNode[];
+  /** For group nodes: logical operator connecting children */
+  operator?: LogicalOperator;
 }
 
 export interface PatientValidationTrace {
