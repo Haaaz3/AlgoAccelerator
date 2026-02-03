@@ -5,8 +5,9 @@ import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useComponentCodeStore } from '../../stores/componentCodeStore';
 import { ComponentBuilder } from './ComponentBuilder';
 import { ComponentDetailPanel } from './ComponentDetailPanel';
-import type { PopulationDefinition, LogicalClause, DataElement, ConfidenceLevel, ReviewStatus, ValueSetReference, CodeReference, CodeSystem, LogicalOperator } from '../../types/ums';
+import type { PopulationDefinition, LogicalClause, DataElement, ConfidenceLevel, ReviewStatus, ValueSetReference, CodeReference, CodeSystem, LogicalOperator, TimingConstraint, TimingOverride } from '../../types/ums';
 import { getOperatorBetween } from '../../types/ums';
+import { MeasurePeriodBar, TimingBadge, TimingEditorPanel } from './TimingEditor';
 import type { ComplexityLevel, LibraryComponent } from '../../types/componentLibrary';
 import { getComplexityColor, getComplexityDots, getComplexityLevel, calculateDataElementComplexity, calculatePopulationComplexity, calculateMeasureComplexity } from '../../services/complexityCalculator';
 import { getAllStandardValueSets, searchStandardValueSets, type StandardValueSet } from '../../constants/standardValueSets';
@@ -23,7 +24,7 @@ function cleanDescription(desc: string | undefined): string {
 }
 
 export function UMSEditor() {
-  const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, setOperatorBetweenSiblings, deleteComponent, setActiveTab, syncAgeRange } = useMeasureStore();
+  const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, setOperatorBetweenSiblings, deleteComponent, setActiveTab, syncAgeRange, updateTimingOverride, updateMeasurementPeriod } = useMeasureStore();
   const measure = getActiveMeasure();
   const { components: libraryComponents, linkMeasureComponents, initializeWithSampleData, getComponent, recalculateUsage, syncComponentToMeasures } = useComponentLibraryStore();
   const { updateMeasure } = useMeasureStore();
@@ -37,6 +38,7 @@ export function UMSEditor() {
   const [componentLinkMap, setComponentLinkMap] = useState<Record<string, string>>({});
   const [detailPanelMode, setDetailPanelMode] = useState<'edit' | 'code'>('edit');
   const [dragState, setDragState] = useState<{ draggedId: string | null; dragOverId: string | null; dragOverPosition: 'before' | 'after' | null }>({ draggedId: null, dragOverId: null, dragOverPosition: null });
+  const [editingTimingId, setEditingTimingId] = useState<string | null>(null);
 
   const handleDragStart = (id: string) => {
     setDragState({ draggedId: id, dragOverId: null, dragOverPosition: null });
@@ -275,6 +277,14 @@ export function UMSEditor() {
             </div>
           </div>
 
+          {/* Measurement Period Bar */}
+          <MeasurePeriodBar
+            mpStart={measure.metadata.measurementPeriod?.start || '2024-01-01'}
+            mpEnd={measure.metadata.measurementPeriod?.end || '2024-12-31'}
+            onStartChange={(date) => updateMeasurementPeriod(measure.id, date, measure.metadata.measurementPeriod?.end || '2024-12-31')}
+            onEndChange={(date) => updateMeasurementPeriod(measure.id, measure.metadata.measurementPeriod?.start || '2024-01-01', date)}
+          />
+
           {/* Population sections - IP is merged into Denominator for cleaner display */}
           <div className="space-y-4">
             {measure.populations
@@ -316,6 +326,18 @@ export function UMSEditor() {
                 onDragEnd={handleDragEnd}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
+                mpStart={measure.metadata.measurementPeriod?.start || '2024-01-01'}
+                mpEnd={measure.metadata.measurementPeriod?.end || '2024-12-31'}
+                editingTimingId={editingTimingId}
+                onEditTiming={setEditingTimingId}
+                onSaveTiming={(componentId, modified) => {
+                  updateTimingOverride(measure.id, componentId, modified);
+                  setEditingTimingId(null);
+                }}
+                onResetTiming={(componentId) => {
+                  updateTimingOverride(measure.id, componentId, null);
+                  setEditingTimingId(null);
+                }}
               />
             ))}
           </div>
@@ -528,6 +550,12 @@ function PopulationSection({
   onDragEnd,
   onDragOver,
   onDrop,
+  mpStart,
+  mpEnd,
+  editingTimingId,
+  onEditTiming,
+  onSaveTiming,
+  onResetTiming,
 }: {
   population: PopulationDefinition;
   measureId: string;
@@ -552,6 +580,12 @@ function PopulationSection({
   onDragEnd: () => void;
   onDragOver: (e: React.DragEvent, id: string) => void;
   onDrop: (e: React.DragEvent, targetId: string, targetIndex: number, targetParentId: string | null) => void;
+  mpStart: string;
+  mpEnd: string;
+  editingTimingId: string | null;
+  onEditTiming: (id: string | null) => void;
+  onSaveTiming: (componentId: string, modified: TimingConstraint) => void;
+  onResetTiming: (componentId: string) => void;
 }) {
   // Compute effective status based on children's status
   const computeEffectiveStatus = (pop: PopulationDefinition): ReviewStatus => {
@@ -625,6 +659,12 @@ function PopulationSection({
               onDragEnd={onDragEnd}
               onDragOver={onDragOver}
               onDrop={onDrop}
+              mpStart={mpStart}
+              mpEnd={mpEnd}
+              editingTimingId={editingTimingId}
+              onEditTiming={onEditTiming}
+              onSaveTiming={onSaveTiming}
+              onResetTiming={onResetTiming}
             />
           )}
 
@@ -675,6 +715,12 @@ function CriteriaNode({
   onDragEnd,
   onDragOver,
   onDrop,
+  mpStart,
+  mpEnd,
+  editingTimingId,
+  onEditTiming,
+  onSaveTiming,
+  onResetTiming,
 }: {
   node: LogicalClause | DataElement;
   parentId: string | null;
@@ -697,6 +743,12 @@ function CriteriaNode({
   onDragEnd: () => void;
   onDragOver: (e: React.DragEvent, id: string) => void;
   onDrop: (e: React.DragEvent, targetId: string, targetIndex: number, targetParentId: string | null) => void;
+  mpStart: string;
+  mpEnd: string;
+  editingTimingId: string | null;
+  onEditTiming: (id: string | null) => void;
+  onSaveTiming: (componentId: string, modified: TimingConstraint) => void;
+  onResetTiming: (componentId: string) => void;
 }) {
   const isClause = 'operator' in node;
   const isSelected = selectedNode === node.id;
@@ -796,6 +848,12 @@ function CriteriaNode({
                   onDragEnd={onDragEnd}
                   onDragOver={onDragOver}
                   onDrop={onDrop}
+                  mpStart={mpStart}
+                  mpEnd={mpEnd}
+                  editingTimingId={editingTimingId}
+                  onEditTiming={onEditTiming}
+                  onSaveTiming={onSaveTiming}
+                  onResetTiming={onResetTiming}
                 />
               </div>
             </Fragment>
@@ -918,8 +976,20 @@ function CriteriaNode({
             </button>
           )}
 
-          {/* Timing Requirements - clearer language */}
-          {element.timingRequirements && element.timingRequirements.length > 0 && (
+          {/* Timing Override - structured timing editor */}
+          {element.timingOverride && (
+            <div className="mt-2">
+              <TimingBadge
+                timing={element.timingOverride}
+                mpStart={mpStart}
+                mpEnd={mpEnd}
+                onClick={() => onEditTiming(editingTimingId === element.id ? null : element.id)}
+              />
+            </div>
+          )}
+
+          {/* Timing Requirements - legacy display for backwards compatibility */}
+          {!element.timingOverride && element.timingRequirements && element.timingRequirements.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {element.timingRequirements.map((tr, i) => (
                 <span key={i} className="text-xs px-2 py-0.5 bg-[var(--accent-light)] text-[var(--accent)] rounded">
@@ -996,6 +1066,18 @@ function CriteriaNode({
         </div>
       </div>
       </div>
+
+      {/* Timing Editor Panel - appears when editing timing */}
+      {editingTimingId === element.id && element.timingOverride && (
+        <TimingEditorPanel
+          timing={element.timingOverride}
+          mpStart={mpStart}
+          mpEnd={mpEnd}
+          onSave={(modified) => onSaveTiming(element.id, modified)}
+          onCancel={() => onEditTiming(null)}
+          onReset={() => onResetTiming(element.id)}
+        />
+      )}
 
       {/* Drop indicator - after */}
       {isDraggedOver && dragState.dragOverPosition === 'after' && (

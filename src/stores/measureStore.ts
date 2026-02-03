@@ -9,6 +9,8 @@ import type {
   CorrectionType,
   CodeReference,
   CorrectionExport,
+  TimingConstraint,
+  TimingOverride,
 } from '../types/ums';
 import { setOperatorBetween } from '../types/ums';
 import type { LogicalOperator } from '../types/ums';
@@ -82,6 +84,10 @@ interface MeasureState {
   moveComponentToIndex: (measureId: string, parentClauseId: string, componentId: string, targetIndex: number) => void;
   setOperatorBetweenSiblings: (measureId: string, clauseId: string, index1: number, index2: number, operator: LogicalOperator) => void;
   deleteComponent: (measureId: string, componentId: string) => void;
+
+  // Timing override actions
+  updateTimingOverride: (measureId: string, componentId: string, modified: TimingConstraint | null) => void;
+  updateMeasurementPeriod: (measureId: string, start: string, end: string) => void;
 
   // Correction management
   addCorrection: (measureId: string, correction: Omit<MeasureCorrection, 'id' | 'timestamp'>) => void;
@@ -786,6 +792,65 @@ export const useMeasureStore = create<MeasureState>()(
             }),
           };
         }),
+
+      updateTimingOverride: (measureId, componentId, modified) =>
+        set((state) => {
+          const updateComponent = (obj: any): any => {
+            if (!obj) return obj;
+            if (obj.id === componentId) {
+              // If the component has a timingOverride, update it
+              if (obj.timingOverride) {
+                return {
+                  ...obj,
+                  timingOverride: {
+                    ...obj.timingOverride,
+                    modified,
+                    modifiedAt: modified ? new Date().toISOString() : null,
+                    modifiedBy: modified ? 'user' : null,
+                  },
+                };
+              }
+              return obj;
+            }
+            if (obj.criteria) {
+              return { ...obj, criteria: updateComponent(obj.criteria) };
+            }
+            if (obj.children) {
+              return { ...obj, children: obj.children.map(updateComponent) };
+            }
+            return obj;
+          };
+
+          return {
+            measures: state.measures.map((m) => {
+              if (m.id !== measureId) return m;
+              return {
+                ...m,
+                populations: m.populations.map(updateComponent),
+                updatedAt: new Date().toISOString(),
+              };
+            }),
+          };
+        }),
+
+      updateMeasurementPeriod: (measureId, start, end) =>
+        set((state) => ({
+          measures: state.measures.map((m) => {
+            if (m.id !== measureId) return m;
+            return {
+              ...m,
+              metadata: {
+                ...m.metadata,
+                measurementPeriod: {
+                  ...m.metadata.measurementPeriod,
+                  start,
+                  end,
+                },
+              },
+              updatedAt: new Date().toISOString(),
+            };
+          }),
+        })),
 
       addCorrection: (measureId, correction) =>
         set((state) => ({

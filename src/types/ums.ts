@@ -166,6 +166,210 @@ export interface DateRange {
 }
 
 // ============================================================================
+// Structured Timing Constraint (for timing editor)
+// ============================================================================
+
+export type TimingOperator =
+  | 'during'
+  | 'before end of'
+  | 'after start of'
+  | 'within'
+  | 'starts during'
+  | 'ends during'
+  | 'overlaps';
+
+export type TimeUnit = 'day(s)' | 'month(s)' | 'year(s)';
+
+export type TimingAnchor =
+  | 'Measurement Period'
+  | 'Measurement Period End'
+  | 'Measurement Period Start'
+  | 'Encounter Period'
+  | 'Diagnosis Date';
+
+/**
+ * A structured timing constraint for code generation.
+ * This is the canonical representation used by all code generators.
+ */
+export interface TimingConstraint {
+  /** The clinical concept this timing applies to */
+  concept: string;
+  /** Temporal operator */
+  operator: TimingOperator;
+  /** Numeric value — null for operators like "during" that don't need one */
+  value: number | null;
+  /** Time unit — null when value is null */
+  unit: TimeUnit | null;
+  /** What the timing is relative to */
+  anchor: TimingAnchor;
+}
+
+/**
+ * Tracks the original parsed timing alongside any user modification.
+ * Used for persisting and displaying timing overrides.
+ */
+export interface TimingOverride {
+  /** The timing as parsed from the source spec — immutable after extraction */
+  original: TimingConstraint;
+  /** User-modified timing — null if the user hasn't changed it */
+  modified: TimingConstraint | null;
+  /** ISO timestamp of when the override was last applied */
+  modifiedAt: string | null;
+  /** User ID who made the modification (if applicable) */
+  modifiedBy: string | null;
+}
+
+export const TIMING_OPERATORS: TimingOperator[] = [
+  'during',
+  'before end of',
+  'after start of',
+  'within',
+  'starts during',
+  'ends during',
+  'overlaps',
+];
+
+export const TIME_UNITS: TimeUnit[] = ['day(s)', 'month(s)', 'year(s)'];
+
+export const TIMING_ANCHORS: TimingAnchor[] = [
+  'Measurement Period',
+  'Measurement Period End',
+  'Measurement Period Start',
+  'Encounter Period',
+  'Diagnosis Date',
+];
+
+/**
+ * Returns the effective timing constraint, preferring user overrides.
+ */
+export function getEffectiveTiming(override: TimingOverride | null): TimingConstraint | null {
+  if (!override) return null;
+  return override.modified ?? override.original;
+}
+
+/**
+ * Returns true if the timing has been modified from the original.
+ */
+export function isTimingModified(override: TimingOverride | null): boolean {
+  if (!override) return false;
+  return override.modified !== null;
+}
+
+/**
+ * Converts a TimingRequirement to a TimingConstraint for the timing editor.
+ */
+export function timingRequirementToConstraint(
+  tr: TimingRequirement,
+  concept: string
+): TimingConstraint {
+  let operator: TimingOperator = 'during';
+  let value: number | null = null;
+  let unit: TimeUnit | null = null;
+  let anchor: TimingAnchor = 'Measurement Period';
+
+  // Map operator
+  if (tr.operator === 'during' || tr.operator === 'includes') {
+    operator = 'during';
+  } else if (tr.operator === 'starts') {
+    operator = 'starts during';
+  } else if (tr.operator === 'ends') {
+    operator = 'ends during';
+  } else if (tr.operator === 'overlaps') {
+    operator = 'overlaps';
+  } else if (tr.operator === 'before') {
+    operator = 'before end of';
+  } else if (tr.operator === 'after') {
+    operator = 'after start of';
+  }
+
+  // Map window if present
+  if (tr.window) {
+    value = tr.window.value;
+    if (tr.window.unit === 'days') unit = 'day(s)';
+    else if (tr.window.unit === 'months') unit = 'month(s)';
+    else if (tr.window.unit === 'years') unit = 'year(s)';
+
+    if (tr.window.direction === 'within' || tr.window.direction === 'before') {
+      operator = 'within';
+    } else if (tr.window.direction === 'after') {
+      operator = 'after start of';
+    }
+  }
+
+  // Map anchor
+  if (tr.relativeTo === 'Measurement Period' || tr.relativeTo === 'measurement_period') {
+    anchor = 'Measurement Period';
+  } else if (tr.relativeTo === 'encounter') {
+    anchor = 'Encounter Period';
+  } else if (tr.relativeTo === 'diagnosis onset') {
+    anchor = 'Diagnosis Date';
+  }
+
+  return { concept, operator, value, unit, anchor };
+}
+
+/**
+ * Converts a TimingConstraint back to a TimingRequirement.
+ */
+export function constraintToTimingRequirement(
+  tc: TimingConstraint,
+  confidence: ConfidenceLevel = 'high'
+): TimingRequirement {
+  let description = '';
+  let operator: TimingRequirement['operator'] = 'during';
+  let relativeTo: string = 'Measurement Period';
+  let window: TimingRequirement['window'] | undefined;
+
+  // Build description
+  if (tc.value && tc.unit) {
+    description = `${tc.operator} ${tc.value} ${tc.unit} of ${tc.anchor}`;
+  } else {
+    description = `${tc.operator} ${tc.anchor}`;
+  }
+
+  // Map operator
+  if (tc.operator === 'during' || tc.operator === 'starts during' || tc.operator === 'ends during') {
+    operator = tc.operator === 'during' ? 'during' : tc.operator === 'starts during' ? 'starts' : 'ends';
+  } else if (tc.operator === 'overlaps') {
+    operator = 'overlaps';
+  } else if (tc.operator === 'before end of') {
+    operator = 'before';
+  } else if (tc.operator === 'after start of') {
+    operator = 'after';
+  } else if (tc.operator === 'within') {
+    operator = 'during'; // "within" maps to during with a window
+  }
+
+  // Map anchor to relativeTo
+  if (tc.anchor === 'Measurement Period' || tc.anchor === 'Measurement Period End' || tc.anchor === 'Measurement Period Start') {
+    relativeTo = 'Measurement Period';
+  } else if (tc.anchor === 'Encounter Period') {
+    relativeTo = 'encounter';
+  } else if (tc.anchor === 'Diagnosis Date') {
+    relativeTo = 'diagnosis onset';
+  }
+
+  // Map window
+  if (tc.value && tc.unit) {
+    let windowUnit: 'days' | 'weeks' | 'months' | 'years' = 'days';
+    if (tc.unit === 'day(s)') windowUnit = 'days';
+    else if (tc.unit === 'month(s)') windowUnit = 'months';
+    else if (tc.unit === 'year(s)') windowUnit = 'years';
+
+    let direction: 'before' | 'after' | 'within' = 'within';
+    if (tc.operator === 'within' || tc.operator === 'before end of') {
+      direction = 'within';
+    } else if (tc.operator === 'after start of') {
+      direction = 'after';
+    }
+
+    window = { value: tc.value, unit: windowUnit, direction };
+  }
+
+  return { description, operator, relativeTo, window, confidence };
+}
+
+// ============================================================================
 // Data Elements (QI-Core aligned)
 // ============================================================================
 
@@ -225,6 +429,9 @@ export interface DataElement {
   timingRequirements?: TimingRequirement[];
   /** @deprecated Use timingRequirements instead */
   temporalConstraints?: TemporalConstraint[];
+
+  /** Structured timing constraint with override support for the timing editor */
+  timingOverride?: TimingOverride;
 
   /** Additional logic requirements in plain English */
   additionalRequirements?: string[];
