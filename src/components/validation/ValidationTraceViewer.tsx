@@ -2327,6 +2327,52 @@ export function ValidationTraceViewer() {
   );
 }
 
+/**
+ * Find the first qualifying fact from a list of validation nodes.
+ * Returns the earliest dated fact that contributed to qualification.
+ */
+function findFirstQualifyingFact(nodes: ValidationNode[]): { code: string; display: string; date: string; nodeTitle: string } | null {
+  let earliest: { code: string; display: string; date: string; nodeTitle: string } | null = null;
+  let earliestDate: Date | null = null;
+
+  for (const node of nodes) {
+    if (node.status !== 'pass') continue;
+
+    // Check this node's facts
+    for (const fact of node.facts) {
+      // Skip placeholder/summary facts
+      if (!fact.date || fact.date === '—' || fact.code === '—' || fact.code === 'PROGRESS' || fact.code === 'NO_MATCH') continue;
+
+      const factDate = new Date(fact.date);
+      if (isNaN(factDate.getTime())) continue;
+
+      if (!earliestDate || factDate < earliestDate) {
+        earliestDate = factDate;
+        earliest = {
+          code: fact.code,
+          display: fact.display,
+          date: fact.date,
+          nodeTitle: node.title,
+        };
+      }
+    }
+
+    // Recursively check children
+    if (node.children && node.children.length > 0) {
+      const childResult = findFirstQualifyingFact(node.children);
+      if (childResult) {
+        const childDate = new Date(childResult.date);
+        if (!earliestDate || childDate < earliestDate) {
+          earliestDate = childDate;
+          earliest = childResult;
+        }
+      }
+    }
+  }
+
+  return earliest;
+}
+
 function ValidationSection({
   title,
   subtitle,
@@ -2346,6 +2392,9 @@ function ValidationSection({
 }) {
   const useListLayout = nodes.length > 4;
   const metCount = nodes.filter(n => n.status === 'pass').length;
+
+  // Find the first qualifying fact for this section
+  const firstQualification = resultPositive ? findFirstQualifyingFact(nodes) : null;
 
   return (
     <div className={`mb-6 rounded-xl border p-5 transition-colors ${
@@ -2383,6 +2432,26 @@ function ValidationSection({
           </div>
         </div>
       </div>
+
+      {/* First Qualification - shows the triggering event */}
+      {firstQualification && (
+        <div className="mb-4 p-3 bg-[var(--success)]/10 border border-[var(--success)]/20 rounded-lg">
+          <div className="flex items-center gap-2 text-xs text-[var(--success)] font-medium mb-1">
+            <Calendar className="w-3.5 h-3.5" />
+            First Qualification
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <code className="text-[var(--accent)] bg-[var(--accent-light)] px-1.5 py-0.5 rounded text-xs font-mono">
+              {firstQualification.code}
+            </code>
+            <span className="text-sm text-[var(--text)]">{firstQualification.display}</span>
+            <span className="text-xs text-[var(--text-muted)]">on {firstQualification.date}</span>
+          </div>
+          <div className="text-[10px] text-[var(--text-dim)] mt-1">
+            via {firstQualification.nodeTitle}
+          </div>
+        </div>
+      )}
 
       <ValidationNodeList nodes={nodes} operator={operator} onInspect={onInspect} />
     </div>

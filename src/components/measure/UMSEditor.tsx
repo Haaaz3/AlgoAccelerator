@@ -33,7 +33,6 @@ export function UMSEditor() {
   const { updateMeasure } = useMeasureStore();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['ip', 'den', 'ex', 'num']));
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [showCQL, setShowCQL] = useState(false);
   const [activeValueSet, setActiveValueSet] = useState<ValueSetReference | null>(null);
   const [builderTarget, setBuilderTarget] = useState<{ populationId: string; populationType: string } | null>(null);
   const [deepMode, setDeepMode] = useState(false);
@@ -219,15 +218,6 @@ export function UMSEditor() {
                   Deep Edit Mode
                 </button>
                 <button
-                  onClick={() => setShowCQL(!showCQL)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
-                    showCQL ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text)]'
-                  }`}
-                >
-                  <Code className="w-4 h-4" />
-                  CQL
-                </button>
-                <button
                   onClick={() => approveAllLowComplexity(measure.id)}
                   className="px-3 py-2 bg-[var(--success-light)] text-[var(--success)] rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-80 transition-all"
                 >
@@ -314,7 +304,6 @@ export function UMSEditor() {
                 onSelectNode={setSelectedNode}
                 onSelectValueSet={setActiveValueSet}
                 onAddComponent={() => setBuilderTarget({ populationId: population.id, populationType: population.type })}
-                showCQL={showCQL}
                 icon={getPopulationIcon(population.type)}
                 label={getPopulationLabel(population.type)}
                 updateReviewStatus={updateReviewStatus}
@@ -558,7 +547,6 @@ function PopulationSection({
   onSelectNode,
   onSelectValueSet,
   onAddComponent,
-  showCQL,
   icon,
   label,
   updateReviewStatus,
@@ -588,7 +576,6 @@ function PopulationSection({
   onSelectNode: (id: string | null) => void;
   onSelectValueSet: (vs: ValueSetReference) => void;
   onAddComponent: () => void;
-  showCQL: boolean;
   icon: string;
   label: string;
   updateReviewStatus: (measureId: string, componentId: string, status: ReviewStatus, notes?: string) => void;
@@ -689,15 +676,6 @@ function PopulationSection({
               onSaveTiming={onSaveTiming}
               onResetTiming={onResetTiming}
             />
-          )}
-
-          {/* CQL Preview */}
-          {showCQL && population.cqlDefinition && (
-            <div className="mt-3 ml-7">
-              <pre className="p-3 bg-[#0b1a34] rounded-lg text-xs text-[var(--accent)] overflow-auto border border-[var(--accent)]/20">
-                {population.cqlDefinition}
-              </pre>
-            </div>
           )}
 
           {/* Add Component Button - only visible in Deep Edit Mode */}
@@ -1803,7 +1781,7 @@ function NodeDetailPanel({
         <div className="p-3 border-b border-[var(--border)]">
           <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-2">
             <Bot className="w-3.5 h-3.5" />
-            AI Assistant — Ask questions or request changes
+            Ask questions, or request component changes
           </h4>
         </div>
 
