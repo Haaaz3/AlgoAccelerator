@@ -29,11 +29,11 @@ import {
   Bookmark,
 } from 'lucide-react';
 
-import type { DataElement, ValueSetReference, TimingConstraint } from '../../types/ums';
+import type { DataElement, ValueSetReference, TimingConstraint, TimingWindow } from '../../types/ums';
 import type { ComponentCodeState, CodeEditNote } from '../../types/componentCode';
 
 import { ComponentCodeViewer } from './ComponentCodeViewer';
-import { TimingBadge, TimingEditorPanel } from './TimingEditor';
+import { TimingBadge, TimingEditorPanel, TimingWindowLabel, TimingWindowEditor } from './TimingEditor';
 import { useComponentCodeStore } from '../../stores/componentCodeStore';
 import { formatNoteTimestamp, getAllNotesForComponent } from '../../types/componentCode';
 
@@ -234,6 +234,9 @@ export interface ComponentDetailPanelProps {
   mpEnd?: string;
   onSaveTiming?: (componentId: string, modified: TimingConstraint) => void;
   onResetTiming?: (componentId: string) => void;
+  // Timing window editor props
+  onSaveTimingWindow?: (componentId: string, modified: TimingWindow) => void;
+  onResetTimingWindow?: (componentId: string) => void;
 }
 
 /** Strip standalone AND/OR/NOT operators from descriptions */
@@ -256,6 +259,8 @@ export const ComponentDetailPanel = ({
   mpEnd = '2024-12-31',
   onSaveTiming,
   onResetTiming,
+  onSaveTimingWindow,
+  onResetTimingWindow,
 }: ComponentDetailPanelProps) => {
   // Section visibility state
   const [expandedSections, setExpandedSections] = useState({
@@ -267,6 +272,7 @@ export const ComponentDetailPanel = ({
 
   // Timing editor state
   const [isEditingTiming, setIsEditingTiming] = useState(false);
+  const [isEditingTimingWindow, setIsEditingTimingWindow] = useState(false);
 
   // Code state from store
   const codeState = useComponentCodeStore((state) =>
@@ -387,8 +393,39 @@ export const ComponentDetailPanel = ({
         />
         {expandedSections.details && (
           <div className="px-4 py-3 space-y-3 border-b border-[var(--border)]">
-            {/* Structured timing with badge and resolved dates */}
-            {element.timingOverride && (
+            {/* Timing Window editor (for "From X through Y" patterns) */}
+            {element.timingWindow && (
+              <div>
+                <label className="text-xs text-[var(--text-dim)] mb-2 block">
+                  Timing Window
+                </label>
+                <TimingWindowLabel
+                  window={element.timingWindow}
+                  mpStart={mpStart}
+                  mpEnd={mpEnd}
+                  onClick={() => setIsEditingTimingWindow(!isEditingTimingWindow)}
+                />
+                {isEditingTimingWindow && onSaveTimingWindow && onResetTimingWindow && (
+                  <TimingWindowEditor
+                    window={element.timingWindow}
+                    mpStart={mpStart}
+                    mpEnd={mpEnd}
+                    onSave={(modified) => {
+                      onSaveTimingWindow(element.id, modified);
+                      setIsEditingTimingWindow(false);
+                    }}
+                    onCancel={() => setIsEditingTimingWindow(false)}
+                    onReset={() => {
+                      onResetTimingWindow(element.id);
+                      setIsEditingTimingWindow(false);
+                    }}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Structured timing with badge and resolved dates (for single-point timing) */}
+            {!element.timingWindow && element.timingOverride && (
               <div>
                 <label className="text-xs text-[var(--text-dim)] mb-2 block">
                   Timing Constraint
@@ -418,8 +455,8 @@ export const ComponentDetailPanel = ({
               </div>
             )}
 
-            {/* Legacy timing requirements display - only if no timingOverride */}
-            {!element.timingOverride && element.timingRequirements?.length ? (
+            {/* Legacy timing requirements display - only if no structured timing */}
+            {!element.timingWindow && !element.timingOverride && element.timingRequirements?.length ? (
               <div>
                 <label className="text-xs text-[var(--text-dim)]">
                   Timing

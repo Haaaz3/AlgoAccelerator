@@ -6,13 +6,20 @@ import type {
   TimingOperator,
   TimeUnit,
   TimingAnchor,
+  TimingWindow,
+  TimingWindowOverride,
+  TimingBoundary,
+  OffsetUnit,
 } from '../../types/ums';
 import {
   TIMING_OPERATORS,
   TIME_UNITS,
   TIMING_ANCHORS,
+  TIMING_WINDOW_ANCHORS,
   getEffectiveTiming,
   isTimingModified,
+  getEffectiveWindow,
+  isWindowModified,
 } from '../../types/ums';
 import {
   resolveTimingWindow,
@@ -20,6 +27,8 @@ import {
   toISODate,
   formatDate,
   formatTimingExpression,
+  formatTimingWindow,
+  formatWindowResolved,
 } from '../../utils/timingResolver';
 
 interface MeasurePeriodBarProps {
@@ -362,6 +371,261 @@ export function TimingEditorPanel({
           <RotateCcw className="w-3 h-3" />
           Reset to Original
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Timing Window Components (for "From X through Y" patterns)
+// ============================================================
+
+interface TimingWindowLabelProps {
+  window: TimingWindowOverride;
+  mpStart: string;
+  mpEnd: string;
+  onClick: () => void;
+}
+
+export function TimingWindowLabel({
+  window,
+  mpStart,
+  mpEnd,
+  onClick,
+}: TimingWindowLabelProps) {
+  const effective = getEffectiveWindow(window);
+  if (!effective) return null;
+
+  const modified = isWindowModified(window);
+  const displayText = formatTimingWindow(effective);
+  const resolvedText = formatWindowResolved(effective, mpStart, mpEnd);
+
+  return (
+    <div className="inline-flex items-center gap-3 flex-wrap">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick();
+        }}
+        className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-mono rounded border cursor-pointer transition-all hover:ring-2 hover:ring-white/20 ${
+          modified
+            ? 'bg-[var(--warning-light)] border-[var(--warning)] text-[var(--warning)]'
+            : 'bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text)]'
+        }`}
+        title="Click to edit timing window"
+      >
+        <Clock className="w-3.5 h-3.5" />
+        <span>{displayText}</span>
+        {modified && <span className="w-1.5 h-1.5 rounded-full bg-[var(--warning)]" />}
+      </button>
+      <span className="text-xs font-mono text-[var(--accent)] bg-[var(--accent-light)] px-2.5 py-1 rounded whitespace-nowrap">
+        {resolvedText}
+      </span>
+    </div>
+  );
+}
+
+interface BoundaryEditorProps {
+  boundary: TimingBoundary;
+  onChange: (boundary: TimingBoundary) => void;
+  label: string;
+}
+
+function BoundaryEditor({ boundary, onChange, label }: BoundaryEditorProps) {
+  const hasOffset = boundary.offsetValue !== null;
+
+  const handleAnchorChange = (anchor: TimingAnchor) => {
+    onChange({ ...boundary, anchor });
+  };
+
+  const handleAddOffset = () => {
+    onChange({
+      ...boundary,
+      offsetValue: 1,
+      offsetUnit: 'day(s)',
+      offsetDirection: 'after',
+    });
+  };
+
+  const handleRemoveOffset = () => {
+    onChange({
+      ...boundary,
+      offsetValue: null,
+      offsetUnit: null,
+      offsetDirection: null,
+    });
+  };
+
+  const handleOffsetValueChange = (value: number) => {
+    onChange({ ...boundary, offsetValue: value });
+  };
+
+  const handleOffsetUnitChange = (unit: OffsetUnit) => {
+    onChange({ ...boundary, offsetUnit: unit });
+  };
+
+  const handleOffsetDirectionChange = (direction: 'before' | 'after') => {
+    onChange({ ...boundary, offsetDirection: direction });
+  };
+
+  return (
+    <div className="inline-flex items-center gap-2">
+      {/* Anchor dropdown */}
+      <select
+        value={boundary.anchor}
+        onChange={(e) => handleAnchorChange(e.target.value as TimingAnchor)}
+        className="px-2 py-1.5 border border-[var(--border)] rounded text-sm font-mono bg-[var(--bg)] text-[var(--text)] min-w-[100px]"
+      >
+        {TIMING_WINDOW_ANCHORS.map((a) => (
+          <option key={a} value={a}>
+            {a}
+          </option>
+        ))}
+      </select>
+
+      {/* Offset controls */}
+      {hasOffset ? (
+        <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-[var(--bg-secondary)] rounded border border-[var(--border)]">
+          {/* Direction toggle */}
+          <button
+            onClick={() => handleOffsetDirectionChange(boundary.offsetDirection === 'after' ? 'before' : 'after')}
+            className={`px-1.5 py-0.5 text-xs font-bold rounded transition-colors ${
+              boundary.offsetDirection === 'after'
+                ? 'bg-green-500/20 text-green-400'
+                : 'bg-red-500/20 text-red-400'
+            }`}
+            title="Toggle before/after"
+          >
+            {boundary.offsetDirection === 'after' ? '+' : '−'}
+          </button>
+
+          {/* Value input */}
+          <input
+            type="number"
+            min={1}
+            value={boundary.offsetValue || ''}
+            onChange={(e) => handleOffsetValueChange(parseInt(e.target.value) || 1)}
+            className="w-14 px-2 py-0.5 border border-[var(--border)] rounded text-sm font-mono bg-[var(--bg)] text-[var(--text)] text-center"
+          />
+
+          {/* Unit dropdown */}
+          <select
+            value={boundary.offsetUnit || 'day(s)'}
+            onChange={(e) => handleOffsetUnitChange(e.target.value as OffsetUnit)}
+            className="px-1.5 py-0.5 border border-[var(--border)] rounded text-xs font-mono bg-[var(--bg)] text-[var(--text)]"
+          >
+            <option value="day(s)">days</option>
+            <option value="month(s)">months</option>
+            <option value="year(s)">years</option>
+          </select>
+
+          {/* Remove offset */}
+          <button
+            onClick={handleRemoveOffset}
+            className="text-[var(--text-dim)] hover:text-[var(--danger)] transition-colors"
+            title="Remove offset"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleAddOffset}
+          className="text-xs text-[var(--accent)] hover:underline"
+        >
+          + add offset
+        </button>
+      )}
+    </div>
+  );
+}
+
+interface TimingWindowEditorProps {
+  window: TimingWindowOverride;
+  mpStart: string;
+  mpEnd: string;
+  onSave: (modified: TimingWindow) => void;
+  onCancel: () => void;
+  onReset: () => void;
+}
+
+export function TimingWindowEditor({
+  window,
+  mpStart,
+  mpEnd,
+  onSave,
+  onCancel,
+  onReset,
+}: TimingWindowEditorProps) {
+  const effective = getEffectiveWindow(window)!;
+  const [draft, setDraft] = useState<TimingWindow>({ ...effective });
+
+  const handleStartChange = (boundary: TimingBoundary) => {
+    setDraft({ ...draft, start: boundary });
+  };
+
+  const handleEndChange = (boundary: TimingBoundary) => {
+    setDraft({ ...draft, end: boundary });
+  };
+
+  const resolvedPreview = formatWindowResolved(draft, mpStart, mpEnd);
+
+  return (
+    <div className="bg-[var(--bg)] border-2 border-[var(--accent)] rounded-lg p-4 mt-2 shadow-lg">
+      {/* Original reference */}
+      {window.sourceText && (
+        <div className="text-[11px] text-[var(--text-dim)] font-mono mb-3">
+          Original: "{window.sourceText}"
+        </div>
+      )}
+
+      {/* Inline sentence editor */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm font-medium text-[var(--text-muted)]">From</span>
+        <BoundaryEditor
+          boundary={draft.start}
+          onChange={handleStartChange}
+          label="start"
+        />
+        <span className="text-sm font-medium text-[var(--text-muted)]">through</span>
+        <BoundaryEditor
+          boundary={draft.end}
+          onChange={handleEndChange}
+          label="end"
+        />
+      </div>
+
+      {/* Live resolved preview */}
+      <div className="mt-3 p-2 bg-[var(--accent-light)] rounded border border-[var(--accent)]/30 inline-flex items-center gap-2">
+        <span className="text-xs font-semibold text-[var(--accent)]">Resolves to:</span>
+        <span className="text-sm font-mono text-[var(--accent)] font-medium">
+          {resolvedPreview}
+        </span>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2 mt-3">
+        <button
+          onClick={() => onSave(draft)}
+          className="px-4 py-1.5 bg-[var(--accent)] text-white rounded font-medium text-sm hover:opacity-90 transition-all"
+        >
+          Apply
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 bg-transparent text-[var(--text-muted)] border border-[var(--border)] rounded font-medium text-sm hover:bg-[var(--bg-secondary)] transition-all"
+        >
+          Cancel
+        </button>
+        {isWindowModified(window) && (
+          <button
+            onClick={onReset}
+            className="ml-auto px-3 py-1.5 bg-transparent text-[var(--text-dim)] border border-dashed border-[var(--border)] rounded font-medium text-xs hover:text-[var(--text-muted)] transition-all flex items-center gap-1"
+          >
+            <RotateCcw className="w-3 h-3" />
+            Reset
+          </button>
+        )}
       </div>
     </div>
   );

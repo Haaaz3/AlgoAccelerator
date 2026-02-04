@@ -185,7 +185,61 @@ export type TimingAnchor =
   | 'Measurement Period End'
   | 'Measurement Period Start'
   | 'Encounter Period'
-  | 'Diagnosis Date';
+  | 'Diagnosis Date'
+  | 'IPSD'
+  | 'IPED'
+  | 'Encounter Start'
+  | 'Encounter End'
+  | 'Procedure Date'
+  | 'Discharge Date';
+
+// ============================================================================
+// Timing Window Types (for window-based timing like "From IPSD through 231 days after IPSD")
+// ============================================================================
+
+export type OffsetUnit = 'day(s)' | 'month(s)' | 'year(s)';
+
+export interface TimingBoundary {
+  anchor: TimingAnchor;
+  offsetValue: number | null;
+  offsetUnit: OffsetUnit | null;
+  offsetDirection: 'before' | 'after' | null;
+}
+
+export interface TimingWindow {
+  start: TimingBoundary;
+  end: TimingBoundary;
+}
+
+export interface TimingWindowOverride {
+  original: TimingWindow;
+  modified: TimingWindow | null;
+  sourceText: string;
+  modifiedAt: string | null;
+  modifiedBy: string | null;
+}
+
+export function getEffectiveWindow(override: TimingWindowOverride | null): TimingWindow | null {
+  if (!override) return null;
+  return override.modified ?? override.original;
+}
+
+export function isWindowModified(override: TimingWindowOverride | null): boolean {
+  if (!override) return false;
+  return override.modified !== null;
+}
+
+export const TIMING_WINDOW_ANCHORS: TimingAnchor[] = [
+  'Measurement Period Start',
+  'Measurement Period End',
+  'IPSD',
+  'IPED',
+  'Encounter Start',
+  'Encounter End',
+  'Diagnosis Date',
+  'Procedure Date',
+  'Discharge Date',
+];
 
 /**
  * A structured timing constraint for code generation.
@@ -237,6 +291,12 @@ export const TIMING_ANCHORS: TimingAnchor[] = [
   'Measurement Period Start',
   'Encounter Period',
   'Diagnosis Date',
+  'IPSD',
+  'IPED',
+  'Encounter Start',
+  'Encounter End',
+  'Procedure Date',
+  'Discharge Date',
 ];
 
 /**
@@ -432,6 +492,9 @@ export interface DataElement {
 
   /** Structured timing constraint with override support for the timing editor */
   timingOverride?: TimingOverride;
+
+  /** Window-based timing (e.g., "From IPSD through 231 days after IPSD") */
+  timingWindow?: TimingWindowOverride;
 
   /** Additional logic requirements in plain English */
   additionalRequirements?: string[];

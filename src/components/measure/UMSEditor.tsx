@@ -5,7 +5,7 @@ import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useComponentCodeStore } from '../../stores/componentCodeStore';
 import { ComponentBuilder } from './ComponentBuilder';
 import { ComponentDetailPanel } from './ComponentDetailPanel';
-import type { PopulationDefinition, LogicalClause, DataElement, ConfidenceLevel, ReviewStatus, ValueSetReference, CodeReference, CodeSystem, LogicalOperator, TimingConstraint, TimingOverride } from '../../types/ums';
+import type { PopulationDefinition, LogicalClause, DataElement, ConfidenceLevel, ReviewStatus, ValueSetReference, CodeReference, CodeSystem, LogicalOperator, TimingConstraint, TimingOverride, TimingWindow } from '../../types/ums';
 import { getOperatorBetween } from '../../types/ums';
 import { MeasurePeriodBar, TimingBadge, TimingEditorPanel } from './TimingEditor';
 import type { ComplexityLevel, LibraryComponent } from '../../types/componentLibrary';
@@ -24,7 +24,7 @@ function cleanDescription(desc: string | undefined): string {
 }
 
 export function UMSEditor() {
-  const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, setOperatorBetweenSiblings, deleteComponent, setActiveTab, syncAgeRange, updateTimingOverride, updateMeasurementPeriod } = useMeasureStore();
+  const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, setOperatorBetweenSiblings, deleteComponent, setActiveTab, syncAgeRange, updateTimingOverride, updateTimingWindow, updateMeasurementPeriod } = useMeasureStore();
   const measure = getActiveMeasure();
   const { components: libraryComponents, linkMeasureComponents, initializeWithSampleData, getComponent, recalculateUsage, syncComponentToMeasures } = useComponentLibraryStore();
   const { updateMeasure } = useMeasureStore();
@@ -452,6 +452,12 @@ export function UMSEditor() {
               }}
               onResetTiming={(componentId) => {
                 updateTimingOverride(measure.id, componentId, null);
+              }}
+              onSaveTimingWindow={(componentId, modified) => {
+                updateTimingWindow(measure.id, componentId, modified);
+              }}
+              onResetTimingWindow={(componentId) => {
+                updateTimingWindow(measure.id, componentId, null);
               }}
             />
           )}
@@ -1100,6 +1106,8 @@ function SelectedComponentDetailPanel({
   onNavigateToLibrary,
   onSaveTiming,
   onResetTiming,
+  onSaveTimingWindow,
+  onResetTimingWindow,
 }: {
   measureId: string;
   nodeId: string;
@@ -1107,6 +1115,8 @@ function SelectedComponentDetailPanel({
   onNavigateToLibrary: (id: string) => void;
   onSaveTiming: (componentId: string, modified: TimingConstraint) => void;
   onResetTiming: (componentId: string) => void;
+  onSaveTimingWindow: (componentId: string, modified: TimingWindow) => void;
+  onResetTimingWindow: (componentId: string) => void;
 }) {
   const { measures } = useMeasureStore();
   const currentMeasure = measures.find(m => m.id === measureId);
@@ -1157,6 +1167,8 @@ function SelectedComponentDetailPanel({
       mpEnd={mpEnd}
       onSaveTiming={onSaveTiming}
       onResetTiming={onResetTiming}
+      onSaveTimingWindow={onSaveTimingWindow}
+      onResetTimingWindow={onResetTimingWindow}
     />
   );
 }

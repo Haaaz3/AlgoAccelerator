@@ -11,6 +11,7 @@ import type {
   CorrectionExport,
   TimingConstraint,
   TimingOverride,
+  TimingWindow,
 } from '../types/ums';
 import { setOperatorBetween } from '../types/ums';
 import type { LogicalOperator } from '../types/ums';
@@ -87,6 +88,7 @@ interface MeasureState {
 
   // Timing override actions
   updateTimingOverride: (measureId: string, componentId: string, modified: TimingConstraint | null) => void;
+  updateTimingWindow: (measureId: string, componentId: string, modified: TimingWindow | null) => void;
   updateMeasurementPeriod: (measureId: string, start: string, end: string) => void;
 
   // Correction management
@@ -804,6 +806,46 @@ export const useMeasureStore = create<MeasureState>()(
                   ...obj,
                   timingOverride: {
                     ...obj.timingOverride,
+                    modified,
+                    modifiedAt: modified ? new Date().toISOString() : null,
+                    modifiedBy: modified ? 'user' : null,
+                  },
+                };
+              }
+              return obj;
+            }
+            if (obj.criteria) {
+              return { ...obj, criteria: updateComponent(obj.criteria) };
+            }
+            if (obj.children) {
+              return { ...obj, children: obj.children.map(updateComponent) };
+            }
+            return obj;
+          };
+
+          return {
+            measures: state.measures.map((m) => {
+              if (m.id !== measureId) return m;
+              return {
+                ...m,
+                populations: m.populations.map(updateComponent),
+                updatedAt: new Date().toISOString(),
+              };
+            }),
+          };
+        }),
+
+      updateTimingWindow: (measureId, componentId, modified) =>
+        set((state) => {
+          const updateComponent = (obj: any): any => {
+            if (!obj) return obj;
+            if (obj.id === componentId) {
+              // If the component has a timingWindow, update it
+              if (obj.timingWindow) {
+                return {
+                  ...obj,
+                  timingWindow: {
+                    ...obj.timingWindow,
                     modified,
                     modifiedAt: modified ? new Date().toISOString() : null,
                     modifiedBy: modified ? 'user' : null,
