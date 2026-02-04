@@ -15,7 +15,13 @@ import type {
   ValidationFact,
   CodeReference,
   TimingRequirement,
+  TimingOverride,
+  TimingWindowOverride,
+  TimingConstraint,
+  LogicalOperator,
 } from '../types/ums';
+import { getEffectiveTiming, getEffectiveWindow, getOperatorBetween } from '../types/ums';
+import { resolveTimingWindow, type ResolvedWindow } from '../utils/timingResolver';
 // ============================================================================
 // Test Patient Data Types
 // ============================================================================
@@ -512,20 +518,28 @@ function evaluateClause(
   const metCount = results.filter(r => r).length;
   const totalCount = results.length;
 
-  // Apply logical operator
+  // Apply logical operators with support for per-sibling overrides
   let met: boolean;
-  switch (clause.operator) {
-    case 'AND':
-      met = results.every(r => r);
-      break;
-    case 'OR':
-      met = results.some(r => r);
-      break;
-    case 'NOT':
-      met = results.length > 0 ? !results[0] : true;
-      break;
-    default:
-      met = results.every(r => r);
+
+  if (clause.operator === 'NOT') {
+    // NOT applies to the first child only
+    met = results.length > 0 ? !results[0] : true;
+  } else if (results.length === 0) {
+    met = clause.operator === 'AND'; // Empty AND = true, empty OR = false
+  } else if (results.length === 1) {
+    met = results[0];
+  } else {
+    // Combine results using per-sibling operators (supports siblingConnections)
+    met = results[0];
+    for (let i = 1; i < results.length; i++) {
+      const op = getOperatorBetween(clause, i - 1, i);
+      if (op === 'AND') {
+        met = met && results[i];
+      } else if (op === 'OR') {
+        met = met || results[i];
+      }
+      // Note: NOT between siblings doesn't make sense, ignore
+    }
   }
 
   return { met, childNodes, matchCount: { met: metCount, total: totalCount } };
@@ -857,14 +871,14 @@ function evaluateDiagnosis(
     const codeMatches = matchCode(dx.code, dx.system, codesToMatch);
 
     if (codeMatches) {
-      // Check timing if required
-      const timingOk = checkTiming(dx.onsetDate, element.timingRequirements, mpStart, mpEnd);
+      // Check timing using structured format (with fallback to legacy)
+      const { met: timingOk, window } = checkTimingStructured(dx.onsetDate, element, mpStart, mpEnd);
 
       if (timingOk) {
         met = true;
         facts.push({
           code: dx.code,
-          display: dx.display,
+          display: dx.display + (window ? ` (within ${window})` : ''),
           date: dx.onsetDate,
           source: 'Problem List',
         });
@@ -899,13 +913,13 @@ function evaluateEncounter(
     const codeMatches = matchCode(enc.code, enc.system, codesToMatch);
 
     if (codeMatches) {
-      const timingOk = checkTiming(enc.date, element.timingRequirements, mpStart, mpEnd);
+      const { met: timingOk, window } = checkTimingStructured(enc.date, element, mpStart, mpEnd);
 
       if (timingOk) {
         met = true;
         facts.push({
           code: enc.code,
-          display: enc.display,
+          display: enc.display + (window ? ` (within ${window})` : ''),
           date: enc.date,
           source: 'Encounters',
         });
@@ -940,13 +954,13 @@ function evaluateProcedure(
     const codeMatches = matchCode(proc.code, proc.system, codesToMatch);
 
     if (codeMatches) {
-      const timingOk = checkTiming(proc.date, element.timingRequirements, mpStart, mpEnd);
+      const { met: timingOk, window } = checkTimingStructured(proc.date, element, mpStart, mpEnd);
 
       if (timingOk) {
         met = true;
         facts.push({
           code: proc.code,
-          display: proc.display,
+          display: proc.display + (window ? ` (within ${window})` : ''),
           date: proc.date,
           source: 'Procedures',
         });
@@ -960,13 +974,13 @@ function evaluateProcedure(
       const codeMatches = matchCode(imm.code, imm.system, codesToMatch);
 
       if (codeMatches && imm.status === 'completed') {
-        const timingOk = checkTiming(imm.date, element.timingRequirements, mpStart, mpEnd);
+        const { met: timingOk, window } = checkTimingStructured(imm.date, element, mpStart, mpEnd);
 
         if (timingOk) {
           met = true;
           facts.push({
             code: imm.code,
-            display: imm.display,
+            display: imm.display + (window ? ` (within ${window})` : ''),
             date: imm.date,
             source: 'Immunizations',
           });
@@ -1002,7 +1016,7 @@ function evaluateObservation(
     const codeMatches = matchCode(obs.code, obs.system, codesToMatch);
 
     if (codeMatches) {
-      const timingOk = checkTiming(obs.date, element.timingRequirements, mpStart, mpEnd);
+      const { met: timingOk } = checkTimingStructured(obs.date, element, mpStart, mpEnd);
 
       if (timingOk) {
         // Check value thresholds if present
@@ -1247,9 +1261,10 @@ function evaluateImmunization(
       if (isChildhoodMeasure) {
         // For childhood immunizations, must be before 2nd birthday
         timingOk = immDate <= secondBirthday;
-      } else if (element.timingRequirements && element.timingRequirements.length > 0) {
-        // Use standard timing check
-        timingOk = checkTiming(imm.date, element.timingRequirements, mpStart, mpEnd);
+      } else {
+        // Use structured timing check with fallback to legacy
+        const { met } = checkTimingStructured(imm.date, element, mpStart, mpEnd);
+        timingOk = met;
       }
 
       if (timingOk) {
@@ -1412,6 +1427,68 @@ function normalizeCodeSystem(system: string): string {
   return system.toUpperCase();
 }
 
+/**
+ * Checks if an event date falls within the timing window defined by a structured TimingConstraint.
+ * Uses resolveTimingWindow for proper date arithmetic.
+ */
+function checkTimingConstraint(
+  date: string,
+  timing: TimingConstraint,
+  mpStart: string,
+  mpEnd: string
+): { inWindow: boolean; resolvedWindow: ResolvedWindow | null } {
+  const resolved = resolveTimingWindow(timing, mpStart, mpEnd);
+
+  if (!resolved) {
+    // Cannot resolve statically (e.g., patient-specific anchors like IPSD)
+    // Default to measurement period check as fallback
+    const eventDate = new Date(date + 'T00:00:00');
+    const startDate = new Date(mpStart + 'T00:00:00');
+    const endDate = new Date(mpEnd + 'T23:59:59');
+    return {
+      inWindow: eventDate >= startDate && eventDate <= endDate,
+      resolvedWindow: { from: startDate, to: endDate }
+    };
+  }
+
+  const eventDate = new Date(date + 'T00:00:00');
+  // Extend end date to end of day for inclusive comparison
+  const windowEnd = new Date(resolved.to);
+  windowEnd.setHours(23, 59, 59, 999);
+
+  return {
+    inWindow: eventDate >= resolved.from && eventDate <= windowEnd,
+    resolvedWindow: resolved
+  };
+}
+
+/**
+ * Check timing using structured timing formats (TimingOverride or TimingWindowOverride).
+ * Falls back to legacy TimingRequirement[] if structured formats aren't available.
+ */
+function checkTimingStructured(
+  date: string,
+  element: DataElement,
+  mpStart: string,
+  mpEnd: string
+): { met: boolean; window?: string } {
+  // Priority 1: Use structured TimingOverride (new timing editor format)
+  if (element.timingOverride) {
+    const effective = getEffectiveTiming(element.timingOverride);
+    if (effective) {
+      const { inWindow, resolvedWindow } = checkTimingConstraint(date, effective, mpStart, mpEnd);
+      const windowStr = resolvedWindow
+        ? `${resolvedWindow.from.toLocaleDateString()} - ${resolvedWindow.to.toLocaleDateString()}`
+        : undefined;
+      return { met: inWindow, window: windowStr };
+    }
+  }
+
+  // Priority 2: Fall back to legacy TimingRequirement[]
+  const met = checkTiming(date, element.timingRequirements, mpStart, mpEnd);
+  return { met };
+}
+
 function checkTiming(
   date: string,
   timingRequirements: TimingRequirement[] | undefined,
@@ -1420,15 +1497,15 @@ function checkTiming(
 ): boolean {
   if (!timingRequirements || timingRequirements.length === 0) {
     // Default: check if within measurement period
-    const eventDate = new Date(date);
-    const startDate = new Date(mpStart);
-    const endDate = new Date(mpEnd);
+    const eventDate = new Date(date + 'T00:00:00');
+    const startDate = new Date(mpStart + 'T00:00:00');
+    const endDate = new Date(mpEnd + 'T23:59:59');
     return eventDate >= startDate && eventDate <= endDate;
   }
 
-  const eventDate = new Date(date);
-  const mpStartDate = new Date(mpStart);
-  const mpEndDate = new Date(mpEnd);
+  const eventDate = new Date(date + 'T00:00:00');
+  const mpStartDate = new Date(mpStart + 'T00:00:00');
+  const mpEndDate = new Date(mpEnd + 'T23:59:59');
 
   for (const timing of timingRequirements) {
     switch (timing.relativeTo) {

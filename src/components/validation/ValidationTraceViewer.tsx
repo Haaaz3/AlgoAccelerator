@@ -2433,22 +2433,17 @@ function ValidationSection({
         </div>
       </div>
 
-      {/* First Qualification - shows the triggering event */}
+      {/* Qualifying event - shows the first triggering event */}
       {firstQualification && (
         <div className="mb-4 p-3 bg-[var(--success)]/10 border border-[var(--success)]/20 rounded-lg">
-          <div className="flex items-center gap-2 text-xs text-[var(--success)] font-medium mb-1">
-            <Calendar className="w-3.5 h-3.5" />
-            First Qualification
-          </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <Calendar className="w-3.5 h-3.5 text-[var(--success)]" />
             <code className="text-[var(--accent)] bg-[var(--accent-light)] px-1.5 py-0.5 rounded text-xs font-mono">
               {firstQualification.code}
             </code>
             <span className="text-sm text-[var(--text)]">{firstQualification.display}</span>
             <span className="text-xs text-[var(--text-muted)]">on {firstQualification.date}</span>
-          </div>
-          <div className="text-[10px] text-[var(--text-dim)] mt-1">
-            via {firstQualification.nodeTitle}
+            <span className="text-[10px] text-[var(--text-dim)]">via {firstQualification.nodeTitle}</span>
           </div>
         </div>
       )}
