@@ -1882,13 +1882,82 @@ export function ValidationTraceViewer() {
             <div className="max-w-5xl mx-auto">
               {/* Patient header */}
               <div className="mb-6">
-                <div className="flex items-center gap-3 mb-2">
+                <div className="flex items-center gap-3">
                   <h1 className="text-xl font-bold text-[var(--text)]">{selectedTrace.patientName}</h1>
                   <OutcomeBadge outcome={selectedTrace.finalOutcome} />
                 </div>
-                <p className="text-sm text-[var(--text-muted)] leading-relaxed">
-                  {selectedTrace.narrative}
-                </p>
+              </div>
+
+              {/* Measure Evaluation Summary - merged summary showing patient flow through measure logic */}
+              <div className="mb-6 bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-light)] p-5">
+                <h3 className="text-sm font-semibold text-[var(--text)] mb-4 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-[var(--accent)]" />
+                  Measure Evaluation Summary
+                </h3>
+                <div className="space-y-3">
+                  {/* Initial Population */}
+                  <EvaluationFlowItem
+                    label="Initial Population"
+                    met={selectedTrace.populations.initialPopulation.met}
+                    nodes={selectedTrace.populations.initialPopulation.nodes}
+                    metText="Patient qualifies"
+                    notMetText="Patient does not qualify"
+                  />
+
+                  {/* Denominator - only show if IP met */}
+                  {selectedTrace.populations.initialPopulation.met && (
+                    <EvaluationFlowItem
+                      label="Denominator"
+                      met={selectedTrace.populations.denominator?.met ?? selectedTrace.populations.initialPopulation.met}
+                      nodes={selectedTrace.populations.denominator?.nodes ?? []}
+                      metText="Included in denominator"
+                      notMetText="Not in denominator"
+                      isImplied={!selectedTrace.populations.denominator?.nodes?.length}
+                      impliedText="Equals Initial Population"
+                    />
+                  )}
+
+                  {/* Exclusions - only show if in denominator */}
+                  {selectedTrace.populations.initialPopulation.met && (
+                    <EvaluationFlowItem
+                      label="Denominator Exclusions"
+                      met={!selectedTrace.populations.exclusions.met}
+                      nodes={selectedTrace.populations.exclusions.nodes}
+                      metText="No exclusions apply"
+                      notMetText="Excluded from measure"
+                      invertLogic
+                    />
+                  )}
+
+                  {/* Numerator - only show if in denominator and not excluded */}
+                  {selectedTrace.populations.initialPopulation.met && !selectedTrace.populations.exclusions.met && (
+                    <EvaluationFlowItem
+                      label="Numerator"
+                      met={selectedTrace.populations.numerator.met}
+                      nodes={selectedTrace.populations.numerator.nodes}
+                      metText="Quality criteria met"
+                      notMetText="Quality criteria not met"
+                    />
+                  )}
+
+                  {/* Gap Analysis items inline */}
+                  {selectedTrace.howClose && selectedTrace.howClose.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-[var(--border)]">
+                      <div className="text-xs font-medium text-[var(--accent)] mb-2 flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5" />
+                        Gaps to Close
+                      </div>
+                      <ul className="space-y-1">
+                        {selectedTrace.howClose.map((item, i) => (
+                          <li key={i} className="text-sm text-[var(--text-muted)] flex items-start gap-2">
+                            <span className="text-[var(--warning)] mt-0.5">•</span>
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Patient Clinical Details Panel */}
@@ -2224,43 +2293,6 @@ export function ValidationTraceViewer() {
                   )}
                 </div>
               )}
-
-              {/* How close section */}
-              {selectedTrace.howClose && selectedTrace.howClose.length > 0 && (
-                <div className="mb-6 p-4 bg-[var(--accent-light)] border border-[var(--accent)]/20 rounded-xl">
-                  <h3 className="text-sm font-medium text-[var(--accent)] mb-2 flex items-center gap-2">
-                    <Info className="w-4 h-4" />
-                    Gap Analysis
-                  </h3>
-                  <ul className="space-y-1 text-sm text-[var(--text-muted)]">
-                    {selectedTrace.howClose.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="text-[var(--accent)] mt-1">•</span>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Summary pills */}
-              <div className="flex flex-wrap gap-3 mb-6">
-                <SummaryPill
-                  label="Initial Population"
-                  value={selectedTrace.populations.initialPopulation.met ? 'In' : 'Not In'}
-                  positive={selectedTrace.populations.initialPopulation.met}
-                />
-                <SummaryPill
-                  label="Denominator Exclusions"
-                  value={selectedTrace.populations.exclusions.met ? 'Excluded' : 'None'}
-                  positive={!selectedTrace.populations.exclusions.met}
-                />
-                <SummaryPill
-                  label="Numerator"
-                  value={selectedTrace.populations.numerator.met ? 'Met' : selectedTrace.populations.exclusions.met ? 'N/A' : 'Not Met'}
-                  positive={selectedTrace.populations.numerator.met}
-                />
-              </div>
 
               {/* Initial Population - shows each criterion (age, sex, diagnosis, etc.) */}
               {selectedTrace.populations.initialPopulation.nodes.length > 0 && (
@@ -2776,6 +2808,97 @@ function InspectModal({ node, onClose }: { node: ValidationNode; onClose: () => 
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Helper to get the first qualifying fact from a set of validation nodes */
+function getFirstQualifyingFact(nodes: ValidationNode[]): { code: string; display: string; date?: string } | null {
+  for (const node of nodes) {
+    if (node.status === 'pass' && node.facts && node.facts.length > 0) {
+      const fact = node.facts.find(f => f.code && f.code !== 'NO_MATCH' && f.code !== '—' && !f.code.includes('FAIL'));
+      if (fact) {
+        return { code: fact.code, display: fact.display || '', date: fact.date };
+      }
+    }
+  }
+  return null;
+}
+
+function EvaluationFlowItem({
+  label,
+  met,
+  nodes,
+  metText,
+  notMetText,
+  invertLogic = false,
+  isImplied = false,
+  impliedText,
+}: {
+  label: string;
+  met: boolean;
+  nodes: ValidationNode[];
+  metText: string;
+  notMetText: string;
+  invertLogic?: boolean;
+  isImplied?: boolean;
+  impliedText?: string;
+}) {
+  const displayMet = invertLogic ? !met : met;
+  const firstFact = !invertLogic && met ? getFirstQualifyingFact(nodes) : null;
+  // For exclusions (invertLogic), show what triggered the exclusion
+  const exclusionFact = invertLogic && !met ? getFirstQualifyingFact(nodes.filter(n => n.status === 'pass')) : null;
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+        displayMet ? 'bg-[var(--success-light)]' : 'bg-[var(--danger-light)]'
+      }`}>
+        {displayMet ? (
+          <CheckCircle className="w-3.5 h-3.5 text-[var(--success)]" />
+        ) : (
+          <XCircle className="w-3.5 h-3.5 text-[var(--danger)]" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-[var(--text)]">{label}</span>
+          <span className={`text-xs px-2 py-0.5 rounded ${
+            displayMet
+              ? 'bg-[var(--success-light)] text-[var(--success)]'
+              : 'bg-[var(--danger-light)] text-[var(--danger)]'
+          }`}>
+            {displayMet ? metText : notMetText}
+          </span>
+        </div>
+        {isImplied && impliedText && (
+          <p className="text-xs text-[var(--text-dim)] mt-0.5">{impliedText}</p>
+        )}
+        {firstFact && (
+          <div className="mt-1 flex items-center gap-2 flex-wrap text-xs">
+            <span className="text-[var(--text-dim)]">Triggered by:</span>
+            <code className="text-[var(--accent)] bg-[var(--accent-light)] px-1.5 py-0.5 rounded font-mono">
+              {firstFact.code}
+            </code>
+            <span className="text-[var(--text-muted)] truncate max-w-[250px]">{firstFact.display}</span>
+            {firstFact.date && firstFact.date !== '—' && (
+              <span className="text-[var(--text-dim)]">on {firstFact.date}</span>
+            )}
+          </div>
+        )}
+        {exclusionFact && (
+          <div className="mt-1 flex items-center gap-2 flex-wrap text-xs">
+            <span className="text-[var(--text-dim)]">Excluded by:</span>
+            <code className="text-[var(--warning)] bg-[var(--warning-light)] px-1.5 py-0.5 rounded font-mono">
+              {exclusionFact.code}
+            </code>
+            <span className="text-[var(--text-muted)] truncate max-w-[250px]">{exclusionFact.display}</span>
+            {exclusionFact.date && exclusionFact.date !== '—' && (
+              <span className="text-[var(--text-dim)]">on {exclusionFact.date}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
