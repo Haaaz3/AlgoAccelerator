@@ -175,6 +175,74 @@ function getMeasureAgeRequirements(measure: UniversalMeasureSpec): {
     };
   }
 
+  // Scan IP population criteria for age DataElements
+  const ipPop = measure.populations.find(p => p.type === 'initial_population');
+  if (ipPop) {
+    const ageReq = findAgeRequirementInClause(ipPop.criteria);
+    if (ageReq) return ageReq;
+  }
+
+  return null;
+}
+
+/** Walk a clause tree looking for a demographic DataElement with age thresholds or description */
+function findAgeRequirementInClause(clause: LogicalClause): {
+  minAge: number;
+  maxAge: number;
+  description: string;
+  checkType: 'turns' | 'range' | 'at_start' | 'at_end';
+} | null {
+  for (const child of clause.children) {
+    if ('operator' in child) {
+      const result = findAgeRequirementInClause(child as LogicalClause);
+      if (result) return result;
+    } else {
+      const element = child as DataElement;
+      if (element.type === 'demographic' || element.description?.toLowerCase().includes('age')) {
+        // Check thresholds first
+        if (element.thresholds?.ageMin !== undefined || element.thresholds?.ageMax !== undefined) {
+          const minAge = element.thresholds.ageMin ?? 0;
+          const maxAge = element.thresholds.ageMax ?? 120;
+          return {
+            minAge,
+            maxAge,
+            description: `Age ${minAge}-${maxAge}`,
+            checkType: minAge <= 18 ? 'turns' : 'range'
+          };
+        }
+        // Parse from description
+        const descLower = element.description?.toLowerCase() || '';
+        const ageRangeMatch = descLower.match(/age[s]?\s*(?:between\s+)?(\d+)\s*[-–—to\s]+\s*(\d+)/i)
+          || descLower.match(/(\d+)\s*(?:to|through|-)\s*(\d+)\s*years/i);
+        if (ageRangeMatch) {
+          const minAge = parseInt(ageRangeMatch[1]);
+          const maxAge = parseInt(ageRangeMatch[2]);
+          return {
+            minAge,
+            maxAge,
+            description: `Age ${minAge}-${maxAge}`,
+            checkType: minAge <= 18 ? 'turns' : 'range'
+          };
+        }
+        // Parse from additionalRequirements
+        if (element.additionalRequirements) {
+          for (const req of element.additionalRequirements) {
+            const ageMatch = req.match(/Age\s*(\d+)\s*[-–—]\s*(\d+)/i);
+            if (ageMatch) {
+              const minAge = parseInt(ageMatch[1]);
+              const maxAge = parseInt(ageMatch[2]);
+              return {
+                minAge,
+                maxAge,
+                description: `Age ${minAge}-${maxAge}`,
+                checkType: minAge <= 18 ? 'turns' : 'range'
+              };
+            }
+          }
+        }
+      }
+    }
+  }
   return null;
 }
 
@@ -380,9 +448,19 @@ export function evaluatePatient(
     nodes: [...ipPreCheckNodes, ...ipMeasureCriteria.nodes],
   };
 
-  const denomResult = denomPop && ipResult.met
-    ? evaluatePopulation(patient, denomPop, measure, mpStart, mpEnd)
-    : { met: ipResult.met, nodes: [] }; // If no separate denominator, use IP result
+  // Denominator: check if it "equals Initial Population" (common pattern)
+  // If so, inherit the IP result directly to avoid mismatches
+  const denomEqualsIP = !denomPop
+    || denomPop.description?.toLowerCase().includes('equals initial population')
+    || denomPop.description?.toLowerCase().includes('same as initial population')
+    || denomPop.narrative?.toLowerCase().includes('equals initial population')
+    || denomPop.criteria?.children?.length === 0;
+
+  const denomResult = denomEqualsIP
+    ? { met: ipResult.met, nodes: [] }
+    : (ipResult.met
+      ? evaluatePopulation(patient, denomPop!, measure, mpStart, mpEnd)
+      : { met: false, nodes: [] });
 
   // Evaluate defined exclusion criteria
   let exclusionResult = denomExclPop && denomResult.met
@@ -730,26 +808,49 @@ function evaluateAgeRequirement(
     source: 'Demographics',
   });
 
-  // Check against thresholds
-  const thresholds = element.thresholds;
+  // Resolve effective age thresholds from thresholds, description, and additionalRequirements
+  let effectiveAgeMin: number | undefined = element.thresholds?.ageMin;
+  let effectiveAgeMax: number | undefined = element.thresholds?.ageMax;
+
+  // Parse age range from description if thresholds aren't set
+  if (effectiveAgeMin === undefined && effectiveAgeMax === undefined) {
+    const descLower = element.description?.toLowerCase() || '';
+    // Patterns: "Age 45-75", "age between 45 and 75", "45 to 75 years", "ages 45 through 75"
+    const ageRangeMatch = descLower.match(/age[s]?\s*(?:between\s+)?(\d+)\s*[-–—to\s]+\s*(\d+)/i)
+      || descLower.match(/(\d+)\s*(?:to|through|-)\s*(\d+)\s*years/i);
+    if (ageRangeMatch) {
+      effectiveAgeMin = parseInt(ageRangeMatch[1]);
+      effectiveAgeMax = parseInt(ageRangeMatch[2]);
+    }
+    // Patterns: ">= 45", "at least 45"
+    if (effectiveAgeMin === undefined) {
+      const minMatch = descLower.match(/(?:>=?\s*|at least\s+|older than\s+|minimum\s+)(\d+)/);
+      if (minMatch) effectiveAgeMin = parseInt(minMatch[1]);
+    }
+    if (effectiveAgeMax === undefined) {
+      const maxMatch = descLower.match(/(?:<=?\s*|at most\s+|younger than\s+|maximum\s+|up to\s+)(\d+)/);
+      if (maxMatch) effectiveAgeMax = parseInt(maxMatch[1]);
+    }
+  }
+
+  // Also extract from additionalRequirements
+  if (element.additionalRequirements) {
+    for (const req of element.additionalRequirements) {
+      const ageMatch = req.match(/Age\s*(\d+)\s*[-–—]\s*(\d+)/i);
+      if (ageMatch) {
+        if (effectiveAgeMin === undefined) effectiveAgeMin = parseInt(ageMatch[1]);
+        if (effectiveAgeMax === undefined) effectiveAgeMax = parseInt(ageMatch[2]);
+      }
+    }
+  }
+
   let met = true;
 
-  if (thresholds) {
-    const targetAge = thresholds.ageMin;
-
+  if (effectiveAgeMin !== undefined || effectiveAgeMax !== undefined) {
     // For pediatric measures (small age values), use strict age checking
-    // This is the standard definition for measures like CMS117 (Childhood Immunization)
-    if (targetAge !== undefined && targetAge <= 18) {
-      // For childhood measures, we need STRICT age checking
-      // The patient must either:
-      // 1. Turn the target age during the measurement period, OR
-      // 2. Be within a very tight age range (e.g., 1-2 years old for childhood imms)
-
-      const turnsTargetAge = turnsAgeDuring(targetAge);
-      const maxAge = thresholds.ageMax ?? targetAge; // Default max to target age if not specified
-
-      // STRICT check: patient's age at start must not exceed maxAge
-      // and patient's age at end must be at least close to minAge
+    if (effectiveAgeMin !== undefined && effectiveAgeMin <= 18) {
+      const turnsTargetAge = turnsAgeDuring(effectiveAgeMin);
+      const maxAge = effectiveAgeMax ?? effectiveAgeMin;
       const isWithinStrictRange = ageAtStart <= maxAge && ageAtEnd <= maxAge + 1;
 
       if (turnsTargetAge && isWithinStrictRange) {
@@ -757,26 +858,24 @@ function evaluateAgeRequirement(
         const birthdayInYear = getBirthdayInMeasurementYear();
         facts.push({
           code: 'AGE_TURNS',
-          display: `Turns ${targetAge} on ${birthdayInYear.toLocaleDateString()} (within MP)`,
+          display: `Turns ${effectiveAgeMin} on ${birthdayInYear.toLocaleDateString()} (within MP)`,
           source: 'Age Evaluation',
         });
-      } else if (isWithinStrictRange && thresholds.ageMax !== undefined) {
-        // If there's an explicit range defined (e.g., 1-2), check if within that range
-        const meetsMinAtEnd = ageAtEnd >= thresholds.ageMin!;
-        const meetsMaxAtStart = ageAtStart <= thresholds.ageMax;
-
+      } else if (isWithinStrictRange && effectiveAgeMax !== undefined) {
+        const meetsMinAtEnd = ageAtEnd >= effectiveAgeMin;
+        const meetsMaxAtStart = ageAtStart <= effectiveAgeMax;
         if (meetsMinAtEnd && meetsMaxAtStart) {
           met = true;
           facts.push({
             code: 'AGE_RANGE',
-            display: `Age ${ageAtStart}-${ageAtEnd} within range ${thresholds.ageMin}-${thresholds.ageMax}`,
+            display: `Age ${ageAtStart}-${ageAtEnd} within range ${effectiveAgeMin}-${effectiveAgeMax}`,
             source: 'Age Evaluation',
           });
         } else {
           met = false;
           facts.push({
             code: 'AGE_RANGE_FAIL',
-            display: `Age ${ageAtStart}-${ageAtEnd} outside pediatric range ${thresholds.ageMin}-${thresholds.ageMax}`,
+            display: `Age ${ageAtStart}-${ageAtEnd} outside pediatric range ${effectiveAgeMin}-${effectiveAgeMax}`,
             source: 'Age Evaluation',
           });
         }
@@ -784,35 +883,34 @@ function evaluateAgeRequirement(
         met = false;
         facts.push({
           code: 'AGE_MIN_FAIL',
-          display: `Patient age (${ageAtStart}-${ageAtEnd}) does not meet pediatric requirement (turns ${targetAge})`,
+          display: `Patient age (${ageAtStart}-${ageAtEnd}) does not meet pediatric requirement (turns ${effectiveAgeMin})`,
           source: 'Age Evaluation',
         });
       }
     } else {
       // For adult measures, use traditional age-at-point-in-time logic
-      if (thresholds.ageMin !== undefined && ageAtEnd < thresholds.ageMin) {
+      if (effectiveAgeMin !== undefined && ageAtEnd < effectiveAgeMin) {
         met = false;
         facts.push({
           code: 'AGE_MIN_FAIL',
-          display: `Age ${ageAtEnd} < minimum ${thresholds.ageMin}`,
+          display: `Age ${ageAtEnd} < minimum ${effectiveAgeMin}`,
           source: 'Age Evaluation',
         });
       }
-      if (thresholds.ageMax !== undefined && ageAtStart > thresholds.ageMax) {
+      if (effectiveAgeMax !== undefined && ageAtStart > effectiveAgeMax) {
         met = false;
         facts.push({
           code: 'AGE_MAX_FAIL',
-          display: `Age ${ageAtStart} > maximum ${thresholds.ageMax}`,
+          display: `Age ${ageAtStart} > maximum ${effectiveAgeMax}`,
           source: 'Age Evaluation',
         });
       }
     }
   }
 
-  // Also check additionalRequirements for age patterns
+  // Also check additionalRequirements for "turns X" patterns
   if (element.additionalRequirements) {
     for (const req of element.additionalRequirements) {
-      // Check for "turns X" pattern (e.g., "turns 2 during measurement period")
       const turnsMatch = req.match(/turns?\s*(\d+)/i);
       if (turnsMatch) {
         const targetAge = parseInt(turnsMatch[1]);
@@ -827,22 +925,6 @@ function evaluateAgeRequirement(
           facts.push({
             code: 'AGE_TURNS_PASS',
             display: `Turns ${targetAge} during measurement period`,
-            source: 'Age Evaluation',
-          });
-        }
-        continue;
-      }
-
-      const ageMatch = req.match(/Age\s*(\d+)\s*-\s*(\d+)/i);
-      if (ageMatch) {
-        const minAge = parseInt(ageMatch[1]);
-        const maxAge = parseInt(ageMatch[2]);
-        // Use ageAtEnd for min check, ageAtStart for max check
-        if (ageAtEnd < minAge || ageAtStart > maxAge) {
-          met = false;
-          facts.push({
-            code: 'AGE_RANGE_FAIL',
-            display: `Age outside required range ${minAge}-${maxAge}`,
             source: 'Age Evaluation',
           });
         }
