@@ -1917,15 +1917,15 @@ export function ValidationTraceViewer() {
                     />
                   )}
 
-                  {/* Exclusions - only show if in denominator */}
-                  {selectedTrace.populations.initialPopulation.met && (
+                  {/* Exclusions - only show if patient IS excluded */}
+                  {selectedTrace.populations.initialPopulation.met && selectedTrace.populations.exclusions.met && (
                     <EvaluationFlowItem
                       label="Denominator Exclusions"
-                      met={!selectedTrace.populations.exclusions.met}
-                      nodes={selectedTrace.populations.exclusions.nodes}
-                      metText="No exclusions apply"
+                      met={false}
+                      nodes={selectedTrace.populations.exclusions.nodes.filter(n => n.status === 'pass')}
+                      metText=""
                       notMetText="Excluded from measure"
-                      invertLogic
+                      showTrigger
                     />
                   )}
 
@@ -2832,30 +2832,29 @@ function EvaluationFlowItem({
   nodes,
   metText,
   notMetText,
-  invertLogic = false,
   isImplied = false,
   impliedText,
+  showTrigger = false,
 }: {
   label: string;
   met: boolean;
   nodes: ValidationNode[];
   metText: string;
   notMetText: string;
-  invertLogic?: boolean;
   isImplied?: boolean;
   impliedText?: string;
+  showTrigger?: boolean;
 }) {
-  const displayMet = invertLogic ? !met : met;
-  const firstFact = !invertLogic && met ? getFirstQualifyingFact(nodes) : null;
-  // For exclusions (invertLogic), show what triggered the exclusion
-  const exclusionFact = invertLogic && !met ? getFirstQualifyingFact(nodes.filter(n => n.status === 'pass')) : null;
+  const firstFact = met ? getFirstQualifyingFact(nodes) : null;
+  // For exclusions or other items where we want to show what triggered the result
+  const triggerFact = showTrigger ? getFirstQualifyingFact(nodes) : null;
 
   return (
     <div className="flex items-start gap-3">
       <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-        displayMet ? 'bg-[var(--success-light)]' : 'bg-[var(--danger-light)]'
+        met ? 'bg-[var(--success-light)]' : 'bg-[var(--danger-light)]'
       }`}>
-        {displayMet ? (
+        {met ? (
           <CheckCircle className="w-3.5 h-3.5 text-[var(--success)]" />
         ) : (
           <XCircle className="w-3.5 h-3.5 text-[var(--danger)]" />
@@ -2865,11 +2864,11 @@ function EvaluationFlowItem({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-[var(--text)]">{label}</span>
           <span className={`text-xs px-2 py-0.5 rounded ${
-            displayMet
+            met
               ? 'bg-[var(--success-light)] text-[var(--success)]'
               : 'bg-[var(--danger-light)] text-[var(--danger)]'
           }`}>
-            {displayMet ? metText : notMetText}
+            {met ? metText : notMetText}
           </span>
         </div>
         {isImplied && impliedText && (
@@ -2887,15 +2886,15 @@ function EvaluationFlowItem({
             )}
           </div>
         )}
-        {exclusionFact && (
+        {triggerFact && (
           <div className="mt-1 flex items-center gap-2 flex-wrap text-xs">
             <span className="text-[var(--text-dim)]">Excluded by:</span>
             <code className="text-[var(--warning)] bg-[var(--warning-light)] px-1.5 py-0.5 rounded font-mono">
-              {exclusionFact.code}
+              {triggerFact.code}
             </code>
-            <span className="text-[var(--text-muted)] truncate max-w-[250px]">{exclusionFact.display}</span>
-            {exclusionFact.date && exclusionFact.date !== '—' && (
-              <span className="text-[var(--text-dim)]">on {exclusionFact.date}</span>
+            <span className="text-[var(--text-muted)] truncate max-w-[250px]">{triggerFact.display}</span>
+            {triggerFact.date && triggerFact.date !== '—' && (
+              <span className="text-[var(--text-dim)]">on {triggerFact.date}</span>
             )}
           </div>
         )}
