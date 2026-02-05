@@ -159,13 +159,50 @@ function isBreastCancerMeasure(measure: UniversalMeasureSpec): boolean {
  * Get the required age range for a measure based on its type
  * Returns null if no specific age requirement can be determined
  */
-function getMeasureAgeRequirements(measure: UniversalMeasureSpec): {
+type AgeRequirement = {
   minAge: number;
   maxAge: number;
   description: string;
   checkType: 'turns' | 'range' | 'at_start' | 'at_end';
-} | null {
-  // Check explicit global constraints first
+};
+
+/** Parse an age range from free text. Returns [min, max] or null. */
+function parseAgeRangeFromText(text: string): { min: number; max: number } | null {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+
+  // "Age 45-75", "Age 45 to 75", "ages 45 through 75", "age between 45 and 75"
+  const rangeMatch = lower.match(/age[s]?\s*(?:between\s+)?(\d+)\s*[-–—]\s*(\d+)/i)
+    || lower.match(/age[s]?\s*(?:between\s+)?(\d+)\s*(?:to|through|and)\s*(\d+)/i)
+    || lower.match(/(\d+)\s*(?:to|through|-)\s*(\d+)\s*years/i)
+    || lower.match(/between\s*(\d+)\s*and\s*(\d+)\s*years/i);
+  if (rangeMatch) {
+    return { min: parseInt(rangeMatch[1]), max: parseInt(rangeMatch[2]) };
+  }
+
+  // ">= 45 years" and "<= 75 years" in same text
+  const gteMatch = lower.match(/>=?\s*(\d+)\s*(?:years|yrs)?/);
+  const lteMatch = lower.match(/<=?\s*(\d+)\s*(?:years|yrs)?/);
+  if (gteMatch && lteMatch) {
+    return { min: parseInt(gteMatch[1]), max: parseInt(lteMatch[1]) };
+  }
+
+  // "at least 45" / "minimum 45"
+  const minOnly = lower.match(/(?:at least|minimum|>=?\s*)(\d+)\s*(?:years|yrs)?/);
+  // "at most 75" / "maximum 75"
+  const maxOnly = lower.match(/(?:at most|maximum|up to|<=?\s*)(\d+)\s*(?:years|yrs)?/);
+  if (minOnly && !maxOnly) {
+    return { min: parseInt(minOnly[1]), max: 120 };
+  }
+  if (maxOnly && !minOnly) {
+    return { min: 0, max: parseInt(maxOnly[1]) };
+  }
+
+  return null;
+}
+
+function getMeasureAgeRequirements(measure: UniversalMeasureSpec): AgeRequirement | null {
+  // 1. Check explicit global constraints (most reliable)
   if (measure.globalConstraints?.ageRange) {
     return {
       minAge: measure.globalConstraints.ageRange.min,
@@ -175,69 +212,90 @@ function getMeasureAgeRequirements(measure: UniversalMeasureSpec): {
     };
   }
 
-  // Scan IP population criteria for age DataElements
-  const ipPop = measure.populations.find(p => p.type === 'initial_population');
-  if (ipPop) {
-    const ageReq = findAgeRequirementInClause(ipPop.criteria);
+  // 2. Scan ALL population criteria for age DataElements (not just IP)
+  for (const pop of measure.populations) {
+    const ageReq = findAgeRequirementInClause(pop.criteria);
     if (ageReq) return ageReq;
+  }
+
+  // 3. Parse from population descriptions and narratives
+  for (const pop of measure.populations) {
+    const parsed = parseAgeRangeFromText(pop.description)
+      || parseAgeRangeFromText(pop.narrative);
+    if (parsed) {
+      return {
+        minAge: parsed.min,
+        maxAge: parsed.max,
+        description: `Age ${parsed.min}-${parsed.max}`,
+        checkType: parsed.min <= 18 ? 'turns' : 'range'
+      };
+    }
+  }
+
+  // 4. Parse from measure metadata title/description
+  const metaText = `${measure.metadata.title || ''} ${measure.metadata.description || ''}`;
+  const metaParsed = parseAgeRangeFromText(metaText);
+  if (metaParsed) {
+    return {
+      minAge: metaParsed.min,
+      maxAge: metaParsed.max,
+      description: `Age ${metaParsed.min}-${metaParsed.max}`,
+      checkType: metaParsed.min <= 18 ? 'turns' : 'range'
+    };
   }
 
   return null;
 }
 
-/** Walk a clause tree looking for a demographic DataElement with age thresholds or description */
-function findAgeRequirementInClause(clause: LogicalClause): {
-  minAge: number;
-  maxAge: number;
-  description: string;
-  checkType: 'turns' | 'range' | 'at_start' | 'at_end';
-} | null {
+/** Walk a clause tree looking for a demographic DataElement with age info */
+function findAgeRequirementInClause(clause: LogicalClause): AgeRequirement | null {
   for (const child of clause.children) {
     if ('operator' in child) {
       const result = findAgeRequirementInClause(child as LogicalClause);
       if (result) return result;
     } else {
       const element = child as DataElement;
-      if (element.type === 'demographic' || element.description?.toLowerCase().includes('age')) {
-        // Check thresholds first
-        if (element.thresholds?.ageMin !== undefined || element.thresholds?.ageMax !== undefined) {
-          const minAge = element.thresholds.ageMin ?? 0;
-          const maxAge = element.thresholds.ageMax ?? 120;
-          return {
-            minAge,
-            maxAge,
-            description: `Age ${minAge}-${maxAge}`,
-            checkType: minAge <= 18 ? 'turns' : 'range'
-          };
-        }
-        // Parse from description
-        const descLower = element.description?.toLowerCase() || '';
-        const ageRangeMatch = descLower.match(/age[s]?\s*(?:between\s+)?(\d+)\s*[-–—to\s]+\s*(\d+)/i)
-          || descLower.match(/(\d+)\s*(?:to|through|-)\s*(\d+)\s*years/i);
-        if (ageRangeMatch) {
-          const minAge = parseInt(ageRangeMatch[1]);
-          const maxAge = parseInt(ageRangeMatch[2]);
-          return {
-            minAge,
-            maxAge,
-            description: `Age ${minAge}-${maxAge}`,
-            checkType: minAge <= 18 ? 'turns' : 'range'
-          };
-        }
-        // Parse from additionalRequirements
-        if (element.additionalRequirements) {
-          for (const req of element.additionalRequirements) {
-            const ageMatch = req.match(/Age\s*(\d+)\s*[-–—]\s*(\d+)/i);
-            if (ageMatch) {
-              const minAge = parseInt(ageMatch[1]);
-              const maxAge = parseInt(ageMatch[2]);
-              return {
-                minAge,
-                maxAge,
-                description: `Age ${minAge}-${maxAge}`,
-                checkType: minAge <= 18 ? 'turns' : 'range'
-              };
-            }
+      const isAgeRelated = element.type === 'demographic'
+        || element.description?.toLowerCase().includes('age')
+        || element.thresholds?.ageMin !== undefined
+        || element.thresholds?.ageMax !== undefined;
+
+      if (!isAgeRelated) continue;
+
+      // Priority 1: Structured thresholds
+      if (element.thresholds?.ageMin !== undefined || element.thresholds?.ageMax !== undefined) {
+        const minAge = element.thresholds.ageMin ?? 0;
+        const maxAge = element.thresholds.ageMax ?? 120;
+        return {
+          minAge,
+          maxAge,
+          description: `Age ${minAge}-${maxAge}`,
+          checkType: minAge <= 18 ? 'turns' : 'range'
+        };
+      }
+
+      // Priority 2: Parse from description
+      const parsed = parseAgeRangeFromText(element.description || '');
+      if (parsed) {
+        return {
+          minAge: parsed.min,
+          maxAge: parsed.max,
+          description: `Age ${parsed.min}-${parsed.max}`,
+          checkType: parsed.min <= 18 ? 'turns' : 'range'
+        };
+      }
+
+      // Priority 3: Parse from additionalRequirements
+      if (element.additionalRequirements) {
+        for (const req of element.additionalRequirements) {
+          const reqParsed = parseAgeRangeFromText(req);
+          if (reqParsed) {
+            return {
+              minAge: reqParsed.min,
+              maxAge: reqParsed.max,
+              description: `Age ${reqParsed.min}-${reqParsed.max}`,
+              checkType: reqParsed.min <= 18 ? 'turns' : 'range'
+            };
           }
         }
       }
@@ -808,38 +866,26 @@ function evaluateAgeRequirement(
     source: 'Demographics',
   });
 
-  // Resolve effective age thresholds from thresholds, description, and additionalRequirements
+  // Resolve effective age thresholds from all available sources
   let effectiveAgeMin: number | undefined = element.thresholds?.ageMin;
   let effectiveAgeMax: number | undefined = element.thresholds?.ageMax;
 
-  // Parse age range from description if thresholds aren't set
+  // Parse from description and additionalRequirements if thresholds aren't set
   if (effectiveAgeMin === undefined && effectiveAgeMax === undefined) {
-    const descLower = element.description?.toLowerCase() || '';
-    // Patterns: "Age 45-75", "age between 45 and 75", "45 to 75 years", "ages 45 through 75"
-    const ageRangeMatch = descLower.match(/age[s]?\s*(?:between\s+)?(\d+)\s*[-–—to\s]+\s*(\d+)/i)
-      || descLower.match(/(\d+)\s*(?:to|through|-)\s*(\d+)\s*years/i);
-    if (ageRangeMatch) {
-      effectiveAgeMin = parseInt(ageRangeMatch[1]);
-      effectiveAgeMax = parseInt(ageRangeMatch[2]);
-    }
-    // Patterns: ">= 45", "at least 45"
-    if (effectiveAgeMin === undefined) {
-      const minMatch = descLower.match(/(?:>=?\s*|at least\s+|older than\s+|minimum\s+)(\d+)/);
-      if (minMatch) effectiveAgeMin = parseInt(minMatch[1]);
-    }
-    if (effectiveAgeMax === undefined) {
-      const maxMatch = descLower.match(/(?:<=?\s*|at most\s+|younger than\s+|maximum\s+|up to\s+)(\d+)/);
-      if (maxMatch) effectiveAgeMax = parseInt(maxMatch[1]);
+    const parsed = parseAgeRangeFromText(element.description || '');
+    if (parsed) {
+      effectiveAgeMin = parsed.min;
+      effectiveAgeMax = parsed.max;
     }
   }
 
-  // Also extract from additionalRequirements
-  if (element.additionalRequirements) {
+  if (effectiveAgeMin === undefined && effectiveAgeMax === undefined && element.additionalRequirements) {
     for (const req of element.additionalRequirements) {
-      const ageMatch = req.match(/Age\s*(\d+)\s*[-–—]\s*(\d+)/i);
-      if (ageMatch) {
-        if (effectiveAgeMin === undefined) effectiveAgeMin = parseInt(ageMatch[1]);
-        if (effectiveAgeMax === undefined) effectiveAgeMax = parseInt(ageMatch[2]);
+      const parsed = parseAgeRangeFromText(req);
+      if (parsed) {
+        effectiveAgeMin = parsed.min;
+        effectiveAgeMax = parsed.max;
+        break;
       }
     }
   }
