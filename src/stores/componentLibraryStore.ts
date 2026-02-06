@@ -30,7 +30,13 @@ import {
   searchComponents,
   createAtomicComponent,
 } from '../services/componentLibraryService';
-import { parseDataElementToComponent, findExactMatch } from '../services/componentMatcher';
+import {
+  parseDataElementToComponent,
+  findExactMatch,
+  findExactMatchPrioritizeApproved,
+  validateMeasureComponents,
+  type ComponentValidationResult,
+} from '../services/componentMatcher';
 import { sampleAtomics, sampleComposites, sampleCategories } from '../data/sampleLibraryData';
 import type { DataElement, LogicalClause, UniversalMeasureSpec } from '../types/ums';
 
@@ -89,6 +95,9 @@ interface ComponentLibraryState {
     measures: UniversalMeasureSpec[],
     updateMeasure: (id: string, updates: Partial<UniversalMeasureSpec>) => void,
   ) => void;
+
+  // Validate measure component usage against library
+  validateMeasureComponentUsage: (populations: Array<{ criteria?: LogicalClause | null; type: string }>) => ComponentValidationResult;
 
   // Computed / Selectors
   getComponent: (id: ComponentId) => LibraryComponent | null;
@@ -302,36 +311,43 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
         const newComponents: LibraryComponent[] = [];
         const updatedComponents: LibraryComponent[] = [];
 
-        // Step 1: Match individual data elements (atomics)
+        // Step 1: Match individual data elements (atomics) - prioritize approved components
         for (const element of allElements) {
           const parsed = parseDataElementToComponent(element);
           if (!parsed) continue; // Skip elements without value sets
 
-          // Try exact match against library
-          const match = findExactMatch(parsed, libraryRecord);
+          // Try exact match against library, prioritizing approved components
+          const { match, isApproved, alternateApproved } = findExactMatchPrioritizeApproved(parsed, libraryRecord);
 
-          if (match) {
-            // Link to existing component
-            linkMap[element.id] = match.id;
+          // If there's an approved alternative but we matched a draft, use the approved one
+          const effectiveMatch = alternateApproved || match;
+
+          if (effectiveMatch) {
+            // Link to existing component (prefer approved)
+            linkMap[element.id] = effectiveMatch.id;
+
+            if (alternateApproved && match && !isApproved) {
+              console.log(`[Component Library] Linked "${element.description}" to approved component "${alternateApproved.name}" instead of draft "${match.name}"`);
+            }
 
             // Sync codes: if the matched component has no codes but the element does, update it
             const elementCodes = element.valueSet?.codes || element.directCodes || [];
-            const matchCodes = (match.type === 'atomic' && (match as AtomicComponent).valueSet.codes) || [];
-            let componentToUpdate = match;
-            if (elementCodes.length > 0 && matchCodes.length === 0 && match.type === 'atomic') {
+            const matchCodes = (effectiveMatch.type === 'atomic' && (effectiveMatch as AtomicComponent).valueSet.codes) || [];
+            let componentToUpdate = effectiveMatch;
+            if (elementCodes.length > 0 && matchCodes.length === 0 && effectiveMatch.type === 'atomic') {
               componentToUpdate = {
-                ...match,
-                valueSet: { ...(match as AtomicComponent).valueSet, codes: elementCodes },
+                ...effectiveMatch,
+                valueSet: { ...(effectiveMatch as AtomicComponent).valueSet, codes: elementCodes },
               } as AtomicComponent;
-              libraryRecord[match.id] = componentToUpdate;
+              libraryRecord[effectiveMatch.id] = componentToUpdate;
             }
 
             // Add usage if not already tracked
             if (!componentToUpdate.usage.measureIds.includes(measureId)) {
               const updated = addUsageReference(componentToUpdate, measureId);
               updatedComponents.push(updated);
-              libraryRecord[match.id] = updated;
-            } else if (componentToUpdate !== match) {
+              libraryRecord[effectiveMatch.id] = updated;
+            } else if (componentToUpdate !== effectiveMatch) {
               // Codes were updated but usage was already tracked — still need to push the update
               updatedComponents.push(componentToUpdate);
             }
@@ -626,6 +642,32 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
 
           updateMeasure(measure.id, { populations: updatedPopulations });
         }
+      },
+
+      // Validate measure component usage against library
+      validateMeasureComponentUsage: (populations) => {
+        const state = get();
+
+        // Build library lookup
+        const libraryRecord: Record<string, LibraryComponent> = {};
+        state.components.forEach((c) => { libraryRecord[c.id] = c; });
+
+        // Collect all data elements
+        const collectElements = (node: LogicalClause | DataElement): DataElement[] => {
+          if ('operator' in node && 'children' in node) {
+            return (node as LogicalClause).children.flatMap(collectElements);
+          }
+          return [node as DataElement];
+        };
+
+        const allElements: DataElement[] = [];
+        for (const pop of populations) {
+          if (pop.criteria) {
+            allElements.push(...collectElements(pop.criteria as LogicalClause | DataElement));
+          }
+        }
+
+        return validateMeasureComponents(allElements, libraryRecord);
       },
 
       // Selectors

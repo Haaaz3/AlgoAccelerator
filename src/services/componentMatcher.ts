@@ -664,3 +664,216 @@ export function parseDataElementToComponent(element: DataElement): ParsedCompone
     negation,
   };
 }
+
+// ============================================================================
+// Public API: Approved Component Matching
+// ============================================================================
+
+/**
+ * Validation result for component usage in a measure.
+ */
+export interface ComponentValidationResult {
+  isValid: boolean;
+  totalElements: number;
+  linkedToApproved: number;
+  linkedToDraft: number;
+  unlinked: number;
+  warnings: ComponentValidationWarning[];
+}
+
+export interface ComponentValidationWarning {
+  elementId: string;
+  elementDescription: string;
+  type: 'unapproved_component' | 'no_library_match' | 'approved_available';
+  message: string;
+  suggestedComponentId?: string;
+  suggestedComponentName?: string;
+}
+
+/**
+ * Find an exact match in the library, prioritizing approved components.
+ *
+ * Returns the approved component if one matches, otherwise returns any match.
+ * This ensures we use vetted components when available.
+ */
+export function findExactMatchPrioritizeApproved(
+  incoming: ParsedComponent,
+  library: Record<string, LibraryComponent>
+): { match: LibraryComponent | null; isApproved: boolean; alternateApproved?: LibraryComponent } {
+  const incomingHash = generateParsedComponentHash(incoming);
+  const isComposite = incoming.children && incoming.children.length > 0;
+
+  let approvedMatch: LibraryComponent | null = null;
+  let anyMatch: LibraryComponent | null = null;
+
+  for (const component of Object.values(library)) {
+    const libraryHash = generateComponentHash(component);
+
+    if (libraryHash === incomingHash) {
+      if (component.versionInfo.status === 'approved') {
+        approvedMatch = component;
+        break; // Approved match found, use it
+      }
+      if (!anyMatch) {
+        anyMatch = component;
+      }
+    }
+
+    // For composite incoming vs composite library
+    if (isComposite && component.type === 'composite') {
+      const match = matchCompositeByChildren(incoming, component, library);
+      if (match) {
+        if (component.versionInfo.status === 'approved') {
+          approvedMatch = component;
+          break;
+        }
+        if (!anyMatch) {
+          anyMatch = component;
+        }
+      }
+    }
+  }
+
+  // If we have an approved match, use it
+  if (approvedMatch) {
+    return { match: approvedMatch, isApproved: true };
+  }
+
+  // If we have a non-approved match, also check if there's a similar approved one
+  if (anyMatch) {
+    // Look for an approved component with the same value set OID
+    const alternateApproved = findApprovedAlternative(incoming, library);
+    return { match: anyMatch, isApproved: false, alternateApproved };
+  }
+
+  // Fallback to name matching
+  const nameMatch = findNameMatch(incoming, library);
+  if (nameMatch) {
+    return {
+      match: nameMatch,
+      isApproved: nameMatch.versionInfo.status === 'approved',
+    };
+  }
+
+  return { match: null, isApproved: false };
+}
+
+/**
+ * Find an approved component alternative for a parsed component.
+ * Looks for approved components with the same value set OID.
+ */
+function findApprovedAlternative(
+  incoming: ParsedComponent,
+  library: Record<string, LibraryComponent>
+): LibraryComponent | undefined {
+  if (!incoming.valueSetOid) return undefined;
+
+  for (const component of Object.values(library)) {
+    if (component.type !== 'atomic') continue;
+    if (component.versionInfo.status !== 'approved') continue;
+    if (component.valueSet.oid === incoming.valueSetOid) {
+      return component;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Validate component usage for a measure's data elements.
+ *
+ * Checks that:
+ * 1. Elements are linked to library components where possible
+ * 2. Linked components are approved when approved versions exist
+ * 3. Reports warnings for unapproved or unlinked components
+ */
+export function validateMeasureComponents(
+  elements: Array<{ id: string; description: string; libraryComponentId?: string; valueSet?: { oid?: string; name?: string } }>,
+  library: Record<string, LibraryComponent>
+): ComponentValidationResult {
+  const warnings: ComponentValidationWarning[] = [];
+  let linkedToApproved = 0;
+  let linkedToDraft = 0;
+  let unlinked = 0;
+
+  for (const element of elements) {
+    if (!element.valueSet?.oid || element.valueSet.oid === 'N/A') {
+      // Skip elements without value sets (demographics, etc.)
+      continue;
+    }
+
+    if (element.libraryComponentId && element.libraryComponentId !== '__ZERO_CODES__') {
+      const component = library[element.libraryComponentId];
+      if (component) {
+        if (component.versionInfo.status === 'approved') {
+          linkedToApproved++;
+        } else {
+          linkedToDraft++;
+          // Check if there's an approved alternative
+          const approvedAlt = Object.values(library).find(
+            c => c.type === 'atomic' &&
+                 c.versionInfo.status === 'approved' &&
+                 (c as AtomicComponent).valueSet.oid === element.valueSet?.oid
+          );
+
+          if (approvedAlt) {
+            warnings.push({
+              elementId: element.id,
+              elementDescription: element.description,
+              type: 'approved_available',
+              message: `Linked to draft component, but approved component "${approvedAlt.name}" is available`,
+              suggestedComponentId: approvedAlt.id,
+              suggestedComponentName: approvedAlt.name,
+            });
+          } else {
+            warnings.push({
+              elementId: element.id,
+              elementDescription: element.description,
+              type: 'unapproved_component',
+              message: `Linked to unapproved component (status: ${component.versionInfo.status})`,
+            });
+          }
+        }
+      } else {
+        unlinked++;
+        warnings.push({
+          elementId: element.id,
+          elementDescription: element.description,
+          type: 'no_library_match',
+          message: 'Component reference not found in library',
+        });
+      }
+    } else {
+      unlinked++;
+      // Check if there's an approved component that should be used
+      const approvedMatch = Object.values(library).find(
+        c => c.type === 'atomic' &&
+             c.versionInfo.status === 'approved' &&
+             (c as AtomicComponent).valueSet.oid === element.valueSet?.oid
+      );
+
+      if (approvedMatch) {
+        warnings.push({
+          elementId: element.id,
+          elementDescription: element.description,
+          type: 'approved_available',
+          message: `No library link, but approved component "${approvedMatch.name}" is available`,
+          suggestedComponentId: approvedMatch.id,
+          suggestedComponentName: approvedMatch.name,
+        });
+      }
+    }
+  }
+
+  const totalElements = elements.filter(e => e.valueSet?.oid && e.valueSet.oid !== 'N/A').length;
+  const isValid = warnings.filter(w => w.type === 'approved_available').length === 0;
+
+  return {
+    isValid,
+    totalElements,
+    linkedToApproved,
+    linkedToDraft,
+    unlinked,
+    warnings,
+  };
+}

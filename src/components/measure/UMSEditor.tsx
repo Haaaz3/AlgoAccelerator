@@ -625,10 +625,16 @@ function PopulationSection({
   const effectiveStatus = computeEffectiveStatus(population);
 
   return (
-    <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] overflow-hidden">
+    <div className={`rounded-xl border overflow-hidden transition-colors ${
+      effectiveStatus === 'approved'
+        ? 'bg-green-500/5 border-green-500/30'
+        : effectiveStatus === 'needs_revision' || effectiveStatus === 'flagged'
+          ? 'bg-amber-500/5 border-amber-500/30'
+          : 'bg-[var(--bg-secondary)] border-[var(--border)]'
+    }`}>
       <button
         onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[var(--bg-tertiary)] transition-colors"
+        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[var(--bg-tertiary)]/50 transition-colors"
       >
         {isExpanded ? (
           <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
@@ -638,7 +644,13 @@ function PopulationSection({
         <span className="text-lg">{icon}</span>
         <span className="font-medium text-[var(--text)]">{label}</span>
         <ComplexityBadge level={calculatePopulationComplexity(population)} size="sm" />
-        <ReviewStatusBadge status={effectiveStatus} size="sm" />
+        {/* Status indicator - visual only */}
+        {effectiveStatus === 'approved' && (
+          <CheckCircle className="w-4 h-4 text-green-500 fill-green-500/20" />
+        )}
+        {(effectiveStatus === 'needs_revision' || effectiveStatus === 'flagged') && (
+          <AlertTriangle className="w-4 h-4 text-amber-500 fill-amber-500/20" />
+        )}
       </button>
 
       {isExpanded && (
@@ -896,7 +908,11 @@ function CriteriaNode({
           isDragging ? 'opacity-40' :
           isSelected
             ? 'bg-[var(--accent-light)] border-[var(--accent)]/50'
-            : 'bg-[var(--bg-tertiary)] border-[var(--border)] hover:border-[var(--text-dim)]'
+            : element.reviewStatus === 'approved'
+              ? 'bg-green-500/5 border-green-500/30 hover:border-green-500/50'
+              : element.reviewStatus === 'needs_revision'
+                ? 'bg-amber-500/5 border-amber-500/30 hover:border-amber-500/50'
+                : 'bg-[var(--bg-tertiary)] border-[var(--border)] hover:border-[var(--text-dim)]'
         }`}
       >
       <div className="flex items-start justify-between gap-3">
@@ -923,7 +939,6 @@ function CriteriaNode({
               {element.type}
             </span>
             <ComplexityBadge level={calculateDataElementComplexity(element)} size="sm" />
-            <ReviewStatusBadge status={element.reviewStatus} size="sm" />
             {element.libraryComponentId && (
               <LibraryStatusBadge component={linkedComponent} size="sm" />
             )}
@@ -1032,22 +1047,30 @@ function CriteriaNode({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              updateReviewStatus(measureId, element.id, 'approved');
+              updateReviewStatus(measureId, element.id, element.reviewStatus === 'approved' ? 'pending' : 'approved');
             }}
-            className="p-1.5 rounded hover:bg-[var(--success-light)] text-[var(--text-dim)] hover:text-[var(--success)] transition-colors"
-            title="Approve"
+            className={`p-1.5 rounded transition-colors ${
+              element.reviewStatus === 'approved'
+                ? 'bg-green-500/20 text-green-500 hover:bg-green-500/30'
+                : 'hover:bg-[var(--success-light)] text-[var(--text-dim)] hover:text-[var(--success)]'
+            }`}
+            title={element.reviewStatus === 'approved' ? 'Approved (click to unapprove)' : 'Approve'}
           >
-            <CheckCircle className="w-4 h-4" />
+            <CheckCircle className={`w-4 h-4 ${element.reviewStatus === 'approved' ? 'fill-green-500/30' : ''}`} />
           </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              updateReviewStatus(measureId, element.id, 'needs_revision');
+              updateReviewStatus(measureId, element.id, element.reviewStatus === 'needs_revision' ? 'pending' : 'needs_revision');
             }}
-            className="p-1.5 rounded hover:bg-[var(--warning-light)] text-[var(--text-dim)] hover:text-[var(--warning)] transition-colors"
-            title="Flag for revision"
+            className={`p-1.5 rounded transition-colors ${
+              element.reviewStatus === 'needs_revision'
+                ? 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30'
+                : 'hover:bg-[var(--warning-light)] text-[var(--text-dim)] hover:text-[var(--warning)]'
+            }`}
+            title={element.reviewStatus === 'needs_revision' ? 'Flagged (click to clear)' : 'Flag for revision'}
           >
-            <AlertTriangle className="w-4 h-4" />
+            <AlertTriangle className={`w-4 h-4 ${element.reviewStatus === 'needs_revision' ? 'fill-amber-500/30' : ''}`} />
           </button>
           {/* Delete button in deep mode */}
           {deepMode && parentId && (
@@ -1543,7 +1566,6 @@ function NodeDetailPanel({
             {node.type}
           </span>
           <ComplexityBadge level={calculateDataElementComplexity(node)} />
-          <ReviewStatusBadge status={node.reviewStatus} />
           {node.libraryComponentId && (
             <LibraryStatusBadge component={getComponent(node.libraryComponentId) ?? undefined} size="md" />
           )}
@@ -1760,18 +1782,26 @@ function NodeDetailPanel({
         {/* Actions */}
         <div className="flex gap-2">
           <button
-            onClick={() => updateReviewStatus(measureId, node!.id, 'approved')}
-            className="flex-1 py-2 bg-[var(--success-light)] text-[var(--success)] rounded-lg text-sm font-medium hover:opacity-80 transition-all flex items-center justify-center gap-2"
+            onClick={() => updateReviewStatus(measureId, node!.id, node.reviewStatus === 'approved' ? 'pending' : 'approved')}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+              node.reviewStatus === 'approved'
+                ? 'bg-green-500 text-white hover:bg-green-600'
+                : 'bg-[var(--success-light)] text-[var(--success)] hover:opacity-80'
+            }`}
           >
-            <CheckCircle className="w-4 h-4" />
-            Approve
+            <CheckCircle className={`w-4 h-4 ${node.reviewStatus === 'approved' ? 'fill-white/30' : ''}`} />
+            {node.reviewStatus === 'approved' ? 'Approved' : 'Approve'}
           </button>
           <button
-            onClick={() => updateReviewStatus(measureId, node!.id, 'needs_revision')}
-            className="flex-1 py-2 bg-[var(--warning-light)] text-[var(--warning)] rounded-lg text-sm font-medium hover:opacity-80 transition-all flex items-center justify-center gap-2"
+            onClick={() => updateReviewStatus(measureId, node!.id, node.reviewStatus === 'needs_revision' ? 'pending' : 'needs_revision')}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+              node.reviewStatus === 'needs_revision'
+                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                : 'bg-[var(--warning-light)] text-[var(--warning)] hover:opacity-80'
+            }`}
           >
-            <AlertTriangle className="w-4 h-4" />
-            Needs Revision
+            <AlertTriangle className={`w-4 h-4 ${node.reviewStatus === 'needs_revision' ? 'fill-white/30' : ''}`} />
+            {node.reviewStatus === 'needs_revision' ? 'Flagged' : 'Flag'}
           </button>
         </div>
       </div>
@@ -2532,21 +2562,6 @@ function ComplexityBadge({ level, size = 'md' }: { level: ComplexityLevel; size?
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${colors[level]} ${size === 'sm' ? 'text-[10px]' : 'text-xs'}`}>
       <span>{dots[level]}</span>
       {level}
-    </span>
-  );
-}
-
-function ReviewStatusBadge({ status, size = 'md' }: { status: ReviewStatus; size?: 'sm' | 'md' }) {
-  const styles = {
-    pending: 'bg-[var(--bg-tertiary)] text-[var(--text-dim)] border-[var(--border)]',
-    approved: 'bg-[var(--success-light)] text-[var(--success)] border-[var(--success)]/30',
-    needs_revision: 'bg-[var(--warning-light)] text-[var(--warning)] border-[var(--warning)]/30',
-    flagged: 'bg-[var(--danger-light)] text-[var(--danger)] border-[var(--danger)]/30',
-  };
-
-  return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded border ${styles[status]} ${size === 'sm' ? 'text-[10px]' : 'text-xs'}`}>
-      {status.replace('_', ' ')}
     </span>
   );
 }
