@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, Fragment } from 'react';
-import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, Send, Bot, User, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine } from 'lucide-react';
+import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, Send, Bot, User, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine, Square, CheckSquare } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useComponentCodeStore } from '../../stores/componentCodeStore';
@@ -50,10 +50,31 @@ export function UMSEditor() {
   const [dragState, setDragState] = useState<{ draggedId: string | null; dragOverId: string | null; dragOverPosition: 'before' | 'after' | 'merge' | null }>({ draggedId: null, dragOverId: null, dragOverPosition: null });
   const [editingTimingId, setEditingTimingId] = useState<string | null>(null);
 
-  // Component merge dialog state (triggered by drag-drop in deep mode)
+  // Component merge state (checkbox selection in deep mode)
   const [showMergeDialog, setShowMergeDialog] = useState(false);
   const [mergeName, setMergeName] = useState('');
-  const [mergeTargets, setMergeTargets] = useState<{ sourceId: string; targetId: string } | null>(null);
+  const [selectedForMerge, setSelectedForMerge] = useState<Set<string>>(new Set());
+
+  // Toggle merge selection for a component
+  const toggleMergeSelection = (componentId: string) => {
+    setSelectedForMerge(prev => {
+      const next = new Set(prev);
+      if (next.has(componentId)) {
+        next.delete(componentId);
+      } else {
+        next.add(componentId);
+      }
+      return next;
+    });
+  };
+
+  // Clear merge selection when exiting deep mode
+  const handleDeepModeToggle = () => {
+    if (deepMode) {
+      setSelectedForMerge(new Set());
+    }
+    setDeepMode(!deepMode);
+  };
 
   const handleDragStart = (id: string) => {
     setDragState({ draggedId: id, dragOverId: null, dragOverPosition: null });
@@ -95,7 +116,7 @@ export function UMSEditor() {
       return;
     }
 
-    // Handle merge in deep mode
+    // Handle merge in deep mode - add both to selection and show dialog
     if (deepMode && position === 'merge' && canMerge) {
       // Get the library component IDs for both elements
       const findElement = (node: any, id: string): any => {
@@ -123,11 +144,11 @@ export function UMSEditor() {
       const targetCompId = targetElement?.libraryComponentId;
 
       if (sourceCompId && targetCompId && sourceCompId !== targetCompId) {
-        // Both have library components - show merge dialog
+        // Both have library components - select them for merge and show dialog
         const sourceComp = getComponent(sourceCompId);
         const targetComp = getComponent(targetCompId);
         if (sourceComp && targetComp) {
-          setMergeTargets({ sourceId: sourceCompId, targetId: targetCompId });
+          setSelectedForMerge(new Set([sourceCompId, targetCompId]));
           setMergeName(`${targetComp.name} (Combined)`);
           setShowMergeDialog(true);
         }
@@ -285,15 +306,30 @@ export function UMSEditor() {
                   Browse Library
                 </button>
                 <button
-                  onClick={() => setDeepMode(!deepMode)}
+                  onClick={handleDeepModeToggle}
                   className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
                     deepMode ? 'bg-purple-500/15 text-purple-400' : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text)]'
                   }`}
-                  title="Enable advanced logic editing: AND/OR toggle, reorder, delete"
+                  title="Enable advanced logic editing: reorder, delete, merge components"
                 >
                   <Settings2 className="w-4 h-4" />
                   Deep Edit Mode
                 </button>
+                {deepMode && selectedForMerge.size >= 2 && (
+                  <button
+                    onClick={() => {
+                      // Get the first selected component name as default
+                      const firstCompId = Array.from(selectedForMerge)[0];
+                      const firstComp = libraryComponents.find(c => c.id === firstCompId);
+                      setMergeName(firstComp ? `${firstComp.name} (Combined)` : 'Combined Component');
+                      setShowMergeDialog(true);
+                    }}
+                    className="px-3 py-2 bg-purple-500 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-purple-600 transition-colors animate-pulse"
+                  >
+                    <Combine className="w-4 h-4" />
+                    Merge {selectedForMerge.size} Selected
+                  </button>
+                )}
                 <button
                   onClick={() => approveAllLowComplexity(measure.id)}
                   className="px-3 py-2 bg-[var(--success-light)] text-[var(--success)] rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-80 transition-all"
@@ -407,6 +443,8 @@ export function UMSEditor() {
                   updateTimingOverride(measure.id, componentId, null);
                   setEditingTimingId(null);
                 }}
+                selectedForMerge={selectedForMerge}
+                onToggleMergeSelection={toggleMergeSelection}
               />
             ))}
           </div>
@@ -598,19 +636,18 @@ export function UMSEditor() {
         />
       )}
 
-      {/* Component Merge Dialog - triggered by drag-drop in deep mode */}
-      {showMergeDialog && mergeTargets && (
+      {/* Component Merge Dialog - checkbox selection in deep mode */}
+      {showMergeDialog && selectedForMerge.size >= 2 && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-[var(--bg-primary)] rounded-xl border border-[var(--border)] w-[500px] max-h-[80vh] overflow-hidden shadow-xl">
             <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
               <h3 className="font-semibold text-[var(--text)] flex items-center gap-2">
                 <Combine className="w-5 h-5 text-purple-400" />
-                Merge Components
+                Merge {selectedForMerge.size} Components
               </h3>
               <button
                 onClick={() => {
                   setShowMergeDialog(false);
-                  setMergeTargets(null);
                   setMergeName('');
                 }}
                 className="p-1 hover:bg-[var(--bg-tertiary)] rounded"
@@ -627,16 +664,19 @@ export function UMSEditor() {
                   value={mergeName}
                   onChange={(e) => setMergeName(e.target.value)}
                   placeholder="e.g., Hospice or Palliative Care Services"
-                  className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]"
+                  className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-purple-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-[var(--text-muted)] mb-2">Components to Merge</label>
-                <div className="space-y-2">
-                  {[mergeTargets.sourceId, mergeTargets.targetId].map(compId => {
+                <label className="block text-sm text-[var(--text-muted)] mb-2">Components to Merge ({selectedForMerge.size})</label>
+                <div className="space-y-2 max-h-[200px] overflow-auto">
+                  {Array.from(selectedForMerge).map(compId => {
                     const comp = libraryComponents.find(c => c.id === compId);
-                    if (!comp || comp.type !== 'atomic') return null;
+                    if (!comp) return null;
+                    const codeCount = comp.type === 'atomic'
+                      ? (comp.valueSets?.reduce((sum, vs) => sum + (vs.codes?.length || 0), 0) || comp.valueSet?.codes?.length || 0)
+                      : 0;
                     return (
                       <div key={compId} className="p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border)] flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
@@ -645,9 +685,16 @@ export function UMSEditor() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-[var(--text)] truncate">{comp.name}</p>
                           <p className="text-xs text-[var(--text-dim)]">
-                            {comp.type === 'atomic' && (comp.valueSets?.reduce((sum, vs) => sum + (vs.codes?.length || 0), 0) || comp.valueSet?.codes?.length || 0)} codes
+                            {comp.type === 'atomic' ? `${codeCount} codes` : 'Composite'}
                           </p>
                         </div>
+                        <button
+                          onClick={() => toggleMergeSelection(compId)}
+                          className="p-1 hover:bg-[var(--bg-tertiary)] rounded text-[var(--text-dim)] hover:text-[var(--danger)]"
+                          title="Remove from merge"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                     );
                   })}
@@ -656,7 +703,7 @@ export function UMSEditor() {
 
               <div className="p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
                 <p className="text-xs text-purple-400">
-                  Components will be combined using OR logic. All value sets and codes from both components will be merged into a single reusable component.
+                  Components will be combined using OR logic. All value sets and codes will be merged into a single reusable component. Original components will be archived.
                 </p>
               </div>
             </div>
@@ -665,7 +712,6 @@ export function UMSEditor() {
               <button
                 onClick={() => {
                   setShowMergeDialog(false);
-                  setMergeTargets(null);
                   setMergeName('');
                 }}
                 className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
@@ -674,8 +720,8 @@ export function UMSEditor() {
               </button>
               <button
                 onClick={() => {
-                  if (!mergeName.trim() || !mergeTargets) return;
-                  const oldComponentIds = [mergeTargets.sourceId, mergeTargets.targetId];
+                  if (!mergeName.trim() || selectedForMerge.size < 2) return;
+                  const oldComponentIds = Array.from(selectedForMerge);
                   const result = mergeComponents(oldComponentIds, mergeName.trim());
                   if (result && measure) {
                     // Update all DataElements in the measure to point to the merged component
@@ -697,11 +743,11 @@ export function UMSEditor() {
                     updateMeasure(measure.id, { populations: updatedPopulations });
 
                     setShowMergeDialog(false);
-                    setMergeTargets(null);
+                    setSelectedForMerge(new Set());
                     setMergeName('');
                   }
                 }}
-                disabled={!mergeName.trim()}
+                disabled={!mergeName.trim() || selectedForMerge.size < 2}
                 className="px-4 py-2 text-sm bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Merge Components
@@ -757,6 +803,8 @@ function PopulationSection({
   onEditTiming,
   onSaveTiming,
   onResetTiming,
+  selectedForMerge,
+  onToggleMergeSelection,
 }: {
   population: PopulationDefinition;
   measureId: string;
@@ -786,6 +834,8 @@ function PopulationSection({
   onEditTiming: (id: string | null) => void;
   onSaveTiming: (componentId: string, modified: TimingConstraint) => void;
   onResetTiming: (componentId: string) => void;
+  selectedForMerge: Set<string>;
+  onToggleMergeSelection: (componentId: string) => void;
 }) {
   // Compute effective status based on children's status
   const computeEffectiveStatus = (pop: PopulationDefinition): ReviewStatus => {
@@ -877,6 +927,8 @@ function PopulationSection({
               onEditTiming={onEditTiming}
               onSaveTiming={onSaveTiming}
               onResetTiming={onResetTiming}
+              selectedForMerge={selectedForMerge}
+              onToggleMergeSelection={onToggleMergeSelection}
             />
           )}
 
@@ -924,6 +976,8 @@ function CriteriaNode({
   onEditTiming,
   onSaveTiming,
   onResetTiming,
+  selectedForMerge,
+  onToggleMergeSelection,
 }: {
   node: LogicalClause | DataElement;
   parentId: string | null;
@@ -952,6 +1006,8 @@ function CriteriaNode({
   onEditTiming: (id: string | null) => void;
   onSaveTiming: (componentId: string, modified: TimingConstraint) => void;
   onResetTiming: (componentId: string) => void;
+  selectedForMerge: Set<string>;
+  onToggleMergeSelection: (componentId: string) => void;
 }) {
   const isClause = 'operator' in node;
   const isSelected = selectedNode === node.id;
@@ -1057,6 +1113,8 @@ function CriteriaNode({
                   onEditTiming={onEditTiming}
                   onSaveTiming={onSaveTiming}
                   onResetTiming={onResetTiming}
+                  selectedForMerge={selectedForMerge}
+                  onToggleMergeSelection={onToggleMergeSelection}
                 />
               </div>
             </Fragment>
@@ -1081,6 +1139,7 @@ function CriteriaNode({
   const isDragging = dragState.draggedId === element.id;
   const canMerge = !!element.libraryComponentId; // Can merge if linked to library component
   const isMergeTarget = isDraggedOver && dragState.dragOverPosition === 'merge';
+  const isSelectedForMerge = element.libraryComponentId ? selectedForMerge.has(element.libraryComponentId) : false;
 
   return (
     <div
@@ -1106,16 +1165,41 @@ function CriteriaNode({
         onClick={() => onSelectNode(isSelected ? null : element.id)}
         className={`p-3 rounded-lg cursor-pointer transition-all ${
           isDragging ? 'opacity-40' :
-          isSelected
-            ? 'border bg-[var(--accent-light)] border-[var(--accent)]/50'
-            : element.reviewStatus === 'approved'
-              ? 'border-2 bg-[var(--bg-tertiary)] border-[var(--success)]/60 hover:border-[var(--success)]/80'
-              : element.reviewStatus === 'needs_revision'
-                ? 'border-2 bg-[var(--bg-tertiary)] border-amber-400/60 hover:border-amber-400/80'
-                : 'border bg-[var(--bg-tertiary)] border-[var(--border)] hover:border-[var(--text-dim)]'
+          isSelectedForMerge
+            ? 'border-2 bg-purple-500/5 border-purple-500/50 ring-2 ring-purple-500/20'
+            : isSelected
+              ? 'border bg-[var(--accent-light)] border-[var(--accent)]/50'
+              : element.reviewStatus === 'approved'
+                ? 'border-2 bg-[var(--bg-tertiary)] border-[var(--success)]/60 hover:border-[var(--success)]/80'
+                : element.reviewStatus === 'needs_revision'
+                  ? 'border-2 bg-[var(--bg-tertiary)] border-amber-400/60 hover:border-amber-400/80'
+                  : 'border bg-[var(--bg-tertiary)] border-[var(--border)] hover:border-[var(--text-dim)]'
         }`}
       >
       <div className="flex items-start justify-between gap-3">
+        {/* Merge checkbox - only in deep mode when component has library link */}
+        {deepMode && canMerge && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (element.libraryComponentId) {
+                onToggleMergeSelection(element.libraryComponentId);
+              }
+            }}
+            className={`flex-shrink-0 p-1.5 mt-0.5 rounded transition-colors ${
+              isSelectedForMerge
+                ? 'bg-purple-500/20 text-purple-400'
+                : 'text-[var(--text-dim)] hover:text-purple-400 hover:bg-purple-500/10'
+            }`}
+            title={isSelectedForMerge ? 'Deselect for merge' : 'Select for merge'}
+          >
+            {isSelectedForMerge ? (
+              <CheckSquare className="w-4 h-4" />
+            ) : (
+              <Square className="w-4 h-4" />
+            )}
+          </button>
+        )}
         {/* Drag handle */}
         {parentId && (
           <div
