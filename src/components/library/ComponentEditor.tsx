@@ -76,7 +76,7 @@ const CATEGORIES: { value: ComponentCategory; label: string }[] = [
 // ============================================================================
 
 export default function ComponentEditor({ componentId, onSave, onClose }: ComponentEditorProps) {
-  const { components, addComponent, updateComponent, getComponent, syncComponentToMeasures, handleSharedEdit, recalculateUsage } = useComponentLibraryStore();
+  const { components, addComponent, updateComponent, getComponent, syncComponentToMeasures, handleSharedEdit, rebuildUsageIndex } = useComponentLibraryStore();
   const { measures, updateMeasure } = useMeasureStore();
   const [showSharedWarning, setShowSharedWarning] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Partial<any> | null>(null);
@@ -997,7 +997,7 @@ export default function ComponentEditor({ componentId, onSave, onClose }: Compon
                 children: pendingChanges.children,
               };
               syncComponentToMeasures(existingComponent.id, changes, measures, updateMeasure);
-              recalculateUsage(measures);
+              rebuildUsageIndex(measures);
             }
             setShowSharedWarning(false);
             setPendingChanges(null);

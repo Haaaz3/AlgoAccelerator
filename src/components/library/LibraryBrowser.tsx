@@ -102,19 +102,19 @@ export function LibraryBrowser() {
     getCategoryCounts,
     getFilteredComponents,
     initializeWithSampleData,
-    recalculateUsage,
+    rebuildUsageIndex,
   } = useComponentLibraryStore();
   const { measures } = useMeasureStore();
 
   const [selectedCategory, setSelectedCategory] = useState<ComponentCategory | 'all'>('all');
 
-  // Seed sample data on mount if store is empty, then recalculate usage from actual measures
+  // Seed sample data on mount if store is empty, then rebuild usage index from actual measures
   useEffect(() => {
     if (components.length === 0) {
       initializeWithSampleData();
     }
-    // Always recalculate usage from actual measures to keep counts accurate
-    recalculateUsage(measures);
+    // Always rebuild usage index from actual measures to keep counts accurate
+    rebuildUsageIndex(measures);
   }, [measures.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync category selection into filters

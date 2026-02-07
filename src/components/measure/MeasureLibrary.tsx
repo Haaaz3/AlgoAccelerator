@@ -22,7 +22,7 @@ function resetReviewStatus(obj: any): any {
 
 export function MeasureLibrary() {
   const { measures, addMeasure, deleteMeasure, setActiveMeasure, getReviewProgress, lockMeasure, unlockMeasure, setMeasureStatus, updateMeasure } = useMeasureStore();
-  const { linkMeasureComponents, recalculateUsage } = useComponentLibraryStore();
+  const { linkMeasureComponents, rebuildUsageIndex } = useComponentLibraryStore();
   const {
     selectedProvider,
     selectedModel,
@@ -132,8 +132,8 @@ export function MeasureLibrary() {
           updateMeasure(measureWithStatus.id, { populations: linkedPopulations });
         }
 
-        // Recalculate usage counts across all measures (including the new one)
-        recalculateUsage([...measures, measureWithStatus]);
+        // Rebuild usage index across all measures (including the new one)
+        rebuildUsageIndex([...measures, measureWithStatus]);
 
         const ct = batchCounterRef.current;
         const lbl = ct.total > 1 ? `[${ct.index}/${ct.total}] ` : '';
@@ -147,7 +147,7 @@ export function MeasureLibrary() {
 
     // Brief pause then process next
     setTimeout(() => processNext(), 1500);
-  }, [getActiveApiKey, addMeasure, updateMeasure, selectedProvider, selectedModel, getCustomLlmConfig, linkMeasureComponents, recalculateUsage, measures]);
+  }, [getActiveApiKey, addMeasure, updateMeasure, selectedProvider, selectedModel, getCustomLlmConfig, linkMeasureComponents, rebuildUsageIndex, measures]);
 
   // Handle files: either start processing or add to queue
   const handleFiles = useCallback(async (files: File[]) => {
@@ -564,6 +564,8 @@ export function MeasureLibrary() {
                   }
                   if (confirm(`Delete "${measure.metadata.title}"?`)) {
                     deleteMeasure(measure.id);
+                    // Rebuild usage index to clean up component references
+                    rebuildUsageIndex(measures.filter(m => m.id !== measure.id));
                   }
                 }}
                 onCopy={() => handleCopyMeasure(measure)}

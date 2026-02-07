@@ -34,9 +34,10 @@ export function UMSEditor() {
     linkMeasureComponents,
     initializeWithSampleData,
     getComponent,
-    recalculateUsage,
+    rebuildUsageIndex,
     syncComponentToMeasures,
     mergeComponents,
+    updateMeasureReferencesAfterMerge,
   } = useComponentLibraryStore();
   const { updateMeasure } = useMeasureStore();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['ip', 'den', 'ex', 'num']));
@@ -179,8 +180,8 @@ export function UMSEditor() {
         measure.populations,
       );
       setComponentLinkMap(linkMap);
-      // Recalculate usage counts from all actual measures
-      recalculateUsage(measures);
+      // Rebuild usage index from all actual measures
+      rebuildUsageIndex(measures);
     }
   }, [measure?.id, measures.length]);
 
@@ -825,6 +826,18 @@ export function UMSEditor() {
                       criteria: pop.criteria ? updateNode(pop.criteria) : pop.criteria,
                     }));
                     updateMeasure(measure.id, { populations: updatedPopulations });
+
+                    // Update references in OTHER measures that still point to archived components
+                    if (mergedComp) {
+                      const archivedIds = selectedElements
+                        .map((el: any) => el.libraryComponentId)
+                        .filter(Boolean) as string[];
+                      const otherMeasures = measures.filter(m => m.id !== measure.id);
+                      updateMeasureReferencesAfterMerge(archivedIds, mergedComp.id, otherMeasures, updateMeasure);
+
+                      // Rebuild usage index after merge to ensure consistency
+                      rebuildUsageIndex(measures);
+                    }
 
                     setShowMergeDialog(false);
                     setSelectedForMerge(new Set());

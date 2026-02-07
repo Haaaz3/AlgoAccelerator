@@ -94,8 +94,19 @@ interface ComponentLibraryState {
   // Measure linking
   linkMeasureComponents: (measureId: string, populations: Array<{ criteria?: LogicalClause | null; type: string }>) => Record<string, string>;
 
-  // Usage recalculation from actual measures
+  // Usage recalculation from actual measures (deprecated - use rebuildUsageIndex)
   recalculateUsage: (measures: UniversalMeasureSpec[]) => void;
+
+  // Rebuild usage index from scratch using measures as single source of truth
+  rebuildUsageIndex: (measures: UniversalMeasureSpec[]) => void;
+
+  // Update measure references after merge (fix orphaned libraryComponentIds)
+  updateMeasureReferencesAfterMerge: (
+    archivedComponentIds: ComponentId[],
+    newComponentId: ComponentId,
+    measures: UniversalMeasureSpec[],
+    updateMeasure: (id: string, updates: Partial<UniversalMeasureSpec>) => void,
+  ) => void;
 
   // Sync component edits to measures
   syncComponentToMeasures: (
@@ -615,6 +626,128 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
         });
 
         set({ components: updatedComponents });
+      },
+
+      // Rebuild usage index from scratch - measures are the single source of truth
+      rebuildUsageIndex: (measures) => {
+        const state = get();
+
+        // Helper to collect all data elements with their libraryComponentId from a criteria tree
+        const collectLinkedElements = (node: LogicalClause | DataElement): Array<{ elementId: string; componentId: string }> => {
+          if ('operator' in node && 'children' in node) {
+            return (node as LogicalClause).children.flatMap(collectLinkedElements);
+          }
+          const element = node as DataElement;
+          if (element.libraryComponentId && element.libraryComponentId !== '__ZERO_CODES__') {
+            return [{ elementId: element.id, componentId: element.libraryComponentId }];
+          }
+          return [];
+        };
+
+        // Build map: componentId -> Set of measureIds that reference it
+        const usageMap = new Map<string, Set<string>>();
+
+        for (const measure of measures) {
+          const measureId = measure.metadata?.measureId || measure.id;
+          for (const pop of measure.populations) {
+            if (!pop.criteria) continue;
+            const linked = collectLinkedElements(pop.criteria as LogicalClause | DataElement);
+            for (const { componentId } of linked) {
+              if (!usageMap.has(componentId)) {
+                usageMap.set(componentId, new Set());
+              }
+              usageMap.get(componentId)!.add(measureId);
+            }
+          }
+        }
+
+        // Reset all components' usage from the freshly computed map
+        const now = new Date().toISOString();
+        const updatedComponents = state.components.map((c) => {
+          const measureIds = usageMap.has(c.id) ? Array.from(usageMap.get(c.id)!) : [];
+          const hasUsage = measureIds.length > 0;
+
+          // Auto-archive if no usage (and not already archived)
+          // Un-archive if it gained usage
+          let newStatus = c.versionInfo.status;
+          if (!hasUsage && c.versionInfo.status !== 'archived') {
+            newStatus = 'archived';
+          } else if (hasUsage && c.versionInfo.status === 'archived') {
+            const lastNonArchived = [...c.versionInfo.versionHistory]
+              .reverse()
+              .find((v) => v.status !== 'archived');
+            newStatus = lastNonArchived?.status || 'approved';
+          }
+
+          return {
+            ...c,
+            usage: {
+              ...c.usage,
+              measureIds,
+              usageCount: measureIds.length,
+              lastUsedAt: hasUsage ? now : c.usage.lastUsedAt,
+            },
+            versionInfo: {
+              ...c.versionInfo,
+              status: newStatus,
+            },
+          } as LibraryComponent;
+        });
+
+        set({ components: updatedComponents });
+      },
+
+      // Update all measure DataElements that reference archived components to point to the new merged component
+      updateMeasureReferencesAfterMerge: (archivedComponentIds, newComponentId, measures, updateMeasure) => {
+        // Helper to walk and update libraryComponentId references
+        const updateReferences = (node: any): any => {
+          if (!node) return node;
+
+          // LogicalClause
+          if ('operator' in node && 'children' in node) {
+            return {
+              ...node,
+              children: node.children.map(updateReferences),
+            };
+          }
+
+          // DataElement - check if it references an archived component
+          if (node.libraryComponentId && archivedComponentIds.includes(node.libraryComponentId)) {
+            return {
+              ...node,
+              libraryComponentId: newComponentId,
+            };
+          }
+
+          return node;
+        };
+
+        for (const measure of measures) {
+          // Check if this measure has any references to archived components
+          let hasReferences = false;
+          const checkForReferences = (node: any): boolean => {
+            if (!node) return false;
+            if ('operator' in node && 'children' in node) {
+              return node.children.some(checkForReferences);
+            }
+            return node.libraryComponentId && archivedComponentIds.includes(node.libraryComponentId);
+          };
+
+          for (const pop of measure.populations) {
+            if (pop.criteria && checkForReferences(pop.criteria)) {
+              hasReferences = true;
+              break;
+            }
+          }
+
+          if (hasReferences) {
+            const updatedPopulations = measure.populations.map((pop) => ({
+              ...pop,
+              criteria: pop.criteria ? updateReferences(pop.criteria) : pop.criteria,
+            }));
+            updateMeasure(measure.id, { populations: updatedPopulations });
+          }
+        }
       },
 
       // Sync component changes to all measures that use it
