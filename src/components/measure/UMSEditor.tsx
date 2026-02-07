@@ -1674,9 +1674,15 @@ function NodeDetailPanel({
 
   if (!node) return null;
 
-  const fullValueSet = node.valueSet
-    ? (currentMeasure?.valueSets.find(vs => vs.id === node?.valueSet?.id) || allValueSets.find(vs => vs.id === node?.valueSet?.id) || node.valueSet)
-    : undefined;
+  // Support multiple value sets for merged components
+  const nodeValueSetRefs = node.valueSets || (node.valueSet ? [node.valueSet] : []);
+  const fullValueSets = nodeValueSetRefs.map(vsRef => {
+    return currentMeasure?.valueSets.find(vs => vs.id === vsRef.id || vs.oid === vsRef.oid)
+      || allValueSets.find(vs => vs.id === vsRef.id || vs.oid === vsRef.oid)
+      || vsRef;
+  }).filter(Boolean);
+  // Keep single value set for backward compatibility
+  const fullValueSet = fullValueSets.length > 0 ? fullValueSets[0] : undefined;
 
   // Helper to detect "X or older" pattern in text — returns true if open-ended upper bound
   const isOpenEndedAge = (text: string): boolean => {
@@ -2041,26 +2047,41 @@ function NodeDetailPanel({
           </div>
         )}
 
-        {/* Value Set - clickable */}
-        {fullValueSet && (
+        {/* Value Sets - clickable, supports multiple */}
+        {fullValueSets.length > 0 && (
           <div>
-            <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-2">Value Set</h4>
-            <button
-              onClick={() => onSelectValueSet(fullValueSet)}
-              className="w-full p-3 bg-[var(--bg-tertiary)] rounded-lg hover:border-[var(--accent)]/50 border border-[var(--border)] text-left transition-colors"
-            >
-              <div className="font-medium text-[var(--text)] flex items-center gap-2">
-                {fullValueSet.name}
-                <ExternalLink className="w-3 h-3 text-[var(--accent)]" />
+            <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-2">
+              {fullValueSets.length > 1 ? `Value Sets (${fullValueSets.length})` : 'Value Set'}
+            </h4>
+            <div className="space-y-2">
+              {fullValueSets.map((vs, idx) => (
+                <button
+                  key={vs.id || vs.oid || idx}
+                  onClick={() => onSelectValueSet(vs)}
+                  className="w-full p-3 bg-[var(--bg-tertiary)] rounded-lg hover:border-[var(--accent)]/50 border border-[var(--border)] text-left transition-colors"
+                >
+                  <div className="font-medium text-[var(--text)] flex items-center gap-2">
+                    {vs.name}
+                    <ExternalLink className="w-3 h-3 text-[var(--accent)]" />
+                  </div>
+                  {vs.oid && (
+                    <code className="text-xs text-[var(--text-dim)] block mt-1">{vs.oid}</code>
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs text-[var(--accent)]">{vs.codes?.length || 0} codes</span>
+                    <span className="text-xs text-[var(--text-dim)]">• Click to edit codes</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {fullValueSets.length > 1 && (
+              <div className="mt-2 pt-2 border-t border-[var(--border)]/50 flex justify-between text-xs text-[var(--text-dim)]">
+                <span>Total across all value sets</span>
+                <span className="text-[var(--accent)]">
+                  {fullValueSets.reduce((sum, vs) => sum + (vs.codes?.length || 0), 0)} codes
+                </span>
               </div>
-              {fullValueSet.oid && (
-                <code className="text-xs text-[var(--text-dim)] block mt-1">{fullValueSet.oid}</code>
-              )}
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-xs text-[var(--accent)]">{fullValueSet.codes?.length || 0} codes</span>
-                <span className="text-xs text-[var(--text-dim)]">• Click to edit codes</span>
-              </div>
-            </button>
+            )}
           </div>
         )}
 
