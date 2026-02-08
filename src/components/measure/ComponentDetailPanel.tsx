@@ -34,7 +34,7 @@ import type { ComponentCodeState, CodeEditNote } from '../../types/componentCode
 
 import { ComponentCodeViewer } from './ComponentCodeViewer';
 import { TimingBadge, TimingEditorPanel, TimingWindowLabel, TimingWindowEditor } from './TimingEditor';
-import { useComponentCodeStore } from '../../stores/componentCodeStore';
+import { useComponentCodeStore, getStoreKey } from '../../stores/componentCodeStore';
 import { formatNoteTimestamp, getAllNotesForComponent } from '../../types/componentCode';
 
 // ============================================================================
@@ -226,6 +226,8 @@ const NotesHistory = ({ notes }: NotesHistoryProps) => {
 
 export interface ComponentDetailPanelProps {
   element: DataElement;
+  /** The measure ID - required for scoping overrides to the correct measure */
+  measureId: string;
   onClose: () => void;
   onNavigateToLibrary?: (componentId: string) => void;
   className?: string;
@@ -252,6 +254,7 @@ function cleanDescription(desc: string | undefined): string {
 
 export const ComponentDetailPanel = ({
   element,
+  measureId,
   onClose,
   onNavigateToLibrary,
   className = '',
@@ -274,17 +277,19 @@ export const ComponentDetailPanel = ({
   const [isEditingTiming, setIsEditingTiming] = useState(false);
   const [isEditingTimingWindow, setIsEditingTimingWindow] = useState(false);
 
-  // Code state from store - read directly from codeStates, don't auto-create
-  const codeState = useComponentCodeStore((state) => state.codeStates[element.id]);
+  // Code state from store - use compound key (measureId::elementId) for isolation
+  const storeKey = getStoreKey(measureId, element.id);
+  const codeState = useComponentCodeStore((state) => state.codeStates[storeKey]);
   const defaultFormat = useComponentCodeStore((state) => state.defaultFormat);
   const setSelectedFormat = useComponentCodeStore((state) => state.setSelectedFormat);
 
   // === DIAGNOSTIC LOGGING ===
   console.log('=== DETAIL PANEL ===');
-  console.log('Selected element name:', element.description || element.type);
-  console.log('Selected element.id:', element.id);
+  console.log('measureId:', measureId);
+  console.log('element.id:', element.id);
+  console.log('storeKey:', storeKey);
   console.log('All store keys:', Object.keys(useComponentCodeStore.getState().codeStates));
-  console.log('Store entry for this ID:', JSON.stringify(useComponentCodeStore.getState().codeStates[element.id]));
+  console.log('Store entry for storeKey:', JSON.stringify(useComponentCodeStore.getState().codeStates[storeKey]));
   console.log('=== END DETAIL PANEL ===');
 
   // Derive notes - only from actual overrides for THIS component
@@ -298,17 +303,17 @@ export const ComponentDetailPanel = ({
     }));
   };
 
-  // Handle code state changes - use element.id as the authoritative source
+  // Handle code state changes - use compound key for store operations
   const handleCodeStateChange = (newState: ComponentCodeState) => {
     const currentFormat = codeState?.selectedFormat ?? defaultFormat;
     if (newState.selectedFormat !== currentFormat) {
-      setSelectedFormat(element.id, newState.selectedFormat);
+      setSelectedFormat(storeKey, newState.selectedFormat);
     }
   };
 
-  // Create effective code state for the viewer - using element.id as the source of truth
+  // Create effective code state for the viewer - use storeKey as componentId
   const effectiveCodeState: ComponentCodeState = codeState ?? {
-    componentId: element.id,
+    componentId: storeKey,
     overrides: {},
     selectedFormat: defaultFormat,
     isEditing: false,
@@ -553,6 +558,7 @@ export const ComponentDetailPanel = ({
           <div className="p-4 border-b border-[var(--border)]">
             <ComponentCodeViewer
               element={element}
+              measureId={measureId}
               codeState={effectiveCodeState}
               onCodeStateChange={handleCodeStateChange}
             />

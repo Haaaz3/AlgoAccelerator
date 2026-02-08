@@ -35,7 +35,7 @@ import {
 } from '../../types/componentCode';
 
 import { generateComponentCode } from '../../services/componentCodeGenerator';
-import { useComponentCodeStore } from '../../stores/componentCodeStore';
+import { useComponentCodeStore, getStoreKey } from '../../stores/componentCodeStore';
 
 // ============================================================================
 // Sub-Components
@@ -211,6 +211,8 @@ const NoteInput = ({
 
 export interface ComponentCodeViewerProps {
   element: DataElement;
+  /** The measure ID - required for scoping overrides to the correct measure */
+  measureId: string;
   codeState: ComponentCodeState;
   onCodeStateChange: (state: ComponentCodeState) => void;
   populationId?: string;
@@ -220,6 +222,7 @@ export interface ComponentCodeViewerProps {
 
 export const ComponentCodeViewer = ({
   element,
+  measureId,
   codeState,
   onCodeStateChange,
   populationId,
@@ -231,12 +234,15 @@ export const ComponentCodeViewer = ({
   const [noteContent, setNoteContent] = useState('');
   const [copied, setCopied] = useState(false);
 
+  // Compound store key for measure-scoped isolation
+  const storeKey = getStoreKey(measureId, element.id);
+
   // === DIAGNOSTIC LOGGING ===
   console.log('=== CODE VIEWER ===');
-  console.log('Props element.id:', element?.id);
-  console.log('Props element.description:', element?.description);
+  console.log('measureId:', measureId);
+  console.log('element.id:', element?.id);
+  console.log('storeKey:', storeKey);
   console.log('codeState.componentId:', codeState?.componentId);
-  console.log('codeState received:', JSON.stringify(codeState));
   console.log('Override for current format:', JSON.stringify(codeState?.overrides?.[codeState.selectedFormat]));
   console.log('=== END CODE VIEWER ===');
 
@@ -288,17 +294,19 @@ export const ComponentCodeViewer = ({
 
     // === DIAGNOSTIC LOGGING ===
     console.log('=== SAVING OVERRIDE ===');
-    console.log('Saving to element.id:', element.id);
+    console.log('Saving to storeKey:', storeKey);
+    console.log('measureId:', measureId);
+    console.log('element.id:', element.id);
     console.log('Element description:', element.description);
     console.log('Format:', codeState.selectedFormat);
     console.log('Note content:', noteContent);
     console.log('=== END SAVING OVERRIDE ===');
 
-    // CRITICAL: Use element.id as the authoritative component ID, NOT codeState.componentId
-    // This ensures overrides are always keyed to the correct DataElement
+    // CRITICAL: Use compound storeKey (measureId::elementId) for isolation
+    // This ensures overrides are scoped to the specific measure
     const store = useComponentCodeStore.getState();
     store.saveCodeOverride(
-      element.id,  // Use element.id directly - source of truth
+      storeKey,  // Use compound key for measure-scoped isolation
       codeState.selectedFormat,
       editedCode,
       noteContent,
@@ -314,9 +322,9 @@ export const ComponentCodeViewer = ({
   const handleRevertToGenerated = () => {
     if (!currentOverride) return;
 
-    // CRITICAL: Use element.id as the authoritative component ID
+    // CRITICAL: Use compound storeKey for measure-scoped isolation
     const store = useComponentCodeStore.getState();
-    store.revertToGenerated(element.id, codeState.selectedFormat);
+    store.revertToGenerated(storeKey, codeState.selectedFormat);
   };
 
   const handleCopyCode = async () => {

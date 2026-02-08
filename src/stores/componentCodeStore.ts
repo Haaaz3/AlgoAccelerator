@@ -25,6 +25,32 @@ import {
 } from '../types/componentCode';
 
 // ============================================================================
+// Store Key Utility - CRITICAL for measure-scoped isolation
+// ============================================================================
+
+/**
+ * Creates a compound store key that includes the measure ID.
+ * This ensures overrides are scoped to the specific measure, preventing
+ * cross-measure contamination when positional element IDs collide.
+ *
+ * @param measureId - The measure's unique identifier (e.g., "CMS130v12" or internal UUID)
+ * @param elementId - The DataElement's ID within the measure
+ * @returns A compound key in the format "measureId::elementId"
+ */
+export function getStoreKey(measureId: string, elementId: string): string {
+  return `${measureId}::${elementId}`;
+}
+
+/**
+ * Extracts the elementId from a compound store key.
+ * Useful for navigation where only the element ID is needed.
+ */
+export function getElementIdFromStoreKey(storeKey: string): string {
+  const parts = storeKey.split('::');
+  return parts.length > 1 ? parts[1] : storeKey;
+}
+
+// ============================================================================
 // Store Types
 // ============================================================================
 
@@ -330,7 +356,21 @@ export const useComponentCodeStore = create<ComponentCodeStore>()(
     }),
     {
       name: 'ums-component-code-storage',
-      version: 1,
+      version: 2,  // Incremented to trigger migration
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2) {
+          // Migration from version 1 to 2:
+          // Old keys were positional (e.g., "denominator_exclusion-elem-2-0")
+          // New keys are measure-scoped (e.g., "CMS130::denominator_exclusion-elem-2-0")
+          // Clear all old keys since they can't be reliably mapped to measures
+          console.log('[Store Migration] Clearing old positional override keys (v1 -> v2)');
+          return {
+            ...persistedState,
+            codeStates: {},  // Clear all old entries
+          };
+        }
+        return persistedState;
+      },
     }
   )
 );

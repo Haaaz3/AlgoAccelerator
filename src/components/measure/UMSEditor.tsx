@@ -1653,6 +1653,7 @@ function SelectedComponentDetailPanel({
   return (
     <ComponentDetailPanel
       element={element}
+      measureId={measureId}
       onClose={onClose}
       onNavigateToLibrary={onNavigateToLibrary}
       className="w-[450px]"

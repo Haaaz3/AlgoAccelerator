@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useComponentCodeStore } from '../../stores/componentCodeStore';
+import { useComponentCodeStore, getStoreKey } from '../../stores/componentCodeStore';
 import { generateCQL } from '../../services/cqlGenerator';
 import {
   getOverridesForMeasure,
@@ -44,6 +44,7 @@ describe('Code Overrides', () => {
 
     it('returns correct count when overrides exist for measure components', () => {
       const { measure } = createTestMeasure({ withComponents: false });
+      const measureId = measure.id || measure.metadata?.measureId || '';
 
       // Get a component ID from the measure
       const firstPop = measure.populations[0];
@@ -55,9 +56,10 @@ describe('Code Overrides', () => {
         return;
       }
 
-      // Save an override for this component
+      // Save an override using compound key (measureId::elementId)
+      const storeKey = getStoreKey(measureId, firstElementId);
       useComponentCodeStore.getState().saveCodeOverride(
-        firstElementId,
+        storeKey,
         'cql',
         '// Overridden CQL code',
         'Changed timing for clinical review',
@@ -87,6 +89,7 @@ describe('Code Overrides', () => {
 
     it('prepends override header when overrides exist', () => {
       const { measure } = createTestMeasure({ withComponents: false });
+      const measureId = measure.id || measure.metadata?.measureId || '';
 
       // Get a component ID from the measure
       const firstPop = measure.populations[0];
@@ -97,9 +100,10 @@ describe('Code Overrides', () => {
         return;
       }
 
-      // Save an override
+      // Save an override using compound key
+      const storeKey = getStoreKey(measureId, firstElementId);
       useComponentCodeStore.getState().saveCodeOverride(
-        firstElementId,
+        storeKey,
         'cql',
         '// Overridden code',
         'Test override note',
@@ -131,6 +135,7 @@ describe('Code Overrides', () => {
 
     it('uses SQL comment style for headers', () => {
       const { measure } = createTestMeasure({ withComponents: false });
+      const measureId = measure.id || measure.metadata?.measureId || '';
 
       // Get a component ID from the measure
       const firstPop = measure.populations[0];
@@ -141,9 +146,10 @@ describe('Code Overrides', () => {
         return;
       }
 
-      // Save a SQL override (using synapse-sql which is what HDI uses)
+      // Save a SQL override using compound key
+      const storeKey = getStoreKey(measureId, firstElementId);
       useComponentCodeStore.getState().saveCodeOverride(
-        firstElementId,
+        storeKey,
         'synapse-sql',
         'SELECT * FROM modified_table',
         'Changed table name',
@@ -170,6 +176,7 @@ describe('Code Overrides', () => {
 
     it('returns correct count when filtered by format', () => {
       const { measure } = createTestMeasure({ withComponents: false });
+      const measureId = measure.id || measure.metadata?.measureId || '';
 
       // Get component IDs
       const firstPop = measure.populations[0];
@@ -182,18 +189,18 @@ describe('Code Overrides', () => {
 
       if (!id1 || !id2) return;
 
-      // Save CQL override for first component
+      // Save CQL override for first component using compound key
       useComponentCodeStore.getState().saveCodeOverride(
-        id1,
+        getStoreKey(measureId, id1),
         'cql',
         '// CQL override',
         'CQL note',
         '// Original'
       );
 
-      // Save SQL override for second component
+      // Save SQL override for second component using compound key
       useComponentCodeStore.getState().saveCodeOverride(
-        id2,
+        getStoreKey(measureId, id2),
         'synapse-sql',
         '-- SQL override',
         'SQL note',
@@ -222,6 +229,7 @@ describe('Code Overrides', () => {
 
     it('generates CQL-style comments for CQL format', () => {
       const { measure } = createTestMeasure({ withComponents: false });
+      const measureId = measure.id || measure.metadata?.measureId || '';
 
       const firstPop = measure.populations[0];
       const dataElements = firstPop.criteria?.children || [];
@@ -230,7 +238,7 @@ describe('Code Overrides', () => {
       if (!firstElementId) return;
 
       useComponentCodeStore.getState().saveCodeOverride(
-        firstElementId,
+        getStoreKey(measureId, firstElementId),
         'cql',
         '// Override',
         'Note content',
@@ -246,6 +254,7 @@ describe('Code Overrides', () => {
 
     it('generates SQL-style comments for SQL format', () => {
       const { measure } = createTestMeasure({ withComponents: false });
+      const measureId = measure.id || measure.metadata?.measureId || '';
 
       const firstPop = measure.populations[0];
       const dataElements = firstPop.criteria?.children || [];
@@ -254,7 +263,7 @@ describe('Code Overrides', () => {
       if (!firstElementId) return;
 
       useComponentCodeStore.getState().saveCodeOverride(
-        firstElementId,
+        getStoreKey(measureId, firstElementId),
         'synapse-sql',
         '-- Override',
         'Note content',
@@ -271,6 +280,7 @@ describe('Code Overrides', () => {
   describe('Component ID Isolation', () => {
     it('overrides for one component do not appear on other components', () => {
       const { measure } = createTestMeasure({ withComponents: false });
+      const measureId = measure.id || measure.metadata?.measureId || '';
 
       // Get two different component IDs
       const firstPop = measure.populations[0];
@@ -283,9 +293,12 @@ describe('Code Overrides', () => {
 
       if (!componentA || !componentB) return;
 
-      // Save override ONLY for component A
+      // Save override ONLY for component A using compound key
+      const storeKeyA = getStoreKey(measureId, componentA);
+      const storeKeyB = getStoreKey(measureId, componentB);
+
       useComponentCodeStore.getState().saveCodeOverride(
-        componentA,
+        storeKeyA,
         'cql',
         '// Override for Component A',
         'Note only for component A',
@@ -293,21 +306,22 @@ describe('Code Overrides', () => {
       );
 
       // Component A should have the override
-      const stateA = useComponentCodeStore.getState().codeStates[componentA];
+      const stateA = useComponentCodeStore.getState().codeStates[storeKeyA];
       expect(stateA).toBeDefined();
       expect(stateA?.overrides.cql?.isLocked).toBe(true);
       expect(stateA?.overrides.cql?.notes[0].content).toBe('Note only for component A');
 
       // Component B should have NO state at all (not created yet)
-      const stateB = useComponentCodeStore.getState().codeStates[componentB];
+      const stateB = useComponentCodeStore.getState().codeStates[storeKeyB];
       expect(stateB).toBeUndefined();
 
-      // Verify the componentId in state A is correct
-      expect(stateA?.componentId).toBe(componentA);
+      // Verify the componentId in state A is correct (it's the store key)
+      expect(stateA?.componentId).toBe(storeKeyA);
     });
 
     it('multiple overrides stay isolated to their respective components', () => {
       const { measure } = createTestMeasure({ withComponents: false });
+      const measureId = measure.id || measure.metadata?.measureId || '';
 
       const firstPop = measure.populations[0];
       const dataElements = firstPop.criteria?.children || [];
@@ -319,9 +333,12 @@ describe('Code Overrides', () => {
 
       if (!componentA || !componentB) return;
 
-      // Save overrides for BOTH components with different content
+      const storeKeyA = getStoreKey(measureId, componentA);
+      const storeKeyB = getStoreKey(measureId, componentB);
+
+      // Save overrides for BOTH components with different content using compound keys
       useComponentCodeStore.getState().saveCodeOverride(
-        componentA,
+        storeKeyA,
         'cql',
         '// Code A',
         'Alpha note',
@@ -329,15 +346,15 @@ describe('Code Overrides', () => {
       );
 
       useComponentCodeStore.getState().saveCodeOverride(
-        componentB,
+        storeKeyB,
         'cql',
         '// Code B',
         'Beta note',
         '// Original B'
       );
 
-      const stateA = useComponentCodeStore.getState().codeStates[componentA];
-      const stateB = useComponentCodeStore.getState().codeStates[componentB];
+      const stateA = useComponentCodeStore.getState().codeStates[storeKeyA];
+      const stateB = useComponentCodeStore.getState().codeStates[storeKeyB];
 
       // Component A has ONLY its own note
       expect(stateA?.overrides.cql?.notes).toHaveLength(1);
@@ -362,12 +379,13 @@ describe('Code Overrides', () => {
   describe('Integration with code generation', () => {
     it('generated CQL reflects override count in summary', () => {
       const { measure } = createTestMeasure({ withComponents: false });
+      const measureId = measure.id || measure.metadata?.measureId || '';
 
       // Generate CQL without overrides
       const result1 = generateCQL(measure);
       expect(result1.success).toBe(true);
 
-      // Get component ID and add override
+      // Get component ID and add override using compound key
       const firstPop = measure.populations[0];
       const dataElements = firstPop.criteria?.children || [];
       const firstElementId = (dataElements[0] as any)?.id;
@@ -375,7 +393,7 @@ describe('Code Overrides', () => {
       if (!firstElementId) return;
 
       useComponentCodeStore.getState().saveCodeOverride(
-        firstElementId,
+        getStoreKey(measureId, firstElementId),
         'cql',
         '// Custom logic here',
         'Customized for specific use case',

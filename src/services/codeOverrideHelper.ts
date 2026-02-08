@@ -6,7 +6,7 @@
  * component overrides and full measure code generation.
  */
 
-import { useComponentCodeStore } from '../stores/componentCodeStore';
+import { useComponentCodeStore, getStoreKey } from '../stores/componentCodeStore';
 import type { UniversalMeasureSpec, DataElement, LogicalClause } from '../types/ums';
 import type { CodeOutputFormat, CodeEditNote, CodeOverride } from '../types/componentCode';
 import { formatNoteForCodeComment, getFormatLabel } from '../types/componentCode';
@@ -71,7 +71,10 @@ export function getOverridesForMeasure(
   format?: CodeOutputFormat
 ): OverrideSummary {
   const store = useComponentCodeStore.getState();
-  const componentIds = collectDataElementIds(measure);
+  const elementIds = collectDataElementIds(measure);
+
+  // Get the measure ID for compound store keys
+  const measureId = measure.id || measure.metadata?.measureId || '';
 
   const overrideInfos: OverrideInfo[] = [];
   const allNotes: CodeEditNote[] = [];
@@ -80,8 +83,10 @@ export function getOverridesForMeasure(
     'synapse-sql': 0,
   };
 
-  for (const componentId of componentIds) {
-    const codeState = store.codeStates[componentId];
+  for (const elementId of elementIds) {
+    // Use compound key to look up overrides for this measure's element
+    const storeKey = getStoreKey(measureId, elementId);
+    const codeState = store.codeStates[storeKey];
     if (!codeState) continue;
 
     for (const [fmt, override] of Object.entries(codeState.overrides)) {
@@ -90,20 +95,20 @@ export function getOverridesForMeasure(
       // If format filter is specified, only include that format
       if (format && fmt !== format) continue;
 
-      // Find component description
-      let description = componentId;
+      // Find component description using the original elementId
+      let description = elementId;
       for (const population of measure.populations) {
         if (population.criteria) {
-          const found = findDataElementById(population.criteria, componentId);
+          const found = findDataElementById(population.criteria, elementId);
           if (found) {
-            description = found.description || found.valueSet?.name || componentId;
+            description = found.description || found.valueSet?.name || elementId;
             break;
           }
         }
       }
 
       overrideInfos.push({
-        componentId,
+        componentId: elementId,  // Use the elementId for component identification
         componentDescription: description,
         format: fmt as CodeOutputFormat,
         override,
