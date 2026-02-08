@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Code, Copy, Check, Download, RefreshCw, FileCode, Database, Sparkles, Library, ChevronRight, CheckCircle, XCircle, AlertTriangle, Loader2, Server } from 'lucide-react';
 import { useMeasureStore, type CodeOutputFormat } from '../../stores/measureStore';
 import { generateCQL, validateCQL, isCQLServiceAvailable, type CQLGenerationResult, type CQLValidationResult } from '../../services/cqlGenerator';
 import { generateHDISQL, DEFAULT_HDI_CONFIG } from '../../services/hdiSqlGenerator';
 import { validateHDISQL, type SQLValidationResult as HDISQLValidationResult } from '../../services/hdiSqlValidator';
 import type { SQLGenerationResult, SQLGenerationConfig } from '../../types/hdiDataModels';
+import { InlineErrorBanner } from '../shared/ErrorBoundary';
 
 export function CodeGeneration() {
   const { selectedCodeFormat, setSelectedCodeFormat, setActiveTab } = useMeasureStore();
@@ -26,39 +27,83 @@ export function CodeGeneration() {
   const [hdiValidation, setHdiValidation] = useState<HDISQLValidationResult | null>(null);
   const [isValidatingHDI, setIsValidatingHDI] = useState(false);
 
+  // Generation error state
+  const [generationError, setGenerationError] = useState<string | null>(null);
+
   // Check CQL service availability on mount
   useEffect(() => {
     isCQLServiceAvailable().then(setCqlServiceAvailable);
   }, []);
 
+  // Helper to extract embedded WARNING comments from generated code
+  const extractEmbeddedWarnings = useCallback((code: string): string[] => {
+    const warnings: string[] = [];
+    const warningPattern = /\/\*\s*WARNING:\s*([^*]+)\*\//g;
+    const commentPattern = /--\s*WARNING:\s*(.+)$/gm;
+
+    let match;
+    while ((match = warningPattern.exec(code)) !== null) {
+      warnings.push(match[1].trim());
+    }
+    while ((match = commentPattern.exec(code)) !== null) {
+      warnings.push(match[1].trim());
+    }
+
+    return warnings;
+  }, []);
+
   // Update generation result when measure changes
   useEffect(() => {
     if (measure && format === 'cql') {
-      const result = generateCQL(measure);
-      setGenerationResult(result);
-      setValidationResult(null);
+      try {
+        setGenerationError(null);
+        const result = generateCQL(measure);
+        setGenerationResult(result);
+        setValidationResult(null);
+
+        // Check for generation-level errors
+        if (!result.success && result.errors && result.errors.length > 0) {
+          setGenerationError(`Cannot generate CQL: ${result.errors.join(', ')}`);
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error during CQL generation';
+        setGenerationError(`CQL generation failed: ${errorMessage}`);
+        setGenerationResult(null);
+      }
     }
   }, [measure, format]);
 
   // Generate HDI SQL when format is 'hdi'
   useEffect(() => {
     if (measure && format === 'hdi') {
-      const result = generateHDISQL(measure, {
-        ...DEFAULT_HDI_CONFIG,
-        measurementPeriod: measure.metadata.measurementPeriod ? {
-          start: measure.metadata.measurementPeriod.start || '',
-          end: measure.metadata.measurementPeriod.end || '',
-        } : undefined,
-        ontologyContexts: [
-          'HEALTHE INTENT Demographics',
-          'HEALTHE INTENT Encounters',
-          'HEALTHE INTENT Procedures',
-          'HEALTHE INTENT Conditions',
-          'HEALTHE INTENT Results',
-        ],
-      });
-      setHdiResult(result);
-      setHdiValidation(null);
+      try {
+        setGenerationError(null);
+        const result = generateHDISQL(measure, {
+          ...DEFAULT_HDI_CONFIG,
+          measurementPeriod: measure.metadata.measurementPeriod ? {
+            start: measure.metadata.measurementPeriod.start || '',
+            end: measure.metadata.measurementPeriod.end || '',
+          } : undefined,
+          ontologyContexts: [
+            'HEALTHE INTENT Demographics',
+            'HEALTHE INTENT Encounters',
+            'HEALTHE INTENT Procedures',
+            'HEALTHE INTENT Conditions',
+            'HEALTHE INTENT Results',
+          ],
+        });
+        setHdiResult(result);
+        setHdiValidation(null);
+
+        // Check for generation-level errors
+        if (!result.success && result.errors && result.errors.length > 0) {
+          setGenerationError(`Cannot generate HDI SQL: ${result.errors.join(', ')}`);
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error during HDI SQL generation';
+        setGenerationError(`HDI SQL generation failed: ${errorMessage}`);
+        setHdiResult(null);
+      }
     }
   }, [measure, format]);
 
@@ -96,29 +141,45 @@ export function CodeGeneration() {
 
   const handleRegenerate = () => {
     setIsGenerating(true);
-    if (measure && format === 'cql') {
-      const result = generateCQL(measure);
-      setGenerationResult(result);
-      setValidationResult(null);
+    setGenerationError(null);
+
+    try {
+      if (measure && format === 'cql') {
+        const result = generateCQL(measure);
+        setGenerationResult(result);
+        setValidationResult(null);
+
+        if (!result.success && result.errors && result.errors.length > 0) {
+          setGenerationError(`Cannot generate CQL: ${result.errors.join(', ')}`);
+        }
+      }
+      if (measure && format === 'hdi') {
+        const result = generateHDISQL(measure, {
+          ...DEFAULT_HDI_CONFIG,
+          measurementPeriod: measure.metadata.measurementPeriod ? {
+            start: measure.metadata.measurementPeriod.start || '',
+            end: measure.metadata.measurementPeriod.end || '',
+          } : undefined,
+          ontologyContexts: [
+            'HEALTHE INTENT Demographics',
+            'HEALTHE INTENT Encounters',
+            'HEALTHE INTENT Procedures',
+            'HEALTHE INTENT Conditions',
+            'HEALTHE INTENT Results',
+          ],
+        });
+        setHdiResult(result);
+        setHdiValidation(null);
+
+        if (!result.success && result.errors && result.errors.length > 0) {
+          setGenerationError(`Cannot generate HDI SQL: ${result.errors.join(', ')}`);
+        }
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error during code generation';
+      setGenerationError(`Code generation failed: ${errorMessage}`);
     }
-    if (measure && format === 'hdi') {
-      const result = generateHDISQL(measure, {
-        ...DEFAULT_HDI_CONFIG,
-        measurementPeriod: measure.metadata.measurementPeriod ? {
-          start: measure.metadata.measurementPeriod.start || '',
-          end: measure.metadata.measurementPeriod.end || '',
-        } : undefined,
-        ontologyContexts: [
-          'HEALTHE INTENT Demographics',
-          'HEALTHE INTENT Encounters',
-          'HEALTHE INTENT Procedures',
-          'HEALTHE INTENT Conditions',
-          'HEALTHE INTENT Results',
-        ],
-      });
-      setHdiResult(result);
-      setHdiValidation(null);
-    }
+
     setTimeout(() => setIsGenerating(false), 500);
   };
 
@@ -335,6 +396,78 @@ export function CodeGeneration() {
             </pre>
           </div>
         </div>
+
+        {/* Generation Error Display */}
+        {generationError && (
+          <div className="mt-4">
+            <InlineErrorBanner
+              message={generationError}
+              onDismiss={() => setGenerationError(null)}
+            />
+          </div>
+        )}
+
+        {/* CQL Generation Warnings */}
+        {format === 'cql' && generationResult && (
+          (() => {
+            // Collect warnings from generation result and embedded in code
+            const resultWarnings = generationResult.warnings || [];
+            const embeddedWarnings = generationResult.cql ? extractEmbeddedWarnings(generationResult.cql) : [];
+            const allWarnings = [...new Set([...resultWarnings, ...embeddedWarnings])];
+
+            if (allWarnings.length === 0) return null;
+
+            return (
+              <div className="mt-4 p-4 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="w-5 h-5 text-[var(--warning)]" />
+                  <h3 className="text-sm font-medium text-[var(--warning)]">
+                    Generation Warnings ({allWarnings.length})
+                  </h3>
+                </div>
+                <div className="space-y-1">
+                  {allWarnings.map((warning, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm text-[var(--warning)]">
+                      <span className="text-[var(--warning)] mt-0.5">•</span>
+                      <span>{warning}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()
+        )}
+
+        {/* HDI SQL Generation Warnings */}
+        {format === 'hdi' && hdiResult && (
+          (() => {
+            // Collect warnings from generation result and embedded in code
+            const resultWarnings = hdiResult.warnings || [];
+            const embeddedWarnings = hdiResult.sql ? extractEmbeddedWarnings(hdiResult.sql) : [];
+            const allWarnings = [...new Set([...resultWarnings, ...embeddedWarnings])];
+
+            if (allWarnings.length === 0) return null;
+
+            return (
+              <div className="mt-4 p-4 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="w-5 h-5 text-[var(--warning)]" />
+                  <h3 className="text-sm font-medium text-[var(--warning)]">
+                    Generation Warnings ({allWarnings.length})
+                  </h3>
+                </div>
+                <div className="space-y-1">
+                  {allWarnings.map((warning, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm text-[var(--warning)]">
+                      <span className="text-[var(--warning)] mt-0.5">•</span>
+                      <span>{warning}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()
+        )}
 
         {/* Validation Results */}
         {format === 'cql' && validationResult && (
