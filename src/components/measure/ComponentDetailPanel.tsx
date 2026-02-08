@@ -283,15 +283,6 @@ export const ComponentDetailPanel = ({
   const defaultFormat = useComponentCodeStore((state) => state.defaultFormat);
   const setSelectedFormat = useComponentCodeStore((state) => state.setSelectedFormat);
 
-  // === DIAGNOSTIC LOGGING ===
-  console.log('=== DETAIL PANEL ===');
-  console.log('measureId:', measureId);
-  console.log('element.id:', element.id);
-  console.log('storeKey:', storeKey);
-  console.log('All store keys:', Object.keys(useComponentCodeStore.getState().codeStates));
-  console.log('Store entry for storeKey:', JSON.stringify(useComponentCodeStore.getState().codeStates[storeKey]));
-  console.log('=== END DETAIL PANEL ===');
-
   // Derive notes - only from actual overrides for THIS component
   const allNotes = codeState ? getAllNotesForComponent(codeState.overrides) : [];
   const hasOverride = codeState ? Object.values(codeState.overrides).some(o => o?.isLocked) : false;

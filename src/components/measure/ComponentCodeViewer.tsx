@@ -237,15 +237,6 @@ export const ComponentCodeViewer = ({
   // Compound store key for measure-scoped isolation
   const storeKey = getStoreKey(measureId, element.id);
 
-  // === DIAGNOSTIC LOGGING ===
-  console.log('=== CODE VIEWER ===');
-  console.log('measureId:', measureId);
-  console.log('element.id:', element?.id);
-  console.log('storeKey:', storeKey);
-  console.log('codeState.componentId:', codeState?.componentId);
-  console.log('Override for current format:', JSON.stringify(codeState?.overrides?.[codeState.selectedFormat]));
-  console.log('=== END CODE VIEWER ===');
-
   const currentOverride = codeState.overrides[codeState.selectedFormat];
 
   // Generate code for current format
@@ -291,16 +282,6 @@ export const ComponentCodeViewer = ({
 
   const handleSaveCode = () => {
     if (noteContent.trim().length < 10) return;
-
-    // === DIAGNOSTIC LOGGING ===
-    console.log('=== SAVING OVERRIDE ===');
-    console.log('Saving to storeKey:', storeKey);
-    console.log('measureId:', measureId);
-    console.log('element.id:', element.id);
-    console.log('Element description:', element.description);
-    console.log('Format:', codeState.selectedFormat);
-    console.log('Note content:', noteContent);
-    console.log('=== END SAVING OVERRIDE ===');
 
     // CRITICAL: Use compound storeKey (measureId::elementId) for isolation
     // This ensures overrides are scoped to the specific measure
