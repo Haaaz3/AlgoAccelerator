@@ -18,6 +18,16 @@ import { getAllStandardValueSets, searchStandardValueSets, type StandardValueSet
 import { handleAIAssistantRequest, buildAssistantContext, applyAIChanges, formatChangesForDisplay, type AIAssistantResponse } from '../../services/aiAssistant';
 import SharedEditWarning from '../library/SharedEditWarning';
 
+// Program/catalogue options for measure metadata
+const MEASURE_PROGRAMS = [
+  { value: 'MIPS_CQM', label: 'MIPS CQM' },
+  { value: 'eCQM', label: 'eCQM' },
+  { value: 'HEDIS', label: 'HEDIS' },
+  { value: 'QOF', label: 'QOF' },
+  { value: 'Registry', label: 'Registry' },
+  { value: 'Custom', label: 'Custom' },
+] as const;
+
 /** Strip standalone AND/OR/NOT operators that appear as line separators in descriptions */
 function cleanDescription(desc: string | undefined): string {
   if (!desc) return '';
@@ -63,6 +73,12 @@ export function UMSEditor() {
   // Error and success state for inline banners
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Metadata editing state
+  const [isEditingMetadata, setIsEditingMetadata] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [editedMeasureId, setEditedMeasureId] = useState('');
+  const [editedProgram, setEditedProgram] = useState<string>('');
 
   // Shared edit warning state
   const [showSharedEditWarning, setShowSharedEditWarning] = useState(false);
@@ -292,6 +308,37 @@ export function UMSEditor() {
     setTimeout(() => setSuccess(null), 3000);
   };
 
+  // Metadata editing handlers
+  const handleStartEditingMetadata = () => {
+    if (!measure) return;
+    setEditedTitle(measure.metadata.title);
+    setEditedMeasureId(measure.metadata.measureId);
+    setEditedProgram(measure.metadata.program || '');
+    setIsEditingMetadata(true);
+  };
+
+  const handleSaveMetadata = () => {
+    if (!measure) return;
+    updateMeasure(measure.id, {
+      metadata: {
+        ...measure.metadata,
+        title: editedTitle.trim() || measure.metadata.title,
+        measureId: editedMeasureId.trim() || measure.metadata.measureId,
+        program: (editedProgram as typeof measure.metadata.program) || measure.metadata.program,
+      },
+    });
+    setIsEditingMetadata(false);
+    setSuccess('Measure metadata updated');
+    setTimeout(() => setSuccess(null), 2000);
+  };
+
+  const handleCancelEditingMetadata = () => {
+    setIsEditingMetadata(false);
+    setEditedTitle('');
+    setEditedMeasureId('');
+    setEditedProgram('');
+  };
+
   const handleDragStart = (id: string) => {
     setDragState({ draggedId: id, dragOverId: null, dragOverPosition: null });
   };
@@ -509,15 +556,82 @@ export function UMSEditor() {
           {/* Header */}
           <div className="mb-6">
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="px-2 py-1 text-sm font-medium bg-[var(--accent-light)] text-[var(--accent)] rounded">
-                    {measure.metadata.measureId}
-                  </span>
-                  <ComplexityBadge level={calculateMeasureComplexity(measure.populations)} />
-                </div>
-                <h1 className="text-xl font-bold text-[var(--text)]">{measure.metadata.title}</h1>
-                <p className="text-sm text-[var(--text-muted)] mt-1">{measure.metadata.description}</p>
+              <div className="flex-1">
+                {isEditingMetadata ? (
+                  <div className="space-y-3">
+                    {/* Program/Catalogue */}
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Program / Catalogue</label>
+                      <select
+                        value={editedProgram}
+                        onChange={(e) => setEditedProgram(e.target.value)}
+                        className="w-48 px-2 py-1.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
+                      >
+                        <option value="">Select program...</option>
+                        {MEASURE_PROGRAMS.map(p => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Measure ID */}
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Measure ID</label>
+                      <input
+                        type="text"
+                        value={editedMeasureId}
+                        onChange={(e) => setEditedMeasureId(e.target.value)}
+                        placeholder="e.g., CMS128v13"
+                        className="w-48 px-2 py-1.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
+                      />
+                    </div>
+                    {/* Title */}
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Measure Name</label>
+                      <input
+                        type="text"
+                        value={editedTitle}
+                        onChange={(e) => setEditedTitle(e.target.value)}
+                        placeholder="Measure title"
+                        className="w-full max-w-md px-3 py-2 text-lg font-bold rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveMetadata}
+                        className="px-3 py-1.5 text-sm font-medium rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition-opacity flex items-center gap-1.5"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        Save
+                      </button>
+                      <button
+                        onClick={handleCancelEditingMetadata}
+                        className="px-3 py-1.5 text-sm font-medium rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-secondary)] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="group cursor-pointer" onClick={handleStartEditingMetadata}>
+                    <div className="flex items-center gap-3 mb-2">
+                      {measure.metadata.program && (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-purple-500/15 text-purple-400 rounded">
+                          {MEASURE_PROGRAMS.find(p => p.value === measure.metadata.program)?.label || measure.metadata.program}
+                        </span>
+                      )}
+                      <span className="px-2 py-1 text-sm font-medium bg-[var(--accent-light)] text-[var(--accent)] rounded">
+                        {measure.metadata.measureId}
+                      </span>
+                      <ComplexityBadge level={calculateMeasureComplexity(measure.populations)} />
+                      <span className="opacity-0 group-hover:opacity-100 text-xs text-[var(--text-muted)] flex items-center gap-1 transition-opacity">
+                        <Edit3 className="w-3 h-3" />
+                        Click to edit
+                      </span>
+                    </div>
+                    <h1 className="text-xl font-bold text-[var(--text)]">{measure.metadata.title}</h1>
+                    <p className="text-sm text-[var(--text-muted)] mt-1">{measure.metadata.description}</p>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2">

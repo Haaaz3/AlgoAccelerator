@@ -461,6 +461,12 @@ export interface ArchiveComponentPayload {
 // UI State
 // ============================================================================
 
+/** Sort field options for library browser */
+export type LibrarySortField = 'name' | 'complexity' | 'usage' | 'status' | 'date';
+
+/** Measure program types (same as MeasureMetadata.program) */
+export type MeasureProgram = 'MIPS_CQM' | 'eCQM' | 'HEDIS' | 'QOF' | 'Registry' | 'Custom';
+
 export interface LibraryBrowserFilters {
   category?: ComponentCategory;
   /** Multiple statuses can be selected at once */
@@ -471,6 +477,12 @@ export interface LibraryBrowserFilters {
   usageSort?: 'asc' | 'desc';
   searchQuery?: string;
   showArchived: boolean;
+  /** Sort field for the component list */
+  sortBy?: LibrarySortField;
+  /** Sort direction */
+  sortDirection?: 'asc' | 'desc';
+  /** Filter by measure programs (catalogue) - shows components used in measures with these programs */
+  programs?: MeasureProgram[];
   /** @deprecated Use statuses[] instead */
   status?: ApprovalStatus;
   /** @deprecated Use complexities[] instead */

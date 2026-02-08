@@ -16,6 +16,10 @@ import {
   Users,
   ChevronDown,
   X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Building2,
 } from 'lucide-react';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useMeasureStore } from '../../stores/measureStore';
@@ -25,6 +29,8 @@ import type {
   ApprovalStatus,
   ComplexityLevel,
   LibraryComponent,
+  LibrarySortField,
+  MeasureProgram,
 } from '../../types/componentLibrary';
 import { ComponentDetail } from './ComponentDetail';
 import ComponentEditor from './ComponentEditor';
@@ -53,6 +59,23 @@ const COMPLEXITY_OPTIONS: { value: ComplexityLevel; label: string }[] = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
+];
+
+const SORT_OPTIONS: { value: LibrarySortField; label: string }[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'complexity', label: 'Complexity' },
+  { value: 'usage', label: 'Usage Count' },
+  { value: 'status', label: 'Status' },
+  { value: 'date', label: 'Date Added' },
+];
+
+const PROGRAM_OPTIONS: { value: MeasureProgram; label: string }[] = [
+  { value: 'MIPS_CQM', label: 'MIPS CQM' },
+  { value: 'eCQM', label: 'eCQM' },
+  { value: 'HEDIS', label: 'HEDIS' },
+  { value: 'QOF', label: 'QOF' },
+  { value: 'Registry', label: 'Registry' },
+  { value: 'Custom', label: 'Custom' },
 ];
 
 
@@ -157,6 +180,48 @@ export function LibraryBrowser() {
     setFilters({ usageSort: next });
   };
 
+  const handleSortByChange = (sortBy: LibrarySortField) => {
+    setFilters({ sortBy, usageSort: undefined }); // Clear legacy usageSort when using new sort
+  };
+
+  const handleSortDirectionToggle = () => {
+    const current = filters.sortDirection ?? 'asc';
+    setFilters({ sortDirection: current === 'asc' ? 'desc' : 'asc' });
+  };
+
+  const handleProgramToggle = (program: MeasureProgram) => {
+    const current = filters.programs ?? [];
+    const next = current.includes(program)
+      ? current.filter((p) => p !== program)
+      : [...current, program];
+    setFilters({ programs: next.length > 0 ? next : undefined });
+  };
+
+  // Compute available programs from actual measures
+  const availablePrograms = useMemo(() => {
+    const programs = new Set<MeasureProgram>();
+    measures.forEach((m) => {
+      if (m.metadata.program) {
+        programs.add(m.metadata.program as MeasureProgram);
+      }
+    });
+    return Array.from(programs).sort();
+  }, [measures]);
+
+  // Apply program filter locally since it requires measure lookup
+  const programFilteredComponents = useMemo(() => {
+    if (!filters.programs || filters.programs.length === 0) {
+      return filteredComponents;
+    }
+    const measureMap = new Map(measures.map(m => [m.id, m]));
+    return filteredComponents.filter((c) => {
+      const componentPrograms = c.usage.measureIds
+        .map(id => measureMap.get(id)?.metadata?.program)
+        .filter(Boolean);
+      return componentPrograms.some(prog => filters.programs!.includes(prog as MeasureProgram));
+    });
+  }, [filteredComponents, filters.programs, measures]);
+
   const handleNewComponent = () => {
     setEditingComponent('new');
   };
@@ -243,9 +308,9 @@ export function LibraryBrowser() {
         {/* Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Filter Bar */}
-          <div className="flex-shrink-0 px-6 py-3 bg-[var(--bg)] border-b border-[var(--border)] flex items-center gap-3">
+          <div className="flex-shrink-0 px-6 py-3 bg-[var(--bg)] border-b border-[var(--border)] flex flex-wrap items-center gap-3">
             {/* Search Input */}
-            <div className="relative flex-1 max-w-sm">
+            <div className="relative flex-1 max-w-sm min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-dim)]" />
               <input
                 type="text"
@@ -274,41 +339,48 @@ export function LibraryBrowser() {
               onToggle={handleComplexityToggle}
             />
 
-            {/* Usage Sort Toggle */}
-            <button
-              type="button"
-              onClick={handleUsageSortToggle}
-              className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm cursor-pointer transition-colors focus:outline-none ${
-                filters.usageSort
-                  ? 'bg-[var(--accent-light)] border-[var(--accent)]/40 text-[var(--accent)]'
-                  : 'bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text)]'
-              }`}
-              title={
-                filters.usageSort === 'desc'
-                  ? 'Sorted: most shared first'
-                  : filters.usageSort === 'asc'
-                    ? 'Sorted: least shared first'
-                    : 'Sort by shared usage'
-              }
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span className="whitespace-nowrap">
-                {filters.usageSort === 'desc'
-                  ? 'Most shared'
-                  : filters.usageSort === 'asc'
-                    ? 'Least shared'
-                    : 'Shared usage'}
-              </span>
-              {filters.usageSort && (
-                <span className="text-[10px]">
-                  {filters.usageSort === 'desc' ? '\u2193' : '\u2191'}
-                </span>
-              )}
-            </button>
+            {/* Program/Catalogue Multiselect */}
+            {availablePrograms.length > 0 && (
+              <MultiSelectDropdown
+                icon={<Building2 className="w-3.5 h-3.5" />}
+                label="Program"
+                options={PROGRAM_OPTIONS.filter(p => availablePrograms.includes(p.value))}
+                selected={filters.programs ?? []}
+                onToggle={handleProgramToggle}
+              />
+            )}
+
+            {/* Sort By Dropdown */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-[var(--text-dim)]">Sort:</span>
+              <select
+                value={filters.sortBy ?? 'name'}
+                onChange={(e) => handleSortByChange(e.target.value as LibrarySortField)}
+                className="px-2 py-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] focus:outline-none focus:border-[var(--accent)] transition-colors cursor-pointer"
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleSortDirectionToggle}
+                className="p-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+                title={filters.sortDirection === 'desc' ? 'Descending' : 'Ascending'}
+              >
+                {filters.sortDirection === 'desc' ? (
+                  <ArrowDown className="w-4 h-4" />
+                ) : (
+                  <ArrowUp className="w-4 h-4" />
+                )}
+              </button>
+            </div>
 
             {/* Result Count */}
             <span className="text-xs text-[var(--text-dim)] ml-auto">
-              {filteredComponents.length} component{filteredComponents.length !== 1 ? 's' : ''}
+              {programFilteredComponents.length} component{programFilteredComponents.length !== 1 ? 's' : ''}
             </span>
           </div>
 
@@ -316,9 +388,9 @@ export function LibraryBrowser() {
           <div className="flex-1 flex overflow-hidden">
             {/* Cards Grid */}
             <div className="flex-1 overflow-y-auto p-6">
-              {filteredComponents.length > 0 ? (
+              {programFilteredComponents.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredComponents.map((component) => (
+                  {programFilteredComponents.map((component) => (
                     <ComponentCard
                       key={component.id}
                       component={component}
@@ -351,7 +423,7 @@ export function LibraryBrowser() {
                     <button
                       onClick={() => {
                         setSelectedCategory('all');
-                        setFilters({ searchQuery: '', statuses: undefined, complexities: undefined, usageSort: undefined, category: undefined });
+                        setFilters({ searchQuery: '', statuses: undefined, complexities: undefined, usageSort: undefined, category: undefined, programs: undefined, sortBy: undefined, sortDirection: undefined });
                       }}
                       className="mt-2 text-sm text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
                     >

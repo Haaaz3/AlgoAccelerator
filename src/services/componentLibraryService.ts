@@ -266,6 +266,7 @@ export function removeUsageReference(
 export function searchComponents(
   components: LibraryComponent[],
   filters: LibraryBrowserFilters,
+  measureLookup?: (measureId: string) => { program?: string } | undefined,
 ): LibraryComponent[] {
   let result = [...components];
 
@@ -295,6 +296,16 @@ export function searchComponents(
     result = result.filter((c) => c.versionInfo.status !== 'archived');
   }
 
+  // Program filter (filter by measures' programs)
+  if (filters.programs && filters.programs.length > 0 && measureLookup) {
+    result = result.filter((c) => {
+      const componentPrograms = c.usage.measureIds
+        .map(id => measureLookup(id)?.program)
+        .filter(Boolean);
+      return componentPrograms.some(prog => filters.programs!.includes(prog as any));
+    });
+  }
+
   // Search query
   if (filters.searchQuery) {
     const query = filters.searchQuery.toLowerCase();
@@ -308,17 +319,42 @@ export function searchComponents(
     );
   }
 
-  // Sort: archived always at bottom, then by usage if requested
+  // Sort: archived always at bottom, then by the selected sort criteria
+  const sortBy = filters.sortBy ?? 'name';
+  const sortDir = filters.sortDirection ?? 'asc';
+  const dirMultiplier = sortDir === 'desc' ? -1 : 1;
+
   result.sort((a, b) => {
     const aArchived = a.versionInfo.status === 'archived' ? 1 : 0;
     const bArchived = b.versionInfo.status === 'archived' ? 1 : 0;
     if (aArchived !== bArchived) return aArchived - bArchived;
 
+    // Legacy usageSort takes precedence if set (for backwards compatibility)
     if (filters.usageSort) {
       const diff = a.usage.usageCount - b.usage.usageCount;
       return filters.usageSort === 'desc' ? -diff : diff;
     }
-    return 0;
+
+    // New sortBy field
+    let comparison = 0;
+    switch (sortBy) {
+      case 'name':
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case 'complexity':
+        comparison = a.complexity.score - b.complexity.score;
+        break;
+      case 'usage':
+        comparison = a.usage.usageCount - b.usage.usageCount;
+        break;
+      case 'status':
+        comparison = a.versionInfo.status.localeCompare(b.versionInfo.status);
+        break;
+      case 'date':
+        comparison = new Date(a.metadata.createdAt).getTime() - new Date(b.metadata.createdAt).getTime();
+        break;
+    }
+    return comparison * dirMultiplier;
   });
 
   return result;
