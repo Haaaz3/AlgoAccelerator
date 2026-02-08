@@ -676,93 +676,99 @@ export function UMSEditor() {
                 </div>
               </div>
             ) : (
-              <div className="flex items-start justify-between gap-4">
-                {/* Left side: Metadata (clickable to edit) */}
-                <div className="flex-1 group cursor-pointer" onClick={handleStartEditingMetadata}>
-                  {/* Row 1: Badges */}
-                  <div className="flex items-center gap-3 mb-2">
-                    {measure.metadata.program && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-purple-500/15 text-purple-400 rounded">
-                        {MEASURE_PROGRAMS.find(p => p.value === measure.metadata.program)?.label || measure.metadata.program}
+              <div className="w-full">
+                {/* Row 1: Badges + Title on left, Action buttons on right */}
+                <div className="flex items-start justify-between gap-4">
+                  {/* Left side: Badges and Title (clickable to edit) */}
+                  <div className="flex-1 group cursor-pointer" onClick={handleStartEditingMetadata}>
+                    {/* Badges */}
+                    <div className="flex items-center gap-3 mb-2">
+                      {measure.metadata.program && (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-purple-500/15 text-purple-400 rounded">
+                          {MEASURE_PROGRAMS.find(p => p.value === measure.metadata.program)?.label || measure.metadata.program}
+                        </span>
+                      )}
+                      <span className="px-2 py-1 text-sm font-medium bg-[var(--accent-light)] text-[var(--accent)] rounded">
+                        {measure.metadata.measureId}
                       </span>
-                    )}
-                    <span className="px-2 py-1 text-sm font-medium bg-[var(--accent-light)] text-[var(--accent)] rounded">
-                      {measure.metadata.measureId}
-                    </span>
-                    <ComplexityBadge level={calculateMeasureComplexity(measure.populations)} />
-                    <span className="opacity-0 group-hover:opacity-100 text-xs text-[var(--text-muted)] flex items-center gap-1 transition-opacity">
-                      <Edit3 className="w-3 h-3" />
-                      Click to edit
-                    </span>
+                      <ComplexityBadge level={calculateMeasureComplexity(measure.populations)} />
+                      <span className="opacity-0 group-hover:opacity-100 text-xs text-[var(--text-muted)] flex items-center gap-1 transition-opacity">
+                        <Edit3 className="w-3 h-3" />
+                        Click to edit
+                      </span>
+                    </div>
+
+                    {/* Measure Name */}
+                    <h1 className="text-xl font-bold text-[var(--text)] group-hover:text-[var(--accent)] transition-colors">
+                      {measure.metadata.title}
+                    </h1>
                   </div>
 
-                  {/* Measure Name */}
-                  <h1 className="text-xl font-bold text-[var(--text)] group-hover:text-[var(--accent)] transition-colors">
-                    {measure.metadata.title}
-                  </h1>
-
-                  {/* Description with show more/less */}
-                  {measure.metadata.description && (
-                    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                      <p className="text-sm text-[var(--text-muted)] leading-relaxed max-w-3xl">
-                        {showFullDescription || measure.metadata.description.length <= 150
-                          ? measure.metadata.description
-                          : `${measure.metadata.description.slice(0, 150)}...`
-                        }
-                      </p>
-                      {measure.metadata.description.length > 150 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowFullDescription(prev => !prev);
-                          }}
-                          className="text-xs text-[var(--accent)] mt-1 hover:underline"
-                        >
-                          {showFullDescription ? 'Show less' : 'Show more'}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right side: Action buttons */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => setActiveTab('components')}
-                    className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-light)]"
-                    title="Browse the Component Library"
-                  >
-                    <LibraryIcon className="w-4 h-4" />
-                    Browse Library
-                  </button>
-                  <button
-                    onClick={handleDeepModeToggle}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
-                      deepMode ? 'bg-purple-500/15 text-purple-400' : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text)]'
-                    }`}
-                    title="Enable advanced logic editing: reorder, delete, merge components"
-                  >
-                    <Settings2 className="w-4 h-4" />
-                    Deep Edit Mode
-                  </button>
-                  <button
-                    onClick={() => approveAllLowComplexity(measure.id)}
-                    className="px-3 py-2 bg-[var(--success-light)] text-[var(--success)] rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-80 transition-all"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Auto-approve Low Complexity
-                  </button>
-                  {corrections.length > 0 && (
+                  {/* Right side: Action buttons */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <button
-                      onClick={handleExportCorrections}
-                      className="px-3 py-2 bg-purple-500/15 text-purple-400 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-purple-500/25 transition-colors"
-                      title="Export corrections for AI training"
+                      onClick={() => setActiveTab('components')}
+                      className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-light)]"
+                      title="Browse the Component Library"
                     >
-                      <Download className="w-4 h-4" />
-                      Export ({corrections.length})
+                      <LibraryIcon className="w-4 h-4" />
+                      Browse Library
                     </button>
-                  )}
+                    <button
+                      onClick={handleDeepModeToggle}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                        deepMode ? 'bg-purple-500/15 text-purple-400' : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text)]'
+                      }`}
+                      title="Enable advanced logic editing: reorder, delete, merge components"
+                    >
+                      <Settings2 className="w-4 h-4" />
+                      Deep Edit Mode
+                    </button>
+                    <button
+                      onClick={() => approveAllLowComplexity(measure.id)}
+                      className="px-3 py-2 bg-[var(--success-light)] text-[var(--success)] rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-80 transition-all"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Auto-approve Low Complexity
+                    </button>
+                    {corrections.length > 0 && (
+                      <button
+                        onClick={handleExportCorrections}
+                        className="px-3 py-2 bg-purple-500/15 text-purple-400 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-purple-500/25 transition-colors"
+                        title="Export corrections for AI training"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export ({corrections.length})
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {/* Row 2: Description — full width, below the header row */}
+                {measure.metadata.description && (
+                  <div
+                    className="mt-3 cursor-pointer group/desc"
+                    onClick={handleStartEditingMetadata}
+                  >
+                    <p className="text-sm text-[var(--text-muted)] leading-relaxed group-hover/desc:text-[var(--text)] transition-colors">
+                      {showFullDescription || measure.metadata.description.length <= 200
+                        ? measure.metadata.description
+                        : `${measure.metadata.description.slice(0, 200)}...`
+                      }
+                    </p>
+                    {measure.metadata.description.length > 200 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowFullDescription(prev => !prev);
+                        }}
+                        className="text-xs text-[var(--accent)] mt-1 hover:underline"
+                      >
+                        {showFullDescription ? 'Show less' : 'Show more'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
