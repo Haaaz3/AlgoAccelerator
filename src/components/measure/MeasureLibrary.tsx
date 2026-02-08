@@ -306,8 +306,13 @@ export function MeasureLibrary() {
     };
 
     addMeasure(copiedMeasure);
+
+    // Sync with component library: the copied measure retains libraryComponentId links
+    // from the original, so we just need to rebuild usage to include the new measure
+    rebuildUsageIndex([...measures, copiedMeasure]);
+
     setActiveMeasure(copiedMeasure.id);
-  }, [addMeasure, setActiveMeasure]);
+  }, [addMeasure, setActiveMeasure, rebuildUsageIndex, measures]);
 
   return (
     <div className="flex-1 overflow-auto">

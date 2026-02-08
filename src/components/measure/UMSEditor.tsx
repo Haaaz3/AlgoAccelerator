@@ -16,6 +16,7 @@ import type { ComplexityLevel, LibraryComponent } from '../../types/componentLib
 import { getComplexityColor, getComplexityDots, getComplexityLevel, calculateDataElementComplexity, calculatePopulationComplexity, calculateMeasureComplexity } from '../../services/complexityCalculator';
 import { getAllStandardValueSets, searchStandardValueSets, type StandardValueSet } from '../../constants/standardValueSets';
 import { handleAIAssistantRequest, buildAssistantContext, applyAIChanges, formatChangesForDisplay, type AIAssistantResponse } from '../../services/aiAssistant';
+import SharedEditWarning from '../library/SharedEditWarning';
 
 /** Strip standalone AND/OR/NOT operators that appear as line separators in descriptions */
 function cleanDescription(desc: string | undefined): string {
@@ -62,6 +63,16 @@ export function UMSEditor() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Shared edit warning state
+  const [showSharedEditWarning, setShowSharedEditWarning] = useState(false);
+  const [pendingEdit, setPendingEdit] = useState<{
+    componentId: string;
+    elementId: string;
+    type: 'timing' | 'timingWindow';
+    value: TimingConstraint | TimingWindow | null;
+    libraryComponent: LibraryComponent;
+  } | null>(null);
+
   // Listen for inspectingComponentId from CodeGeneration's "View in UMS Editor" button
   const inspectingComponentId = useComponentCodeStore((state) => state.inspectingComponentId);
   const setInspectingComponent = useComponentCodeStore((state) => state.setInspectingComponent);
@@ -94,6 +105,149 @@ export function UMSEditor() {
       setSelectedForMerge(new Set());
     }
     setDeepMode(!deepMode);
+  };
+
+  // Helper to find a DataElement by ID in the measure
+  const findElementById = (elementId: string): DataElement | null => {
+    if (!measure) return null;
+    const searchInClause = (clause: LogicalClause | DataElement | null): DataElement | null => {
+      if (!clause) return null;
+      if ('type' in clause && clause.id === elementId) return clause as DataElement;
+      if ('children' in clause) {
+        for (const child of clause.children) {
+          const found = searchInClause(child as LogicalClause | DataElement);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    for (const pop of measure.populations) {
+      const found = searchInClause(pop.criteria);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  // Wrapped timing save that checks for shared components
+  const handleTimingSaveWithWarning = (componentId: string, modified: TimingConstraint) => {
+    const element = findElementById(componentId);
+    if (!element?.libraryComponentId) {
+      // Not library-linked, proceed directly
+      updateTimingOverride(measure!.id, componentId, modified);
+      return;
+    }
+
+    const libraryComponent = getComponent(element.libraryComponentId);
+    if (!libraryComponent || libraryComponent.usage.usageCount <= 1) {
+      // Only used in this measure, proceed directly
+      updateTimingOverride(measure!.id, componentId, modified);
+      return;
+    }
+
+    // Shared component - show warning
+    setPendingEdit({
+      componentId: libraryComponent.id,
+      elementId: componentId,
+      type: 'timing',
+      value: modified,
+      libraryComponent,
+    });
+    setShowSharedEditWarning(true);
+  };
+
+  // Wrapped timing window save that checks for shared components
+  const handleTimingWindowSaveWithWarning = (componentId: string, modified: TimingWindow) => {
+    const element = findElementById(componentId);
+    if (!element?.libraryComponentId) {
+      updateTimingWindow(measure!.id, componentId, modified);
+      return;
+    }
+
+    const libraryComponent = getComponent(element.libraryComponentId);
+    if (!libraryComponent || libraryComponent.usage.usageCount <= 1) {
+      updateTimingWindow(measure!.id, componentId, modified);
+      return;
+    }
+
+    // Shared component - show warning
+    setPendingEdit({
+      componentId: libraryComponent.id,
+      elementId: componentId,
+      type: 'timingWindow',
+      value: modified,
+      libraryComponent,
+    });
+    setShowSharedEditWarning(true);
+  };
+
+  // Handle "Update All" from SharedEditWarning
+  const handleSharedEditUpdateAll = () => {
+    if (!pendingEdit || !measure) return;
+
+    // Apply the edit to this measure's element
+    if (pendingEdit.type === 'timing') {
+      updateTimingOverride(measure.id, pendingEdit.elementId, pendingEdit.value as TimingConstraint | null);
+    } else {
+      updateTimingWindow(measure.id, pendingEdit.elementId, pendingEdit.value as TimingWindow | null);
+    }
+
+    // Sync the change to all measures using this library component
+    // Note: Timing changes are applied locally via updateTimingOverride above
+    // The syncComponentToMeasures updates the library component metadata
+    const changes = {
+      changeDescription: `Timing updated across all measures (${pendingEdit.type})`,
+    };
+
+    const syncResult = syncComponentToMeasures(pendingEdit.componentId, changes, measures, batchUpdateMeasures);
+    if (!syncResult.success) {
+      setError(`Failed to sync changes: ${syncResult.error}`);
+    }
+    rebuildUsageIndex(measures);
+
+    setShowSharedEditWarning(false);
+    setPendingEdit(null);
+    setSuccess(`Updated "${pendingEdit.libraryComponent.name}" across ${pendingEdit.libraryComponent.usage.usageCount} measures`);
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  // Handle "Create New Version" from SharedEditWarning
+  const handleSharedEditCreateVersion = () => {
+    if (!pendingEdit || !measure) return;
+
+    // Apply the edit only to this measure's element
+    if (pendingEdit.type === 'timing') {
+      updateTimingOverride(measure.id, pendingEdit.elementId, pendingEdit.value as TimingConstraint | null);
+    } else {
+      updateTimingWindow(measure.id, pendingEdit.elementId, pendingEdit.value as TimingWindow | null);
+    }
+
+    // Clear the library link for this element (fork it)
+    // This is done by updating the element to remove libraryComponentId
+    const clearLibraryLink = (node: any): any => {
+      if (!node) return node;
+      if (node.id === pendingEdit.elementId) {
+        const { libraryComponentId: _, ...rest } = node;
+        return rest;
+      }
+      if (node.children) {
+        return { ...node, children: node.children.map(clearLibraryLink) };
+      }
+      if (node.criteria) {
+        return { ...node, criteria: clearLibraryLink(node.criteria) };
+      }
+      return node;
+    };
+
+    const updatedPopulations = measure.populations.map(clearLibraryLink);
+    updateMeasure(measure.id, { populations: updatedPopulations });
+
+    // Rebuild usage index to reflect the unlinked element
+    rebuildUsageIndex(measures);
+
+    setShowSharedEditWarning(false);
+    setPendingEdit(null);
+    setSuccess(`Created local version for this measure only`);
+    setTimeout(() => setSuccess(null), 3000);
   };
 
   const handleDragStart = (id: string) => {
@@ -449,10 +603,11 @@ export function UMSEditor() {
                 editingTimingId={editingTimingId}
                 onEditTiming={setEditingTimingId}
                 onSaveTiming={(componentId, modified) => {
-                  updateTimingOverride(measure.id, componentId, modified);
+                  handleTimingSaveWithWarning(componentId, modified);
                   setEditingTimingId(null);
                 }}
                 onResetTiming={(componentId) => {
+                  // Reset doesn't trigger shared edit warning - it reverts to default
                   updateTimingOverride(measure.id, componentId, null);
                   setEditingTimingId(null);
                 }}
@@ -576,13 +731,13 @@ export function UMSEditor() {
                 setActiveTab('components');
               }}
               onSaveTiming={(componentId, modified) => {
-                updateTimingOverride(measure.id, componentId, modified);
+                handleTimingSaveWithWarning(componentId, modified);
               }}
               onResetTiming={(componentId) => {
                 updateTimingOverride(measure.id, componentId, null);
               }}
               onSaveTimingWindow={(componentId, modified) => {
-                updateTimingWindow(measure.id, componentId, modified);
+                handleTimingWindowSaveWithWarning(componentId, modified);
               }}
               onResetTimingWindow={(componentId) => {
                 updateTimingWindow(measure.id, componentId, null);
@@ -926,6 +1081,21 @@ export function UMSEditor() {
             Merge {selectedForMerge.size} Selected Components
           </button>
         </div>
+      )}
+
+      {/* Shared Edit Warning Modal */}
+      {showSharedEditWarning && pendingEdit && (
+        <SharedEditWarning
+          componentName={pendingEdit.libraryComponent.name}
+          usageCount={pendingEdit.libraryComponent.usage.usageCount}
+          measureIds={pendingEdit.libraryComponent.usage.measureIds}
+          onUpdateAll={handleSharedEditUpdateAll}
+          onCreateCopy={handleSharedEditCreateVersion}
+          onCancel={() => {
+            setShowSharedEditWarning(false);
+            setPendingEdit(null);
+          }}
+        />
       )}
     </div>
   );
