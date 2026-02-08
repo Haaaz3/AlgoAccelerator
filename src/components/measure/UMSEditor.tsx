@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, Fragment } from 'react';
 import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, Send, Bot, User, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine, Square, CheckSquare } from 'lucide-react';
-import { InlineErrorBanner } from '../shared/ErrorBoundary';
+import { InlineErrorBanner, InlineSuccessBanner } from '../shared/ErrorBoundary';
+import { validateReferentialIntegrity, formatMismatches } from '../../utils/integrityCheck';
 import { useMeasureStore } from '../../stores/measureStore';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useComponentCodeStore } from '../../stores/componentCodeStore';
@@ -57,8 +58,9 @@ export function UMSEditor() {
   const [mergeName, setMergeName] = useState('');
   const [selectedForMerge, setSelectedForMerge] = useState<Set<string>>(new Set());
 
-  // Error state for inline error display
+  // Error and success state for inline banners
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   // Toggle merge selection for a component
   const toggleMergeSelection = (componentId: string) => {
@@ -275,7 +277,10 @@ export function UMSEditor() {
       {/* Main editor panel */}
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-4xl mx-auto">
-          {/* Error Banner */}
+          {/* Success/Error Banners */}
+          {success && (
+            <InlineSuccessBanner message={success} onDismiss={() => setSuccess(null)} />
+          )}
           {error && (
             <InlineErrorBanner message={error} onDismiss={() => setError(null)} />
           )}
@@ -736,6 +741,10 @@ export function UMSEditor() {
                   onClick={() => {
                     if (!mergeName.trim() || selectedElements.length < 2) return;
 
+                    // Clear any previous messages
+                    setError(null);
+                    setSuccess(null);
+
                     try {
                       // Collect all value sets from selected elements (keep them separate)
                       // Look up full value set data including codes from measure.valueSets
@@ -796,12 +805,23 @@ export function UMSEditor() {
                       }
 
                       // Create merged library component - pass the value sets with codes
-                      const mergedComp = mergeComponents(
-                        selectedElements.map((el: any) => el.libraryComponentId).filter(Boolean),
+                      const componentIds = selectedElements.map((el: any) => el.libraryComponentId).filter(Boolean);
+                      const mergeResult = mergeComponents(
+                        componentIds,
                         mergeName.trim(),
                         undefined, // description
                         allValueSets // Pass value sets with codes for accurate data
                       );
+
+                      // Check for merge failure - don't proceed if failed
+                      if (!mergeResult.success || !mergeResult.component) {
+                        console.error('[UMSEditor] Merge failed:', mergeResult.error);
+                        setError(`Merge failed: ${mergeResult.error || 'Unknown error'}`);
+                        // Don't clear selection on error - let user retry
+                        return;
+                      }
+
+                      const mergedComp = mergeResult.component;
 
                       // Keep the first element, remove the rest, update the first to point to merged component
                       const firstElementId = selectedElements[0].id;
@@ -821,7 +841,7 @@ export function UMSEditor() {
                           return {
                             ...node,
                             description: mergeName.trim(),
-                            libraryComponentId: mergedComp?.id,
+                            libraryComponentId: mergedComp.id,
                             // Keep first value set for backward compatibility
                             valueSet: allValueSets.length > 0 ? allValueSets[0] : node.valueSet,
                             // Always store all value sets for consistency (even if just 1)
@@ -838,27 +858,34 @@ export function UMSEditor() {
                       updateMeasure(measure.id, { populations: updatedPopulations });
 
                       // Update references in OTHER measures that still point to archived components
-                      if (mergedComp) {
-                        const archivedIds = selectedElements
-                          .map((el: any) => el.libraryComponentId)
-                          .filter(Boolean) as string[];
-                        const otherMeasures = measures.filter(m => m.id !== measure.id);
-                        const result = updateMeasureReferencesAfterMerge(archivedIds, mergedComp.id, otherMeasures, batchUpdateMeasures);
-                        if (!result.success) {
-                          console.error('[UMSEditor] Failed to update measure references after merge:', result.error);
-                          setError(`Failed to update references: ${result.error}`);
-                        }
-
-                        // Rebuild usage index after merge to ensure consistency
-                        rebuildUsageIndex(measures);
+                      const archivedIds = componentIds;
+                      const otherMeasures = measures.filter(m => m.id !== measure.id);
+                      const refResult = updateMeasureReferencesAfterMerge(archivedIds, mergedComp.id, otherMeasures, batchUpdateMeasures);
+                      if (!refResult.success) {
+                        console.error('[UMSEditor] Failed to update measure references after merge:', refResult.error);
+                        // This is a partial success - component merged but references not fully updated
+                        setError(`Merge succeeded but failed to update some references: ${refResult.error}`);
                       }
 
+                      // Rebuild usage index after merge to ensure consistency
+                      rebuildUsageIndex(measures);
+
+                      // Validate referential integrity and log any issues
+                      const mismatches = validateReferentialIntegrity(measures, libraryComponents);
+                      if (mismatches.length > 0) {
+                        console.warn('[UMSEditor] Referential integrity issues after merge:');
+                        console.warn(formatMismatches(mismatches));
+                      }
+
+                      // Success! Clear dialog and selection, show success message
                       setShowMergeDialog(false);
                       setSelectedForMerge(new Set());
                       setMergeName('');
+                      setSuccess(`Successfully merged ${selectedElements.length} components into "${mergedComp.name}"`);
                     } catch (err) {
                       console.error('[UMSEditor] Merge failed:', err);
                       setError(`Merge failed: ${err instanceof Error ? err.message : String(err)}`);
+                      // Don't clear selection on error - let user retry
                     }
                   }}
                   disabled={!mergeName.trim() || selectedElements.length < 2}

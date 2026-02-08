@@ -126,7 +126,7 @@ interface ComponentLibraryState {
     mergedName: string,
     mergedDescription?: string,
     valueSetsWithCodes?: Array<{ oid: string; version: string; name: string; id?: string; codes?: import('../types/ums').CodeReference[] }>,
-  ) => LibraryComponent | null;
+  ) => { success: boolean; error?: string; component?: LibraryComponent };
 
   // Computed / Selectors
   getComponent: (id: ComponentId) => LibraryComponent | null;
@@ -908,29 +908,54 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
       mergeComponents: (componentIds, mergedName, mergedDescription, valueSetsWithCodes) => {
         const state = get();
 
-        // Get all components to merge
-        const componentsToMerge = componentIds
-          .map(id => state.components.find(c => c.id === id))
-          .filter((c): c is AtomicComponent => c !== undefined && c.type === 'atomic');
-
-        if (componentsToMerge.length < 2 && !valueSetsWithCodes) {
-          console.warn('Need at least 2 atomic components to merge or provide valueSetsWithCodes');
-          return null;
+        // ========== VALIDATION ==========
+        // Reject if fewer than 2 components selected
+        if (componentIds.length < 2) {
+          return { success: false, error: 'At least 2 components must be selected for merge' };
         }
 
-        // Use provided value sets with codes if available, otherwise collect from components
+        // Check all component IDs exist and are not archived
+        const missingIds: string[] = [];
+        const archivedIds: string[] = [];
+        const foundComponents: AtomicComponent[] = [];
+
+        for (const id of componentIds) {
+          const comp = state.components.find(c => c.id === id);
+          if (!comp) {
+            missingIds.push(id);
+          } else if (comp.versionInfo.status === 'archived') {
+            archivedIds.push(id);
+          } else if (comp.type === 'atomic') {
+            foundComponents.push(comp as AtomicComponent);
+          }
+        }
+
+        if (missingIds.length > 0) {
+          return { success: false, error: `Component IDs not found: ${missingIds.join(', ')}` };
+        }
+
+        if (archivedIds.length > 0) {
+          return { success: false, error: `Cannot merge archived components: ${archivedIds.join(', ')}` };
+        }
+
+        if (foundComponents.length < 2) {
+          return { success: false, error: 'At least 2 atomic components are required for merge' };
+        }
+
+        // ========== COLLECT VALUE SETS ==========
         let allValueSets: Array<{ oid: string; version: string; name: string; id?: string; codes?: import('../types/ums').CodeReference[] }>;
 
         if (valueSetsWithCodes && valueSetsWithCodes.length > 0) {
           // Use the pre-collected value sets with codes (from measure.valueSets)
+          // These are already deduplicated by the caller but preserve value set grouping
           allValueSets = valueSetsWithCodes;
         } else {
           // Fallback: collect from library components (may not have codes)
           allValueSets = [];
           const seenOids = new Set<string>();
 
-          for (const comp of componentsToMerge) {
-            // Add from valueSets array if present
+          for (const comp of foundComponents) {
+            // Add from valueSets array if present, otherwise use single valueSet
             const valueSetsToAdd = comp.valueSets || [comp.valueSet];
             for (const vs of valueSetsToAdd) {
               if (!seenOids.has(vs.oid)) {
@@ -941,18 +966,17 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           }
         }
 
-        // Use the first component as base for timing, category, etc.
-        const baseComponent = componentsToMerge[0];
+        // ========== CREATE MERGED COMPONENT ==========
+        const baseComponent = foundComponents[0];
 
         // Combine all measure IDs from all components being merged
         const allMeasureIds = new Set<string>();
-        for (const comp of componentsToMerge) {
+        for (const comp of foundComponents) {
           for (const measureId of comp.usage.measureIds) {
             allMeasureIds.add(measureId);
           }
         }
 
-        // Create the merged component
         const now = new Date().toISOString();
         const mergedId = `merged-${Date.now()}`;
 
@@ -960,9 +984,9 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           type: 'atomic',
           id: mergedId,
           name: mergedName,
-          description: mergedDescription || `Combined component: ${componentsToMerge.map(c => c.name).join(' + ')}`,
+          description: mergedDescription || `Combined component: ${foundComponents.map(c => c.name).join(' + ')}`,
           valueSet: allValueSets[0], // Primary value set for backward compatibility
-          valueSets: allValueSets,   // All value sets
+          valueSets: allValueSets,   // All value sets (preserves grouping)
           timing: baseComponent.timing,
           negation: baseComponent.negation,
           complexity: baseComponent.complexity, // Will be recalculated
@@ -973,7 +997,7 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
               status: 'draft',
               createdAt: now,
               createdBy: 'merge',
-              changeDescription: `Merged from: ${componentsToMerge.map(c => c.name).join(', ')}`,
+              changeDescription: `Merged from: ${foundComponents.map(c => c.name).join(', ')}`,
             }],
             status: 'draft',
           },
@@ -986,15 +1010,15 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
             ...baseComponent.metadata,
             createdAt: now,
             updatedAt: now,
-            tags: [...new Set(componentsToMerge.flatMap(c => c.metadata.tags))],
+            tags: [...new Set(foundComponents.flatMap(c => c.metadata.tags))],
           },
         };
 
-        // Update store: add merged component, archive old ones
+        // ========== UPDATE STORE ==========
+        // Archive original components, add merged component
         set((s) => {
           const updatedComponents = s.components.map(c => {
             if (componentIds.includes(c.id)) {
-              // Archive the merged components
               return {
                 ...c,
                 versionInfo: {
@@ -1011,8 +1035,8 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           };
         });
 
-        console.log(`Merged ${componentsToMerge.length} components into "${mergedName}" with ${allValueSets.length} value sets`);
-        return mergedComponent;
+        console.log(`[mergeComponents] Merged ${foundComponents.length} components into "${mergedName}" with ${allValueSets.length} value sets`);
+        return { success: true, component: mergedComponent };
       },
 
       // Selectors

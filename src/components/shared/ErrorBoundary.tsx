@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, CheckCircle } from 'lucide-react';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -114,6 +114,34 @@ export function InlineErrorBanner({ message, onDismiss }: InlineErrorBannerProps
         onClick={onDismiss}
         className="text-[var(--text-muted)] hover:text-[var(--text)] transition-colors text-lg leading-none"
         aria-label="Dismiss error"
+      >
+        &times;
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Inline success banner component for displaying success messages within a component.
+ * Use this for confirming successful operations.
+ */
+interface InlineSuccessBannerProps {
+  message: string;
+  onDismiss: () => void;
+}
+
+export function InlineSuccessBanner({ message, onDismiss }: InlineSuccessBannerProps): ReactNode {
+  return (
+    <div className="mb-4 p-3 bg-[var(--success)]/10 border border-[var(--success)]/30 rounded-lg flex items-start gap-3">
+      <CheckCircle className="w-5 h-5 text-[var(--success)] flex-shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-[var(--success)] font-medium">Success</p>
+        <p className="text-sm text-[var(--text-muted)] break-words">{message}</p>
+      </div>
+      <button
+        onClick={onDismiss}
+        className="text-[var(--text-muted)] hover:text-[var(--text)] transition-colors text-lg leading-none"
+        aria-label="Dismiss"
       >
         &times;
       </button>
