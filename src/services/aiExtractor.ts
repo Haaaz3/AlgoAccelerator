@@ -187,26 +187,11 @@ export async function extractMeasureWithAI(
 
     onProgress?.({ stage: 'parsing', message: 'Parsing extraction results...', progress: 40 });
 
-    // Debug logging
-    console.log('=== AI EXTRACTION DEBUG ===');
-    console.log('Raw AI response length:', content.length);
-    console.log('First 500 chars:', content.substring(0, 500));
-
     let extractedData = parseAIResponse(content);
 
     if (!extractedData) {
-      console.error('Failed to parse AI response. Full content:', content);
+      console.error('Failed to parse AI response');
       throw new Error('Failed to parse AI response');
-    }
-
-    // Debug: Log extracted data
-    console.log('Extracted valueSets count:', extractedData.valueSets?.length || 0);
-    console.log('Extracted populations count:', extractedData.populations?.length || 0);
-    if (extractedData.valueSets?.length > 0) {
-      console.log('First valueSet:', JSON.stringify(extractedData.valueSets[0], null, 2));
-    }
-    if (extractedData.populations?.length > 0) {
-      console.log('First population criteria count:', extractedData.populations[0].criteria?.length || 0);
     }
 
     // --- Verification Pass: second AI call to audit extraction completeness ---
@@ -225,34 +210,13 @@ export async function extractMeasureWithAI(
       customConfig,
     );
 
-    if (verificationResult) {
-      if (verificationResult.isComplete) {
-        console.log('Verification pass: extraction is complete, no corrections needed');
-      } else {
-        const totalMissingPops = verificationResult.missingPopulations.length;
-        const totalMissingCriteria = Object.values(verificationResult.missingCriteria)
-          .reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
-        const totalTypeFixes = verificationResult.typeFixes.length;
-        const totalMissingVS = verificationResult.missingValueSets.length;
-        console.log(`Verification found gaps: ${totalMissingPops} missing populations, ${totalMissingCriteria} missing criteria, ${totalTypeFixes} type fixes, ${totalMissingVS} missing value sets`);
-
-        extractedData = mergeVerificationResults(extractedData, verificationResult);
-
-        console.log('After verification merge:');
-        console.log('  populations count:', extractedData.populations?.length || 0);
-        extractedData.populations.forEach(p => {
-          console.log(`  ${p.type}: ${p.criteria.length} criteria`);
-        });
-        console.log('  valueSets count:', extractedData.valueSets?.length || 0);
-      }
-    } else {
-      console.log('Verification pass: skipped (parse failure or API error), continuing with original extraction');
+    if (verificationResult && !verificationResult.isComplete) {
+      extractedData = mergeVerificationResults(extractedData, verificationResult);
     }
 
     // Enrich value sets with complete codes from standard sources
     onProgress?.({ stage: 'building', message: 'Enriching value sets from standard sources...', progress: 65 });
     extractedData = enrichValueSetsFromStandards(extractedData);
-    console.log('After enrichment, valueSets count:', extractedData.valueSets?.length || 0);
 
     onProgress?.({ stage: 'building', message: 'Building UMS structure...', progress: 80 });
 
@@ -888,7 +852,6 @@ function convertToUMS(data: ExtractedMeasureData): UniversalMeasureSpec {
           children: encounterChildren,
         };
         finalChildren = [...nonEncounterChildren, orClause];
-        console.log(`Auto-grouped ${encounterChildren.length} encounter criteria into OR clause for ${popType}`);
       }
 
       // Also check for AI-provided nestedGroups
@@ -909,7 +872,6 @@ function convertToUMS(data: ExtractedMeasureData): UniversalMeasureSpec {
                 children: grouped,
               };
               finalChildren = [...ungrouped, nestedClause];
-              console.log(`Applied AI nestedGroup: ${grouped.length} criteria grouped as OR`);
             }
           }
         }
@@ -1080,8 +1042,6 @@ function enrichValueSetsFromStandards(data: ExtractedMeasureData): ExtractedMeas
           }
         }
 
-        console.log(`Enriched value set "${vs.name}" (${vs.oid}): ${vs.codes.length} -> ${mergedCodes.length} codes`);
-
         enrichedValueSets.push({
           ...vs,
           codes: mergedCodes,
@@ -1107,8 +1067,6 @@ function enrichValueSetsFromStandards(data: ExtractedMeasureData): ExtractedMeas
           });
         }
       }
-
-      console.log(`Enriched value set "${vs.name}" by name match to "${matchedVS.name}": ${vs.codes.length} -> ${mergedCodes.length} codes`);
 
       enrichedValueSets.push({
         ...vs,
@@ -1137,7 +1095,6 @@ function enrichValueSetsFromStandards(data: ExtractedMeasureData): ExtractedMeas
         system: mapCodeSystemFromUri(c.system),
       })),
     });
-    console.log(`Added missing standard value set: "${missingVS.name}" with ${missingVS.codes.length} codes`);
   }
 
   return {
@@ -1482,7 +1439,6 @@ function parseVerificationResponse(content: string): VerificationResult | null {
     }
   }
 
-  console.warn('Verification pass: failed to parse response, skipping verification');
   return null;
 }
 
@@ -1520,7 +1476,6 @@ function mergeVerificationResults(
           logicOperator: (pop.logicOperator || 'AND') as 'AND' | 'OR',
           criteria: normalizedCriteria,
         });
-        console.log(`Verification: added missing population "${pop.type}" with ${normalizedCriteria.length} criteria`);
       } else {
         // Population type exists but might need the criteria merged
         const existing = merged.populations.find(p => p.type === pop.type);
@@ -1531,7 +1486,6 @@ function mergeVerificationResults(
               existing.criteria.push(crit);
             }
           }
-          console.log(`Verification: merged criteria into existing population "${pop.type}"`);
         }
       }
     }
@@ -1557,7 +1511,6 @@ function mergeVerificationResults(
         };
         if (!existingDescs.has(normalized.description.toLowerCase())) {
           targetPop.criteria.push(normalized);
-          console.log(`Verification: added missing criterion "${normalized.description}" to "${popType}"`);
         }
       }
     } else {
@@ -1578,7 +1531,6 @@ function mergeVerificationResults(
           thresholds: c.thresholds,
         })),
       });
-      console.log(`Verification: created population "${popType}" with ${criteria.length} missing criteria`);
     }
   }
 
@@ -1591,9 +1543,7 @@ function mergeVerificationResults(
              fix.description.toLowerCase().includes(c.description.toLowerCase())
       );
       if (targetCrit) {
-        const oldType = targetCrit.type;
         targetCrit.type = fix.correctType as ExtractedCriterion['type'];
-        console.log(`Verification: fixed type "${oldType}" → "${fix.correctType}" for "${targetCrit.description}"`);
       }
     }
   }
@@ -1619,7 +1569,6 @@ function mergeVerificationResults(
             system: c.system || 'ICD10',
           })) : [],
         });
-        console.log(`Verification: added missing value set "${vs.name}"`);
       }
     }
   }
@@ -1661,13 +1610,8 @@ async function runVerificationPass(
       return null;
     }
 
-    console.log('=== VERIFICATION PASS DEBUG ===');
-    console.log('Verification response length:', content.length);
-    console.log('First 500 chars:', content.substring(0, 500));
-
     return parseVerificationResponse(content);
-  } catch (err) {
-    console.warn('Verification pass failed, continuing with original extraction:', err);
+  } catch {
     return null;
   }
 }

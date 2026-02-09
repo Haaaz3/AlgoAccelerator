@@ -1374,19 +1374,9 @@ export function ValidationTraceViewer() {
       editedPatients[p.id] ? { ...editedPatients[p.id] } : p
     );
 
-    console.log('Loaded test patients:', patients.map(p => ({
-      name: p.name,
-      birthDate: p.demographics.birthDate,
-      diagnoses: p.diagnoses.length,
-      encounters: p.encounters.length,
-      procedures: p.procedures.length,
-      edited: !!editedPatients[p.id],
-    })));
-
     // Evaluate each patient against the measure
     const traces = patients.map(patient => {
       const trace = evaluatePatient(patient, measure);
-      console.log(`Evaluated ${patient.name}:`, trace.finalOutcome);
       return trace;
     });
 
@@ -1512,7 +1502,6 @@ export function ValidationTraceViewer() {
     const editedPatients = loadEditedPatients();
     editedPatients[editedPatientData.id] = editedPatientData;
     saveEditedPatientsToStorage(editedPatients);
-    console.log(`Saved patient ${editedPatientData.id} to localStorage`);
 
     // Re-evaluate all patients
     const traces = updatedPatients.map(patient => evaluatePatient(patient, measure));

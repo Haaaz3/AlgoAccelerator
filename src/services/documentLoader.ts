@@ -128,9 +128,7 @@ async function extractFromPDF(file: File): Promise<ExtractedDocument> {
   const metadata: Record<string, string> = {};
 
   try {
-    console.log(`Extracting PDF: ${file.name}, size: ${file.size} bytes`);
     const arrayBuffer = await file.arrayBuffer();
-    console.log(`ArrayBuffer size: ${arrayBuffer.byteLength} bytes`);
 
     // Create loading task with options for better compatibility
     const loadingTask = pdfjsLib.getDocument({
@@ -141,7 +139,6 @@ async function extractFromPDF(file: File): Promise<ExtractedDocument> {
     });
 
     const pdf = await loadingTask.promise;
-    console.log(`PDF loaded successfully: ${pdf.numPages} pages`);
 
     metadata.pageCount = String(pdf.numPages);
 
@@ -149,8 +146,6 @@ async function extractFromPDF(file: File): Promise<ExtractedDocument> {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-
-      console.log(`Page ${i}: ${textContent.items.length} text items`);
 
       // Reconstruct text with proper spacing
       let lastY: number | null = null;
@@ -170,7 +165,6 @@ async function extractFromPDF(file: File): Promise<ExtractedDocument> {
     }
 
     const content = pages.join('\n\n');
-    console.log(`Total extracted content: ${content.length} characters`);
 
     return {
       filename: file.name,

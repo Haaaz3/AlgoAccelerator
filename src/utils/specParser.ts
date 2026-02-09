@@ -226,8 +226,6 @@ async function parseECQMHtml(file: File): Promise<ParsedMeasureData> {
     }
   });
 
-  console.log(`Extracted ${Object.keys(data.cqlDefinitions).length} CQL definitions`);
-
   // Extract age range from description or populations
   const allText = [data.description, ...data.populations.map(p => p.narrative)].join(' ');
   const ageMatch = allText.match(/(\d+)\s*[-–to]+\s*(\d+)\s*years/i);
@@ -281,8 +279,6 @@ async function parseECQMHtml(file: File): Promise<ParsedMeasureData> {
       }
     }
   }
-
-  console.log(`Extracted ${data.valueSets.length} value sets from HTML`);
 
   return data;
 }

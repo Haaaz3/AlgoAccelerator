@@ -55,12 +55,6 @@ export async function ingestMeasureFiles(
 
     const extractionResult = await extractFromFiles(files);
 
-    // Debug: Log extracted content
-    console.log('=== DOCUMENT EXTRACTION DEBUG ===');
-    console.log('Files processed:', extractionResult.documents.map(d => d.filename));
-    console.log('Total characters:', extractionResult.combinedContent.length);
-    console.log('Content preview (first 1000 chars):', extractionResult.combinedContent.substring(0, 1000));
-
     onProgress?.({
       stage: 'extracting',
       message: `Extracted text from ${extractionResult.documents.length} document(s)`,
