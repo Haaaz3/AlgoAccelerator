@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, Fragment } from 'react';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, Send, Bot, User, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine, Square, CheckSquare } from 'lucide-react';
 import { InlineErrorBanner, InlineSuccessBanner } from '../shared/ErrorBoundary';
 import { validateReferentialIntegrity, formatMismatches } from '../../utils/integrityCheck';
@@ -561,8 +562,10 @@ export function UMSEditor() {
 
   return (
     <div className="flex-1 flex overflow-hidden">
-      {/* Main editor panel */}
-      <div className="flex-1 overflow-auto p-6">
+      <PanelGroup orientation="horizontal" className="flex-1">
+        {/* Main editor panel */}
+        <Panel defaultSize={selectedNode ? 60 : 100} minSize={40}>
+          <div className="h-full overflow-auto p-6">
         <div className="max-w-4xl mx-auto">
           {/* Success/Error Banners */}
           {success && (
@@ -957,11 +960,15 @@ export function UMSEditor() {
             </div>
           </div>
         </div>
-      </div>
+          </div>
+        </Panel>
 
-      {/* Detail panel for selected node */}
-      {selectedNode && (
-        <div className="flex flex-col border-l border-[var(--border)]">
+        {/* Detail panel for selected node */}
+        {selectedNode && (
+          <>
+            <PanelResizeHandle className="w-1.5 bg-[var(--border)] hover:bg-[var(--accent)] active:bg-[var(--accent)] cursor-col-resize transition-colors" />
+            <Panel defaultSize={40} minSize={25} maxSize={60}>
+              <div className="h-full flex flex-col border-l border-[var(--border)]">
           {/* Panel mode toggle */}
           <div className="flex border-b border-[var(--border)] bg-[var(--bg-secondary)]">
             <button
@@ -1025,8 +1032,11 @@ export function UMSEditor() {
               }}
             />
           )}
-        </div>
-      )}
+              </div>
+            </Panel>
+          </>
+        )}
+      </PanelGroup>
 
       {/* Value Set detail modal */}
       {activeValueSet && measure && (
