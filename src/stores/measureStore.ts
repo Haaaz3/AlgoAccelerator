@@ -1010,7 +1010,7 @@ export const useMeasureStore = create<MeasureState>()(
       },
     }),
     {
-      name: 'algo-accelerator-storage',
+      name: 'measure-accelerator-storage',
       partialize: (state) => ({
         measures: state.measures,
         validationTraces: state.validationTraces,

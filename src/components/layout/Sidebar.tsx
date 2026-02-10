@@ -38,7 +38,7 @@ export function Sidebar() {
             <Activity className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-semibold text-[var(--sidebar-text)] text-base tracking-tight">Measure</h1>
+            <h1 className="font-semibold text-[var(--sidebar-text)] text-base tracking-tight">Algo</h1>
             <h1 className="font-semibold text-[var(--primary)] text-base tracking-tight -mt-0.5" style={{ color: '#C74634' }}>Accelerator</h1>
           </div>
         </div>

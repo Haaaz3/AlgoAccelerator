@@ -1070,7 +1070,7 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
       },
     }),
     {
-      name: 'algo-accelerator-component-library',
+      name: 'measure-accelerator-component-library',
       partialize: (state) => ({
         components: state.components,
         initialized: state.initialized,
