@@ -2556,7 +2556,7 @@ function ValidationNodeRow({ node, onClick }: { node: ValidationNode; onClick: (
         node.status === 'pass'
           ? 'bg-[var(--success)]/5 border-[var(--success)]/20 hover:border-[var(--success)]/40'
           : node.status === 'not_applicable'
-          ? 'bg-[var(--bg-tertiary)] border-white/[0.08] hover:border-white/[0.15]'
+          ? 'bg-[var(--bg-tertiary)] border-[var(--border-light)] hover:border-[var(--border)]'
           : 'bg-[var(--danger)]/5 border-[var(--danger)]/20 hover:border-[var(--danger)]/40'
       }`}
     >
@@ -2618,7 +2618,7 @@ function ValidationNodeCard({ node, onClick }: { node: ValidationNode; onClick: 
   return (
     <div
       onClick={onClick}
-      className="w-72 flex-shrink-0 bg-gradient-to-b from-white/[0.06] to-white/[0.03] border border-white/[0.14] rounded-xl p-4 cursor-pointer hover:border-[var(--accent)]/50 transition-colors relative"
+      className="w-72 flex-shrink-0 bg-gradient-to-b from-[var(--bg-secondary)] to-[var(--bg)] border border-[var(--border)] rounded-xl p-4 cursor-pointer hover:border-[var(--accent)]/50 transition-colors relative"
     >
       {/* Status icon */}
       <div className="absolute top-3 right-3">
@@ -2637,7 +2637,7 @@ function ValidationNodeCard({ node, onClick }: { node: ValidationNode; onClick: 
           ? node.status === 'pass'
             ? 'text-[var(--success)] border-[var(--success)]/30 bg-[var(--success-light)]'
             : 'text-[var(--danger)] border-[var(--danger)]/30 bg-[var(--danger-light)]'
-          : 'text-[var(--text-muted)] border-white/[0.18] bg-[#0c1324]/75'
+          : 'text-[var(--text-muted)] border-[var(--border)] bg-[var(--bg-secondary)]'
       }`}>
         {node.type === 'decision'
           ? (node.status === 'pass' ? 'Met' : 'Not Met')
@@ -2649,7 +2649,7 @@ function ValidationNodeCard({ node, onClick }: { node: ValidationNode; onClick: 
 
       {/* Facts preview with codes */}
       {node.facts.length > 0 && (
-        <ul className="text-xs text-[var(--text-muted)] space-y-1 border-t border-white/[0.08] pt-2 mt-2">
+        <ul className="text-xs text-[var(--text-muted)] space-y-1 border-t border-[var(--border-light)] pt-2 mt-2">
           {node.facts.slice(0, 3).map((fact, i) => (
             <li key={i} className="flex items-start gap-2">
               {fact.code && fact.code !== '—' && (
@@ -2670,7 +2670,7 @@ function ValidationNodeCard({ node, onClick }: { node: ValidationNode; onClick: 
       )}
 
       {node.source && (
-        <div className="text-[10px] text-[var(--text-dim)] mt-2 pt-2 border-t border-white/[0.08]">
+        <div className="text-[10px] text-[var(--text-dim)] mt-2 pt-2 border-t border-[var(--border-light)]">
           Source: {node.source}
         </div>
       )}
@@ -2684,9 +2684,9 @@ function InspectModal({ node, onClose }: { node: ValidationNode; onClose: () => 
       className="fixed inset-0 bg-black/55 flex items-center justify-center z-50"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-[min(1000px,92vw)] max-h-[85vh] overflow-auto bg-[var(--bg-secondary)] border border-white/[0.15] rounded-xl shadow-2xl">
+      <div className="w-[min(1000px,92vw)] max-h-[85vh] overflow-auto bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/[0.12] sticky top-0 bg-[var(--bg-secondary)]">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border)] sticky top-0 bg-[var(--bg-secondary)]">
           <div className="flex items-center gap-3">
             {node.status === 'pass' ? (
               <CheckCircle className="w-5 h-5 text-[var(--success)]" />
@@ -2699,7 +2699,7 @@ function InspectModal({ node, onClose }: { node: ValidationNode; onClose: () => 
           </div>
           <button
             onClick={onClose}
-            className="px-3 py-1.5 bg-[var(--bg-tertiary)] border border-white/[0.2] rounded-lg text-sm text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
+            className="px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
           >
             Close
           </button>
@@ -2714,7 +2714,7 @@ function InspectModal({ node, onClose }: { node: ValidationNode; onClose: () => 
                 ? node.status === 'pass'
                   ? 'border-[var(--success)]/30 bg-[var(--success-light)] text-[var(--success)]'
                   : 'border-[var(--danger)]/30 bg-[var(--danger-light)] text-[var(--danger)]'
-                : 'border-white/[0.18] bg-white/[0.06] text-[var(--text)]'
+                : 'border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text)]'
             }`}>
               {node.type === 'decision'
                 ? (node.status === 'pass' ? 'Met' : 'Not Met')
@@ -2740,7 +2740,7 @@ function InspectModal({ node, onClose }: { node: ValidationNode; onClose: () => 
                 <Code className="w-3.5 h-3.5" />
                 Generated CQL Logic
               </h4>
-              <pre className="p-3 bg-[#0b1a34] border border-white/[0.12] rounded-lg text-xs text-[var(--accent)] overflow-auto whitespace-pre font-mono">
+              <pre className="p-3 bg-[var(--code-bg)] border border-[var(--border)] rounded-lg text-xs text-[var(--code-keyword)] overflow-auto whitespace-pre font-mono">
                 {node.cqlSnippet}
               </pre>
             </div>
@@ -2753,37 +2753,37 @@ function InspectModal({ node, onClose }: { node: ValidationNode; onClose: () => 
                 <FileText className="w-3.5 h-3.5" />
                 EMR Data Used for Evaluation ({node.facts.length} record{node.facts.length !== 1 ? 's' : ''})
               </h4>
-              <div className="border border-white/[0.12] rounded-lg overflow-hidden">
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-[var(--text-muted)] bg-[var(--bg-tertiary)]">
-                      <th className="border-b border-white/[0.12] p-2.5 text-left font-medium">Code</th>
-                      <th className="border-b border-white/[0.12] p-2.5 text-left font-medium">Display Name</th>
-                      <th className="border-b border-white/[0.12] p-2.5 text-left font-medium">Raw Value</th>
-                      <th className="border-b border-white/[0.12] p-2.5 text-left font-medium">System/Unit</th>
-                      <th className="border-b border-white/[0.12] p-2.5 text-left font-medium">Date</th>
+                      <th className="border-b border-[var(--border)] p-2.5 text-left font-medium">Code</th>
+                      <th className="border-b border-[var(--border)] p-2.5 text-left font-medium">Display Name</th>
+                      <th className="border-b border-[var(--border)] p-2.5 text-left font-medium">Raw Value</th>
+                      <th className="border-b border-[var(--border)] p-2.5 text-left font-medium">System/Unit</th>
+                      <th className="border-b border-[var(--border)] p-2.5 text-left font-medium">Date</th>
                     </tr>
                   </thead>
                   <tbody>
                     {node.facts.map((fact, i) => (
-                      <tr key={i} className="text-[var(--text)] hover:bg-white/[0.02]">
-                        <td className="border-b border-white/[0.08] p-2.5">
+                      <tr key={i} className="text-[var(--text)] hover:bg-[var(--bg-tertiary)]">
+                        <td className="border-b border-[var(--border-light)] p-2.5">
                           {fact.code && fact.code !== '—' ? (
                             <code className="text-[var(--accent)] bg-[var(--accent-light)] px-1.5 py-0.5 rounded font-mono">{fact.code}</code>
                           ) : (
                             <span className="text-[var(--text-dim)]">—</span>
                           )}
                         </td>
-                        <td className="border-b border-white/[0.08] p-2.5">{fact.display || '—'}</td>
-                        <td className="border-b border-white/[0.08] p-2.5">
+                        <td className="border-b border-[var(--border-light)] p-2.5">{fact.display || '—'}</td>
+                        <td className="border-b border-[var(--border-light)] p-2.5">
                           {fact.rawCode && fact.rawCode !== '—' ? (
                             <span className="font-medium">{fact.rawCode}</span>
                           ) : (
                             <span className="text-[var(--text-dim)]">—</span>
                           )}
                         </td>
-                        <td className="border-b border-white/[0.08] p-2.5 text-[var(--text-muted)]">{fact.rawDisplay || '—'}</td>
-                        <td className="border-b border-white/[0.08] p-2.5 text-[var(--text-muted)]">{fact.date || '—'}</td>
+                        <td className="border-b border-[var(--border-light)] p-2.5 text-[var(--text-muted)]">{fact.rawDisplay || '—'}</td>
+                        <td className="border-b border-[var(--border-light)] p-2.5 text-[var(--text-muted)]">{fact.date || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2892,7 +2892,7 @@ function EvaluationFlowItem({
 
 function SummaryPill({ label, value, positive }: { label: string; value: string; positive: boolean }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-full border border-white/[0.18] bg-white/[0.06] text-sm">
+    <div className="flex items-center gap-2 px-3 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-sm">
       <span className="text-[var(--text-muted)]">{label}</span>
       <span className={`font-bold ${positive ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>{value}</span>
     </div>
@@ -3063,9 +3063,9 @@ function PatientEditModal({
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
       onClick={(e) => e.target === e.currentTarget && onCancel()}
     >
-      <div className="w-[min(1100px,95vw)] max-h-[90vh] overflow-hidden bg-[var(--bg-secondary)] border border-white/[0.15] rounded-xl shadow-2xl flex flex-col">
+      <div className="w-[min(1100px,95vw)] max-h-[90vh] overflow-hidden bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl shadow-2xl flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/[0.12]">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-[var(--accent-light)] flex items-center justify-center">
               <Edit3 className="w-5 h-5 text-[var(--accent)]" />
@@ -3078,7 +3078,7 @@ function PatientEditModal({
           <div className="flex items-center gap-2">
             <button
               onClick={onCancel}
-              className="px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-white/[0.2] text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+              className="px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
             >
               Cancel
             </button>
@@ -3093,7 +3093,7 @@ function PatientEditModal({
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-white/[0.12] overflow-x-auto">
+        <div className="flex border-b border-[var(--border)] overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -3103,7 +3103,7 @@ function PatientEditModal({
                 className={`flex items-center gap-2 px-4 py-3 text-sm whitespace-nowrap transition-colors ${
                   activeTab === tab.id
                     ? 'text-[var(--accent)] border-b-2 border-[var(--accent)] bg-[var(--accent-light)]'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-white/[0.02]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-tertiary)]'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -3123,7 +3123,7 @@ function PatientEditModal({
                   type="text"
                   value={patient.name}
                   onChange={(e) => updateName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-white/[0.15] text-[var(--text)] focus:border-[var(--accent)]/50 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--text)] focus:border-[var(--accent)]/50 focus:outline-none"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -3133,7 +3133,7 @@ function PatientEditModal({
                     type="date"
                     value={patient.demographics.birthDate}
                     onChange={(e) => updateDemographics('birthDate', e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-white/[0.15] text-[var(--text)] focus:border-[var(--accent)]/50 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--text)] focus:border-[var(--accent)]/50 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -3141,7 +3141,7 @@ function PatientEditModal({
                   <select
                     value={patient.demographics.gender}
                     onChange={(e) => updateDemographics('gender', e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-white/[0.15] text-[var(--text)] focus:border-[var(--accent)]/50 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--text)] focus:border-[var(--accent)]/50 focus:outline-none"
                   >
                     <option value="male">Male</option>
                     <option value="female">Female</option>
@@ -3154,7 +3154,7 @@ function PatientEditModal({
                     type="text"
                     value={patient.demographics.race || ''}
                     onChange={(e) => updateDemographics('race', e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-white/[0.15] text-[var(--text)] focus:border-[var(--accent)]/50 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--text)] focus:border-[var(--accent)]/50 focus:outline-none"
                     placeholder="e.g., White, Black, Asian"
                   />
                 </div>
@@ -3164,7 +3164,7 @@ function PatientEditModal({
                     type="text"
                     value={patient.demographics.ethnicity || ''}
                     onChange={(e) => updateDemographics('ethnicity', e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-white/[0.15] text-[var(--text)] focus:border-[var(--accent)]/50 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--text)] focus:border-[var(--accent)]/50 focus:outline-none"
                     placeholder="e.g., Hispanic or Latino"
                   />
                 </div>
@@ -3190,10 +3190,10 @@ function PatientEditModal({
                     </button>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <input type="text" value={dx.code} onChange={(e) => updateDiagnosis(index, 'code', e.target.value)} placeholder="Code (e.g., I10)" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="text" value={dx.display} onChange={(e) => updateDiagnosis(index, 'display', e.target.value)} placeholder="Description" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="date" value={dx.onsetDate} onChange={(e) => updateDiagnosis(index, 'onsetDate', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <select value={dx.status} onChange={(e) => updateDiagnosis(index, 'status', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none">
+                    <input type="text" value={dx.code} onChange={(e) => updateDiagnosis(index, 'code', e.target.value)} placeholder="Code (e.g., I10)" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="text" value={dx.display} onChange={(e) => updateDiagnosis(index, 'display', e.target.value)} placeholder="Description" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="date" value={dx.onsetDate} onChange={(e) => updateDiagnosis(index, 'onsetDate', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <select value={dx.status} onChange={(e) => updateDiagnosis(index, 'status', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none">
                       <option value="active">Active</option>
                       <option value="resolved">Resolved</option>
                       <option value="inactive">Inactive</option>
@@ -3220,10 +3220,10 @@ function PatientEditModal({
                     </button>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <input type="text" value={enc.code} onChange={(e) => updateEncounter(index, 'code', e.target.value)} placeholder="Code (e.g., 99213)" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="text" value={enc.display} onChange={(e) => updateEncounter(index, 'display', e.target.value)} placeholder="Description" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="date" value={enc.date} onChange={(e) => updateEncounter(index, 'date', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <select value={enc.type} onChange={(e) => updateEncounter(index, 'type', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none">
+                    <input type="text" value={enc.code} onChange={(e) => updateEncounter(index, 'code', e.target.value)} placeholder="Code (e.g., 99213)" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="text" value={enc.display} onChange={(e) => updateEncounter(index, 'display', e.target.value)} placeholder="Description" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="date" value={enc.date} onChange={(e) => updateEncounter(index, 'date', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <select value={enc.type} onChange={(e) => updateEncounter(index, 'type', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none">
                       <option value="outpatient">Outpatient</option>
                       <option value="inpatient">Inpatient</option>
                       <option value="emergency">Emergency</option>
@@ -3264,7 +3264,7 @@ function PatientEditModal({
                         value={proc.code}
                         onChange={(e) => updateProcedure(index, 'code', e.target.value)}
                         placeholder="e.g., 45378"
-                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none"
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none"
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -3274,7 +3274,7 @@ function PatientEditModal({
                         value={proc.display}
                         onChange={(e) => updateProcedure(index, 'display', e.target.value)}
                         placeholder="e.g., Colonoscopy, flexible, diagnostic"
-                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none"
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none"
                       />
                     </div>
                     <div>
@@ -3283,7 +3283,7 @@ function PatientEditModal({
                         type="date"
                         value={proc.date}
                         onChange={(e) => updateProcedure(index, 'date', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none"
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -3318,11 +3318,11 @@ function PatientEditModal({
                     </button>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <input type="text" value={obs.code} onChange={(e) => updateObservation(index, 'code', e.target.value)} placeholder="Code (e.g., 8480-6)" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="text" value={obs.display} onChange={(e) => updateObservation(index, 'display', e.target.value)} placeholder="Description" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="number" value={obs.value ?? ''} onChange={(e) => updateObservation(index, 'value', e.target.value ? parseFloat(e.target.value) : undefined)} placeholder="Value" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="text" value={obs.unit || ''} onChange={(e) => updateObservation(index, 'unit', e.target.value)} placeholder="Unit (e.g., mm[Hg])" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="date" value={obs.date} onChange={(e) => updateObservation(index, 'date', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="text" value={obs.code} onChange={(e) => updateObservation(index, 'code', e.target.value)} placeholder="Code (e.g., 8480-6)" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="text" value={obs.display} onChange={(e) => updateObservation(index, 'display', e.target.value)} placeholder="Description" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="number" value={obs.value ?? ''} onChange={(e) => updateObservation(index, 'value', e.target.value ? parseFloat(e.target.value) : undefined)} placeholder="Value" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="text" value={obs.unit || ''} onChange={(e) => updateObservation(index, 'unit', e.target.value)} placeholder="Unit (e.g., mm[Hg])" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="date" value={obs.date} onChange={(e) => updateObservation(index, 'date', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
                   </div>
                 </div>
               ))}
@@ -3345,10 +3345,10 @@ function PatientEditModal({
                     </button>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <input type="text" value={med.code} onChange={(e) => updateMedication(index, 'code', e.target.value)} placeholder="Code" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="text" value={med.display} onChange={(e) => updateMedication(index, 'display', e.target.value)} placeholder="Medication name" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="date" value={med.startDate} onChange={(e) => updateMedication(index, 'startDate', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <select value={med.status} onChange={(e) => updateMedication(index, 'status', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none">
+                    <input type="text" value={med.code} onChange={(e) => updateMedication(index, 'code', e.target.value)} placeholder="Code" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="text" value={med.display} onChange={(e) => updateMedication(index, 'display', e.target.value)} placeholder="Medication name" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="date" value={med.startDate} onChange={(e) => updateMedication(index, 'startDate', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <select value={med.status} onChange={(e) => updateMedication(index, 'status', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none">
                       <option value="active">Active</option>
                       <option value="completed">Completed</option>
                       <option value="stopped">Stopped</option>
@@ -3375,10 +3375,10 @@ function PatientEditModal({
                     </button>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <input type="text" value={imm.code} onChange={(e) => updateImmunization(index, 'code', e.target.value)} placeholder="CVX Code" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="text" value={imm.display} onChange={(e) => updateImmunization(index, 'display', e.target.value)} placeholder="Vaccine name" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <input type="date" value={imm.date} onChange={(e) => updateImmunization(index, 'date', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
-                    <select value={imm.status} onChange={(e) => updateImmunization(index, 'status', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-white/[0.15] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none">
+                    <input type="text" value={imm.code} onChange={(e) => updateImmunization(index, 'code', e.target.value)} placeholder="CVX Code" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="text" value={imm.display} onChange={(e) => updateImmunization(index, 'display', e.target.value)} placeholder="Vaccine name" className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <input type="date" value={imm.date} onChange={(e) => updateImmunization(index, 'date', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none" />
+                    <select value={imm.status} onChange={(e) => updateImmunization(index, 'status', e.target.value)} className="px-3 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text)] text-sm focus:border-[var(--accent)]/50 focus:outline-none">
                       <option value="completed">Completed</option>
                       <option value="not-done">Not Done</option>
                     </select>

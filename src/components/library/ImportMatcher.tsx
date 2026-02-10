@@ -438,8 +438,8 @@ function MatchedComponentRow({ match, decision, onDecisionChange }: MatchedCompo
             <span
               className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0"
               style={{
-                backgroundColor: isExact ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.15)',
-                color: isExact ? '#22c55e' : '#eab308',
+                backgroundColor: isExact ? 'var(--success-light)' : 'var(--warning-light)',
+                color: isExact ? 'var(--success)' : 'var(--warning)',
               }}
             >
               {isExact ? 'Exact Match' : 'Similar'}
@@ -462,7 +462,7 @@ function MatchedComponentRow({ match, decision, onDecisionChange }: MatchedCompo
                   className="h-full rounded-full"
                   style={{
                     width: `${Math.round(match.similarity * 100)}%`,
-                    backgroundColor: match.similarity > 0.8 ? '#22c55e' : '#eab308',
+                    backgroundColor: match.similarity > 0.8 ? 'var(--success)' : 'var(--warning)',
                   }}
                 />
               </div>

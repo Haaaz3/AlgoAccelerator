@@ -905,16 +905,16 @@ export default function ComponentEditor({ componentId, onSave, onClose }: Compon
                             style={{
                               backgroundColor:
                                 child.complexity.level === 'low'
-                                  ? 'rgba(34,197,94,0.15)'
+                                  ? 'var(--complexity-low-bg)'
                                   : child.complexity.level === 'medium'
-                                  ? 'rgba(234,179,8,0.15)'
-                                  : 'rgba(239,68,68,0.15)',
+                                  ? 'var(--complexity-medium-bg)'
+                                  : 'var(--complexity-high-bg)',
                               color:
                                 child.complexity.level === 'low'
-                                  ? '#22c55e'
+                                  ? 'var(--complexity-low)'
                                   : child.complexity.level === 'medium'
-                                  ? '#eab308'
-                                  : '#ef4444',
+                                  ? 'var(--complexity-medium)'
+                                  : 'var(--complexity-high)',
                             }}
                           >
                             {child.complexity.score}
