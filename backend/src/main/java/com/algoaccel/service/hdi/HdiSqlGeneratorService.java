@@ -150,6 +150,15 @@ public class HdiSqlGeneratorService {
         }
     }
 
+    /**
+     * Simple method to generate SQL string from a measure.
+     * Used by MeasureService for basic SQL generation.
+     */
+    public String generateSql(Measure measure) {
+        SqlGenerationResult result = generateHdiSql(measure, null);
+        return result.sql();
+    }
+
     // ========================================================================
     // Predicate Extraction
     // ========================================================================

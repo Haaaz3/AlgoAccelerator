@@ -10,6 +10,7 @@ import com.algoaccel.model.enums.MeasureStatus;
 import com.algoaccel.model.measure.Measure;
 import com.algoaccel.model.validation.TestPatient;
 import com.algoaccel.repository.MeasureRepository;
+import com.algoaccel.service.hdi.HdiSqlGeneratorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
