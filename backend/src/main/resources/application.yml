@@ -44,6 +44,23 @@ security:
   auth:
     enabled: ${SECURITY_AUTH_ENABLED:true}
 
+# LLM configuration - API keys read from environment variables for security
+llm:
+  default-provider: ${LLM_DEFAULT_PROVIDER:anthropic}
+  anthropic:
+    api-key: ${ANTHROPIC_API_KEY:}
+    default-model: ${ANTHROPIC_MODEL:claude-sonnet-4-20250514}
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    default-model: ${OPENAI_MODEL:gpt-4o}
+  google:
+    api-key: ${GOOGLE_API_KEY:}
+    default-model: ${GOOGLE_MODEL:gemini-1.5-pro}
+  custom:
+    base-url: ${CUSTOM_LLM_URL:http://localhost:11434/v1}
+    model-name: ${CUSTOM_LLM_MODEL:llama2}
+    api-key: ${CUSTOM_LLM_API_KEY:}
+
 # Actuator endpoints for health checks (Kubernetes readiness/liveness probes)
 management:
   endpoints:

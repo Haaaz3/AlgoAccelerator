@@ -75,7 +75,7 @@ interface SettingsState {
   vsacApiKey: string;
 
   // Backend API Configuration
-  useBackendApi: boolean;
+  useBackendApi: boolean; // When true, LLM calls route through backend (API keys stored server-side)
   backendUrl: string;
 
   // Legacy (for backwards compatibility)

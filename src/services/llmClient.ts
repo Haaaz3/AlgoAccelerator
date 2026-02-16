@@ -5,6 +5,10 @@
  * Supports vision-based extraction, conversation history, and optional Zod schema validation.
  *
  * This eliminates code duplication across aiExtractor.ts, aiAssistant.ts, and MeasureCreator.tsx.
+ *
+ * Supports two modes:
+ * 1. Direct mode (default): Calls LLM APIs directly from the browser (requires API keys in frontend)
+ * 2. Backend proxy mode: Routes calls through the backend server (API keys stored server-side)
  */
 
 import type { z } from 'zod';
@@ -33,8 +37,8 @@ export interface LLMRequestOptions {
   /** The model to use (e.g., 'claude-sonnet-4-20250514', 'gpt-4o', 'gemini-1.5-pro') */
   model: string;
 
-  /** API key for the provider */
-  apiKey: string;
+  /** API key for the provider (not needed when using backend proxy) */
+  apiKey?: string;
 
   /** System prompt (used for Anthropic/OpenAI, prepended for Google) */
   systemPrompt?: string;
@@ -56,6 +60,12 @@ export interface LLMRequestOptions {
 
   /** Request JSON response format (supported by OpenAI and Google) */
   jsonMode?: boolean;
+
+  /** Use backend proxy for LLM calls (API keys stored server-side) */
+  useBackendProxy?: boolean;
+
+  /** Backend endpoint type (for proxy mode): 'complete', 'extract', or 'assist' */
+  backendEndpoint?: 'complete' | 'extract' | 'assist';
 }
 
 export interface LLMResponse {
@@ -360,17 +370,69 @@ async function callCustom(options: LLMRequestOptions): Promise<LLMResponse> {
 }
 
 // =============================================================================
+// BACKEND PROXY
+// =============================================================================
+
+/**
+ * Call LLM through the backend proxy.
+ * API keys are stored server-side, not exposed to the browser.
+ */
+async function callLLMViaBackend(options: LLMRequestOptions): Promise<LLMResponse> {
+  const { provider, model, systemPrompt, userPrompt, images, maxTokens, backendEndpoint = 'complete' } = options;
+
+  const endpoint = `/api/llm/${backendEndpoint}`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      provider,
+      model,
+      systemPrompt,
+      userPrompt,
+      images,
+      maxTokens,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.content || errorData.message || `Backend LLM error: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // Check if the response contains an error
+  if (data.content?.startsWith('Error:')) {
+    throw new Error(data.content);
+  }
+
+  return {
+    content: data.content,
+    tokensUsed: data.tokensUsed,
+  };
+}
+
+// =============================================================================
 // MAIN API
 // =============================================================================
 
 /**
  * Call an LLM with the given options.
  * Automatically routes to the appropriate provider implementation.
+ * If useBackendProxy is true, routes through the backend server.
  */
 export async function callLLM(options: LLMRequestOptions): Promise<LLMResponse> {
-  const { provider, apiKey, customConfig } = options;
+  const { provider, apiKey, customConfig, useBackendProxy } = options;
 
-  // Validate API key (except for custom where it might be optional)
+  // Use backend proxy if requested
+  if (useBackendProxy) {
+    return callLLMViaBackend(options);
+  }
+
+  // Direct mode: validate API key (except for custom where it might be optional)
   if (provider !== 'custom' && !apiKey) {
     throw new Error(`API key is required for ${provider} provider`);
   }
@@ -488,4 +550,31 @@ export function supportsVision(provider: LLMProvider, model: string): boolean {
       // Unknown - assume no vision support
       return false;
   }
+}
+
+// =============================================================================
+// BACKEND PROVIDER INFO
+// =============================================================================
+
+export interface BackendProviderInfo {
+  id: string;
+  configured: boolean;
+  defaultModel: string;
+}
+
+export interface BackendProvidersResponse {
+  providers: BackendProviderInfo[];
+  defaultProvider: string;
+}
+
+/**
+ * Fetch available LLM providers from the backend.
+ * This shows which providers are configured server-side.
+ */
+export async function getBackendProviders(): Promise<BackendProvidersResponse> {
+  const response = await fetch('/api/llm/providers');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch LLM providers: ${response.status}`);
+  }
+  return response.json();
 }
