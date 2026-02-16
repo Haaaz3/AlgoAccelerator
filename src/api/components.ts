@@ -20,8 +20,6 @@ export interface ComponentDto {
   id: string;
   name: string;
   type: string;
-  category: string;
-  status: string;
   description: string | null;
   cqlExpression: string | null;
   sqlTemplate: string | null;
@@ -44,28 +42,35 @@ export interface ComponentDto {
     score: number;
     factors: string[];
   } | null;
-  version: {
-    current: string;
-    history: Array<{
-      version: string;
-      date: string;
-      changes: string;
+  versionInfo: {
+    versionId: string;
+    status: string;
+    versionHistory: Array<{
+      versionId: string;
+      status: string;
+      createdAt: string;
+      createdBy: string;
+      changeDescription: string;
     }>;
+    approvedBy: string | null;
+    approvedAt: string | null;
+    reviewNotes: string | null;
   } | null;
   usage: {
-    totalUses: number;
-    measures: string[];
-    lastUsed: string | null;
+    usageCount: number;
+    measureIds: string[];
+    lastUsedAt: string | null;
   } | null;
   metadata: {
-    author: string | null;
-    createdAt: string | null;
-    updatedAt: string | null;
-    reviewedAt: string | null;
-    approvedBy: string | null;
+    category: string | null;
+    categoryAutoAssigned: boolean;
     tags: string[];
   } | null;
   childComponents: ComponentSummary[] | null;
+  createdAt: string | null;
+  createdBy: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
 }
 
 export interface CreateAtomicComponentRequest {

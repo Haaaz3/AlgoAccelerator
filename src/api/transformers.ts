@@ -411,41 +411,41 @@ export function transformComponentSummary(dto: ComponentSummary): LibraryCompone
 }
 
 export function transformComponentDto(dto: ComponentDto): LibraryComponent {
-  const category = mapComponentCategory(dto.category);
-  const status = mapApprovalStatus(dto.status);
+  const category = mapComponentCategory(dto.metadata?.category);
+  const status = mapApprovalStatus(dto.versionInfo?.status);
   const now = new Date().toISOString();
 
   const versionInfo: ComponentVersionInfo = {
-    versionId: dto.version?.current || '1.0',
-    versionHistory: dto.version?.history?.map(h => ({
-      versionId: h.version,
-      status: 'approved' as ApprovalStatus,
-      createdAt: h.date,
-      createdBy: 'system',
-      changeDescription: h.changes,
+    versionId: dto.versionInfo?.versionId || '1.0',
+    versionHistory: dto.versionInfo?.versionHistory?.map(h => ({
+      versionId: h.versionId,
+      status: mapApprovalStatus(h.status),
+      createdAt: h.createdAt,
+      createdBy: h.createdBy,
+      changeDescription: h.changeDescription,
     })) || [{
-      versionId: dto.version?.current || '1.0',
+      versionId: dto.versionInfo?.versionId || '1.0',
       status,
-      createdAt: dto.metadata?.createdAt || now,
-      createdBy: dto.metadata?.author || 'system',
+      createdAt: dto.createdAt || now,
+      createdBy: dto.createdBy || 'system',
       changeDescription: 'Initial version',
     }],
     status,
-    approvedBy: dto.metadata?.approvedBy || undefined,
-    approvedAt: dto.metadata?.reviewedAt || undefined,
+    approvedBy: dto.versionInfo?.approvedBy || undefined,
+    approvedAt: dto.versionInfo?.approvedAt || undefined,
   };
 
   const usage: ComponentUsage = {
-    measureIds: dto.usage?.measures || [],
-    usageCount: dto.usage?.totalUses || 0,
-    lastUsedAt: dto.usage?.lastUsed || undefined,
+    measureIds: dto.usage?.measureIds || [],
+    usageCount: dto.usage?.usageCount || 0,
+    lastUsedAt: dto.usage?.lastUsedAt || undefined,
   };
 
   const metadata: ComponentMetadata = {
-    createdAt: dto.metadata?.createdAt || now,
-    createdBy: dto.metadata?.author || 'system',
-    updatedAt: dto.metadata?.updatedAt || now,
-    updatedBy: dto.metadata?.author || 'system',
+    createdAt: dto.createdAt || now,
+    createdBy: dto.createdBy || 'system',
+    updatedAt: dto.updatedAt || now,
+    updatedBy: dto.updatedBy || 'system',
     category,
     tags: dto.metadata?.tags || [],
     source: { origin: 'ecqi' },

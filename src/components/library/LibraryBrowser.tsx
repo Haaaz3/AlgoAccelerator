@@ -152,7 +152,7 @@ export function LibraryBrowser() {
   const categoryCounts = useMemo(() => getCategoryCounts(), [components, getCategoryCounts]);
   const filteredComponents = useMemo(() => getFilteredComponents(), [components, filters, getFilteredComponents]);
 
-  const totalCount = components.length;
+  const totalCount = components.filter(c => c.versionInfo.status !== 'archived').length;
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFilters({ searchQuery: e.target.value });

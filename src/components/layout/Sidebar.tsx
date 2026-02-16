@@ -1,9 +1,17 @@
 import { FileText, CheckCircle, Code, Library, Database, Settings, X, ChevronRight, Layers } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
+import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 
 export function Sidebar() {
   const { activeTab, setActiveTab, activeMeasureId, setActiveMeasure, measures } = useMeasureStore();
+  const { components } = useComponentLibraryStore();
   const activeMeasure = measures.find(m => m.id === activeMeasureId);
+
+  // Count measures
+  const measureCount = measures.length;
+
+  // Count active (non-archived) components
+  const activeComponentCount = components.filter(c => c.versionInfo.status !== 'archived').length;
 
   // Count total unique value sets across all measures
   const allValueSets = measures.flatMap(m => m.valueSets);
@@ -11,8 +19,8 @@ export function Sidebar() {
 
   // Main navigation - always accessible
   const mainNavItems = [
-    { id: 'library' as const, icon: Library, label: 'Measure Library' },
-    { id: 'components' as const, icon: Layers, label: 'Component Library' },
+    { id: 'library' as const, icon: Library, label: 'Measure Library', badge: measureCount > 0 ? measureCount : undefined },
+    { id: 'components' as const, icon: Layers, label: 'Component Library', badge: activeComponentCount > 0 ? activeComponentCount : undefined },
     { id: 'valuesets' as const, icon: Database, label: 'Value Set Library', badge: uniqueValueSetCount > 0 ? uniqueValueSetCount : undefined },
     { id: 'settings' as const, icon: Settings, label: 'Settings' },
   ];
