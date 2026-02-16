@@ -27,6 +27,7 @@ export interface ExtractedDocument {
   content: string;
   metadata: Record<string, string>;
   tables?: string[][];
+  pageImages?: string[]; // Base64 encoded PNG images of PDF pages (fallback for image-based PDFs)
   error?: string;
 }
 
@@ -34,6 +35,7 @@ export interface ExtractionResult {
   documents: ExtractedDocument[];
   combinedContent: string;
   errors: string[];
+  pageImages?: string[]; // Combined page images from all PDFs (for vision-based extraction)
 }
 
 /**
@@ -69,7 +71,12 @@ export async function extractFromFiles(files: File[]): Promise<ExtractionResult>
     .map(d => `\n=== FILE: ${d.filename} (${d.fileType}) ===\n${d.content}`)
     .join('\n\n');
 
-  return { documents, combinedContent, errors };
+  // Combine all page images from PDFs
+  const pageImages = documents
+    .filter(d => d.pageImages && d.pageImages.length > 0)
+    .flatMap(d => d.pageImages!);
+
+  return { documents, combinedContent, errors, pageImages: pageImages.length > 0 ? pageImages : undefined };
 }
 
 /**
@@ -123,12 +130,16 @@ function getFileType(filename: string): string {
 
 /**
  * Extract text from PDF using pdf.js
+ * Falls back to rendering pages as images if text extraction yields insufficient content
  */
 async function extractFromPDF(file: File): Promise<ExtractedDocument> {
   const metadata: Record<string, string> = {};
 
+  console.log(`[PDF Extraction] Starting extraction for: ${file.name} (${file.size} bytes)`);
+
   try {
     const arrayBuffer = await file.arrayBuffer();
+    console.log(`[PDF Extraction] ArrayBuffer loaded: ${arrayBuffer.byteLength} bytes`);
 
     // Create loading task with options for better compatibility
     const loadingTask = pdfjsLib.getDocument({
@@ -139,19 +150,28 @@ async function extractFromPDF(file: File): Promise<ExtractedDocument> {
     });
 
     const pdf = await loadingTask.promise;
+    console.log(`[PDF Extraction] PDF loaded successfully: ${pdf.numPages} pages`);
 
     metadata.pageCount = String(pdf.numPages);
 
     const pages: string[] = [];
+    let totalTextItems = 0;
+
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
+
+      console.log(`[PDF Extraction] Page ${i}: ${textContent.items.length} text items`);
+      totalTextItems += textContent.items.length;
 
       // Reconstruct text with proper spacing
       let lastY: number | null = null;
       let pageText = '';
 
       for (const item of textContent.items as any[]) {
+        // Skip items without str property
+        if (!item.str) continue;
+
         if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
           pageText += '\n';
         } else if (pageText && !pageText.endsWith(' ') && !pageText.endsWith('\n')) {
@@ -161,10 +181,41 @@ async function extractFromPDF(file: File): Promise<ExtractedDocument> {
         lastY = item.transform[5];
       }
 
-      pages.push(`--- Page ${i} ---\n${pageText}`);
+      // Clean up extra whitespace
+      pageText = pageText.replace(/\s+/g, ' ').trim();
+
+      if (pageText) {
+        pages.push(`--- Page ${i} ---\n${pageText}`);
+      }
+      console.log(`[PDF Extraction] Page ${i} extracted text length: ${pageText.length} chars`);
     }
 
     const content = pages.join('\n\n');
+    console.log(`[PDF Extraction] Total extraction complete: ${content.length} chars from ${totalTextItems} text items`);
+    console.log(`[PDF Extraction] First 500 chars: ${content.substring(0, 500)}`);
+
+    // Check if extraction yielded meaningful content - if not, fall back to image rendering
+    if (content.length < 100) {
+      console.log(`[PDF Extraction] Insufficient text (${content.length} chars). Falling back to image rendering...`);
+      metadata.extractionMethod = 'image';
+
+      const pageImages = await renderPdfPagesToImages(pdf);
+
+      if (pageImages.length > 0) {
+        console.log(`[PDF Extraction] Successfully rendered ${pageImages.length} page images`);
+        metadata.warning = 'Text extraction failed - using image-based extraction';
+
+        return {
+          filename: file.name,
+          fileType: 'pdf',
+          content: `[PDF contains ${pdf.numPages} page(s) rendered as images for vision-based extraction]`,
+          metadata,
+          pageImages,
+        };
+      }
+    }
+
+    metadata.extractionMethod = 'text';
 
     return {
       filename: file.name,
@@ -174,7 +225,7 @@ async function extractFromPDF(file: File): Promise<ExtractedDocument> {
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`PDF extraction failed for ${file.name}:`, err);
+    console.error(`[PDF Extraction] Failed for ${file.name}:`, err);
 
     return {
       filename: file.name,
@@ -184,6 +235,51 @@ async function extractFromPDF(file: File): Promise<ExtractedDocument> {
       error: `PDF extraction failed: ${errorMessage}`,
     };
   }
+}
+
+/**
+ * Render PDF pages to base64 PNG images using canvas
+ */
+async function renderPdfPagesToImages(pdf: pdfjsLib.PDFDocumentProxy): Promise<string[]> {
+  const images: string[] = [];
+  const scale = 2.0; // Higher scale for better readability
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    try {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale });
+
+      // Create canvas element
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        console.warn(`[PDF Rendering] Could not get canvas context for page ${i}`);
+        continue;
+      }
+
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      // Render page to canvas
+      await page.render({
+        canvasContext: context,
+        viewport: viewport,
+      }).promise;
+
+      // Convert canvas to base64 PNG (without the data:image/png;base64, prefix)
+      const dataUrl = canvas.toDataURL('image/png');
+      const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
+
+      images.push(base64Data);
+      console.log(`[PDF Rendering] Page ${i} rendered: ${Math.round(base64Data.length / 1024)}KB`);
+
+    } catch (err) {
+      console.error(`[PDF Rendering] Failed to render page ${i}:`, err);
+    }
+  }
+
+  return images;
 }
 
 /**

@@ -115,6 +115,7 @@ export interface CustomLLMConfig {
 /**
  * Extract measure data from document content using AI
  * Supports multiple LLM providers: Anthropic (Claude), OpenAI (GPT), Google (Gemini), Custom/Local
+ * When pageImages are provided (for image-based PDFs), uses vision capability for extraction
  */
 export async function extractMeasureWithAI(
   documentContent: string,
@@ -122,7 +123,8 @@ export async function extractMeasureWithAI(
   onProgress?: (progress: ExtractionProgress) => void,
   provider: LLMProvider = 'anthropic',
   model?: string,
-  customConfig?: CustomLLMConfig
+  customConfig?: CustomLLMConfig,
+  pageImages?: string[] // Base64 encoded PNG images for vision-based extraction
 ): Promise<AIExtractionResult> {
   // For custom provider, API key is optional but base URL is required
   if (provider === 'custom') {
@@ -166,7 +168,7 @@ export async function extractMeasureWithAI(
     let tokensUsed: number | undefined;
 
     if (provider === 'anthropic') {
-      const result = await callAnthropicAPI(apiKey, actualModel, systemPrompt, userPrompt);
+      const result = await callAnthropicAPI(apiKey, actualModel, systemPrompt, userPrompt, pageImages);
       content = result.content;
       tokensUsed = result.tokensUsed;
     } else if (provider === 'openai') {
@@ -187,11 +189,22 @@ export async function extractMeasureWithAI(
 
     onProgress?.({ stage: 'parsing', message: 'Parsing extraction results...', progress: 40 });
 
+    console.log('[AI Extractor] Received response from API:', {
+      contentLength: content.length,
+      contentPreview: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
+      tokensUsed,
+    });
+
+    if (!content || content.trim().length === 0) {
+      console.error('[AI Extractor] Empty response from API');
+      throw new Error('AI returned empty response. The document may not contain enough recognizable measure content.');
+    }
+
     let extractedData = parseAIResponse(content);
 
     if (!extractedData) {
-      console.error('Failed to parse AI response');
-      throw new Error('Failed to parse AI response');
+      console.error('[AI Extractor] Failed to parse AI response:', content.substring(0, 1000));
+      throw new Error('Failed to parse AI response. The AI may not have returned valid JSON.');
     }
 
     // --- Verification Pass: second AI call to audit extraction completeness ---
@@ -418,8 +431,42 @@ async function callAnthropicAPI(
   apiKey: string,
   model: string,
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  pageImages?: string[] // Base64 encoded PNG images for vision-based extraction
 ): Promise<{ content: string; tokensUsed?: number }> {
+  // Build message content - include images if available for vision-based extraction
+  let messageContent: any;
+
+  if (pageImages && pageImages.length > 0) {
+    console.log(`[AI Extractor] Using vision mode with ${pageImages.length} page images`);
+
+    // Build content array with images first, then text prompt
+    const contentBlocks: any[] = [];
+
+    // Add each page image
+    for (let i = 0; i < pageImages.length; i++) {
+      contentBlocks.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: 'image/png',
+          data: pageImages[i],
+        },
+      });
+    }
+
+    // Add text prompt after images
+    contentBlocks.push({
+      type: 'text',
+      text: userPrompt,
+    });
+
+    messageContent = contentBlocks;
+  } else {
+    // Standard text-only mode
+    messageContent = userPrompt;
+  }
+
   const response = await fetch(ANTHROPIC_API_URL, {
     method: 'POST',
     headers: {
@@ -432,7 +479,7 @@ async function callAnthropicAPI(
       model,
       max_tokens: 16000,
       system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
+      messages: [{ role: 'user', content: messageContent }],
     }),
   });
 

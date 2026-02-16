@@ -55,6 +55,17 @@ export async function ingestMeasureFiles(
 
     const extractionResult = await extractFromFiles(files);
 
+    console.log('[Measure Ingestion] Extraction result:', {
+      documentsCount: extractionResult.documents.length,
+      combinedContentLength: extractionResult.combinedContent.length,
+      errors: extractionResult.errors,
+      documentDetails: extractionResult.documents.map(d => ({
+        filename: d.filename,
+        contentLength: d.content.length,
+        error: d.error,
+      })),
+    });
+
     onProgress?.({
       stage: 'extracting',
       message: `Extracted text from ${extractionResult.documents.length} document(s)`,
@@ -63,6 +74,26 @@ export async function ingestMeasureFiles(
     });
 
     if (!extractionResult.combinedContent || extractionResult.combinedContent.length < 100) {
+      // Build a helpful error message based on what went wrong
+      let errorMessage = 'Could not extract text from this PDF.';
+
+      if (extractionResult.combinedContent.length === 0) {
+        errorMessage = 'Could not extract any text from this PDF. The document may be image-based (scanned) or contain only graphics.';
+      } else if (extractionResult.combinedContent.length < 100) {
+        errorMessage = `Only ${extractionResult.combinedContent.length} characters were extracted from this PDF. The document may be mostly images or have embedded text that cannot be read.`;
+      }
+
+      if (extractionResult.errors.length > 0) {
+        errorMessage += ` Errors: ${extractionResult.errors.join('; ')}`;
+      }
+
+      errorMessage += ' Please try a text-based PDF or paste the measure specification directly.';
+
+      console.warn('[Measure Ingestion] Insufficient content extracted:', {
+        contentLength: extractionResult.combinedContent.length,
+        content: extractionResult.combinedContent.substring(0, 200),
+      });
+
       return {
         success: false,
         documentInfo: {
@@ -70,7 +101,7 @@ export async function ingestMeasureFiles(
           totalCharacters: extractionResult.combinedContent.length,
           extractionErrors: extractionResult.errors,
         },
-        error: 'Unable to extract meaningful content from the uploaded files. Please ensure the files contain readable text.',
+        error: errorMessage,
       };
     }
 
@@ -100,6 +131,13 @@ export async function ingestMeasureFiles(
       progress: 30,
     });
 
+    console.log('[Measure Ingestion] Sending to AI:', {
+      provider,
+      model,
+      contentLength: extractionResult.combinedContent.length,
+      contentPreview: extractionResult.combinedContent.substring(0, 500) + '...',
+    });
+
     const aiResult = await extractMeasureWithAI(
       extractionResult.combinedContent,
       apiKey,
@@ -112,7 +150,8 @@ export async function ingestMeasureFiles(
       },
       provider,
       model,
-      customConfig
+      customConfig,
+      extractionResult.pageImages // Pass page images for vision-based extraction fallback
     );
 
     if (!aiResult.success || !aiResult.ums) {
