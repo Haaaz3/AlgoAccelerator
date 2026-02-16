@@ -2,11 +2,10 @@
  * Component Library Store
  *
  * Zustand store for managing the reusable component library.
- * Follows the same pattern as measureStore.ts with persist middleware.
+ * Fetches components from the backend API.
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type {
   LibraryComponent,
   AtomicComponent,
@@ -41,6 +40,8 @@ import {
 import { sampleAtomics, sampleComposites, sampleCategories } from '../data/sampleLibraryData';
 import type { DataElement, LogicalClause, UniversalMeasureSpec } from '../types/ums';
 import { validateReferentialIntegrity, formatMismatches } from '../utils/integrityCheck';
+import { getComponents, getComponent } from '../api/components';
+import { transformComponentDto, transformComponentSummary } from '../api/transformers';
 
 // ============================================================================
 // State Interface
@@ -50,6 +51,11 @@ interface ComponentLibraryState {
   // Data
   components: LibraryComponent[];
   initialized: boolean;
+
+  // API loading state
+  isLoadingFromApi: boolean;
+  apiError: string | null;
+  lastLoadedAt: string | null;
 
   // UI State
   selectedComponentId: ComponentId | null;
@@ -66,7 +72,10 @@ interface ComponentLibraryState {
   toggleMergeSelection: (componentId: string) => void;
   clearMergeSelection: () => void;
 
-  // Actions
+  // API Actions
+  loadFromApi: () => Promise<void>;
+
+  // Actions (kept for backwards compatibility)
   initializeWithSampleData: () => void;
   addComponent: (component: LibraryComponent) => void;
   updateComponent: (id: ComponentId, updates: Partial<LibraryComponent>) => void;
@@ -142,11 +151,13 @@ interface ComponentLibraryState {
 // ============================================================================
 
 export const useComponentLibraryStore = create<ComponentLibraryState>()(
-  persist(
     (set, get) => ({
       // Initial state
       components: [],
       initialized: false,
+      isLoadingFromApi: false,
+      apiError: null,
+      lastLoadedAt: null,
       selectedComponentId: null,
       filters: { showArchived: true },
       editingComponentId: null,
@@ -175,7 +186,63 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
         set({ selectedForMerge: new Set() });
       },
 
-      // Initialize with sample data
+      // Load components from backend API
+      loadFromApi: async () => {
+        // Skip if already loading
+        if (get().isLoadingFromApi) return;
+
+        set({ isLoadingFromApi: true, apiError: null });
+
+        try {
+          // Fetch component summaries
+          const summaries = await getComponents();
+
+          // Fetch full details for each component
+          const fullComponents = await Promise.all(
+            summaries.map(async (summary) => {
+              try {
+                const componentDto = await getComponent(summary.id);
+                return transformComponentDto(componentDto);
+              } catch (err) {
+                // If fetching full details fails, use summary-based component
+                console.warn(`Failed to load component details for ${summary.id}, using summary:`, err);
+                return transformComponentSummary(summary);
+              }
+            })
+          );
+
+          // Filter out nulls and hydrate with complexity scores
+          const validComponents = fullComponents
+            .filter((c): c is LibraryComponent => c !== null)
+            .map((component) => {
+              if (component.componentType === 'atomic') {
+                return {
+                  ...component,
+                  complexity: calculateAtomicComplexity(component as AtomicComponent),
+                };
+              }
+              return component;
+            });
+
+          set({
+            components: validComponents,
+            initialized: true,
+            isLoadingFromApi: false,
+            lastLoadedAt: new Date().toISOString(),
+          });
+
+          console.log(`Loaded ${validComponents.length} components from API`);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to load components';
+          console.error('Failed to load components from API:', error);
+          set({
+            isLoadingFromApi: false,
+            apiError: errorMessage,
+          });
+        }
+      },
+
+      // Initialize with sample data (fallback if API unavailable)
       initializeWithSampleData: () => {
         if (get().initialized) return;
 
@@ -1122,13 +1189,5 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
         }
         return counts as Record<ComponentCategory, number>;
       },
-    }),
-    {
-      name: 'measure-accelerator-component-library',
-      partialize: (state) => ({
-        components: state.components,
-        initialized: state.initialized,
-      }),
-    }
-  )
+    })
 );

@@ -8,13 +8,16 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
  * HTTP error with status code and response body.
  */
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    public statusText: string,
-    public body?: unknown
-  ) {
+  status: number;
+  statusText: string;
+  body?: unknown;
+
+  constructor(status: number, statusText: string, body?: unknown) {
     super(`API Error ${status}: ${statusText}`);
     this.name = 'ApiError';
+    this.status = status;
+    this.statusText = statusText;
+    this.body = body;
   }
 }
 

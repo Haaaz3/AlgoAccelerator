@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type {
   UniversalMeasureSpec,
   ReviewStatus,
@@ -18,6 +17,8 @@ import type { LogicalOperator } from '../types/ums';
 import { syncAgeConstraints } from '../utils/constraintSync';
 import { calculateDataElementComplexity } from '../services/complexityCalculator';
 import { migrateMeasure, needsMigration } from '../utils/measureMigration';
+import { getMeasures, getMeasure } from '../api/measures';
+import { transformMeasureDto } from '../api/transformers';
 
 export type CodeOutputFormat = 'cql' | 'synapse';
 
@@ -25,6 +26,11 @@ interface MeasureState {
   // Measures library
   measures: UniversalMeasureSpec[];
   activeMeasureId: string | null;
+
+  // API loading state
+  isLoadingFromApi: boolean;
+  apiError: string | null;
+  lastLoadedAt: string | null;
 
   // UI state
   activeTab: 'library' | 'editor' | 'validation' | 'codegen' | 'valuesets' | 'settings' | 'components';
@@ -38,6 +44,9 @@ interface MeasureState {
   // Validation
   validationTraces: PatientValidationTrace[];
   activeTraceId: string | null;
+
+  // API Actions
+  loadFromApi: () => Promise<void>;
 
   // Actions
   addMeasure: (measure: UniversalMeasureSpec) => void;
@@ -103,10 +112,12 @@ interface MeasureState {
 }
 
 export const useMeasureStore = create<MeasureState>()(
-  persist(
     (set, get) => ({
       measures: [],
       activeMeasureId: null,
+      isLoadingFromApi: false,
+      apiError: null,
+      lastLoadedAt: null,
       activeTab: 'library',
       editorSection: null,
       isUploading: false,
@@ -114,6 +125,58 @@ export const useMeasureStore = create<MeasureState>()(
       selectedCodeFormat: 'cql',
       validationTraces: [],
       activeTraceId: null,
+
+      // Load measures from backend API
+      loadFromApi: async () => {
+        // Skip if already loading
+        if (get().isLoadingFromApi) return;
+
+        set({ isLoadingFromApi: true, apiError: null });
+
+        try {
+          // Fetch measure summaries first
+          const summaries = await getMeasures();
+
+          // Fetch full details for each measure
+          const fullMeasures = await Promise.all(
+            summaries.map(async (summary) => {
+              try {
+                const measureDto = await getMeasure(summary.id);
+                return transformMeasureDto(measureDto);
+              } catch (err) {
+                console.error(`Failed to load measure ${summary.id}:`, err);
+                return null;
+              }
+            })
+          );
+
+          // Filter out any failed loads and apply migrations
+          const validMeasures = fullMeasures
+            .filter((m): m is UniversalMeasureSpec => m !== null)
+            .map((measure) => {
+              if (needsMigration(measure)) {
+                console.log(`Migrating measure ${measure.id} to FHIR-aligned schema`);
+                return migrateMeasure(measure);
+              }
+              return measure;
+            });
+
+          set({
+            measures: validMeasures,
+            isLoadingFromApi: false,
+            lastLoadedAt: new Date().toISOString(),
+          });
+
+          console.log(`Loaded ${validMeasures.length} measures from API`);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to load measures';
+          console.error('Failed to load measures from API:', error);
+          set({
+            isLoadingFromApi: false,
+            apiError: errorMessage,
+          });
+        }
+      },
 
       addMeasure: (measure) =>
         set((state) => {
@@ -1008,26 +1071,5 @@ export const useMeasureStore = create<MeasureState>()(
         const measure = get().measures.find((m) => m.id === measureId);
         return measure?.corrections || [];
       },
-    }),
-    {
-      name: 'measure-accelerator-storage',
-      partialize: (state) => ({
-        measures: state.measures,
-        validationTraces: state.validationTraces,
-      }),
-      // Auto-migrate measures on load from storage
-      onRehydrateStorage: () => (state) => {
-        if (state?.measures) {
-          const migratedMeasures = state.measures.map((measure) => {
-            if (needsMigration(measure)) {
-              console.log(`Migrating measure ${measure.id} to FHIR-aligned schema`);
-              return migrateMeasure(measure);
-            }
-            return measure;
-          });
-          state.measures = migratedMeasures;
-        }
-      },
-    }
-  )
+    })
 );
