@@ -17,6 +17,7 @@ import java.util.List;
 /**
  * Spring Security configuration.
  * Supports a 'dev' profile with security disabled.
+ * CORS origins are configurable via cors.allowed-origins property.
  */
 @Configuration
 @EnableWebSecurity
@@ -25,15 +26,20 @@ public class SecurityConfig {
     @Value("${security.auth.enabled:true}")
     private boolean authEnabled;
 
+    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000}")
+    private String allowedOriginsConfig;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:3000"
-        ));
+
+        // Parse comma-separated origins from config (supports environment variable override)
+        List<String> origins = Arrays.stream(allowedOriginsConfig.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
+        configuration.setAllowedOrigins(origins);
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

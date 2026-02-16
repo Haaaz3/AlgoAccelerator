@@ -17,7 +17,7 @@ import type { LogicalOperator } from '../types/ums';
 import { syncAgeConstraints } from '../utils/constraintSync';
 import { calculateDataElementComplexity } from '../services/complexityCalculator';
 import { migrateMeasure, needsMigration } from '../utils/measureMigration';
-import { getMeasures, getMeasure } from '../api/measures';
+import { getMeasuresFull } from '../api/measures';
 import { transformMeasureDto } from '../api/transformers';
 
 export type CodeOutputFormat = 'cql' | 'synapse';
@@ -134,24 +134,19 @@ export const useMeasureStore = create<MeasureState>()(
         set({ isLoadingFromApi: true, apiError: null });
 
         try {
-          // Fetch measure summaries first
-          const summaries = await getMeasures();
+          // Fetch all measures with full details in a single request (avoids N+1)
+          const measureDtos = await getMeasuresFull();
 
-          // Fetch full details for each measure
-          const fullMeasures = await Promise.all(
-            summaries.map(async (summary) => {
+          // Transform DTOs and apply migrations
+          const validMeasures = measureDtos
+            .map(dto => {
               try {
-                const measureDto = await getMeasure(summary.id);
-                return transformMeasureDto(measureDto);
+                return transformMeasureDto(dto);
               } catch (err) {
-                console.error(`Failed to load measure ${summary.id}:`, err);
+                console.error(`Failed to transform measure ${dto.id}:`, err);
                 return null;
               }
             })
-          );
-
-          // Filter out any failed loads and apply migrations
-          const validMeasures = fullMeasures
             .filter((m): m is UniversalMeasureSpec => m !== null)
             .map((measure) => {
               if (needsMigration(measure)) {

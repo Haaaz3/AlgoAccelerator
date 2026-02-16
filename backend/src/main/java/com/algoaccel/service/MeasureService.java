@@ -47,6 +47,16 @@ public class MeasureService {
     }
 
     /**
+     * Get all measures with full details (avoids N+1 queries).
+     */
+    @Transactional(readOnly = true)
+    public List<MeasureDto> getAllMeasuresFull() {
+        return measureRepository.findAll().stream()
+            .map(measureMapper::toDto)
+            .collect(Collectors.toList());
+    }
+
+    /**
      * Get all measures filtered by status.
      */
     @Transactional(readOnly = true)

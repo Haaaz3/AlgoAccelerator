@@ -47,6 +47,17 @@ public class MeasureController {
     }
 
     /**
+     * Get all measures with full details in a single request.
+     * This endpoint eliminates the N+1 query problem by fetching all measures
+     * with their complete data in one database transaction.
+     */
+    @GetMapping("/full")
+    public ResponseEntity<List<MeasureDto>> getAllMeasuresFull() {
+        List<MeasureDto> measures = measureService.getAllMeasuresFull();
+        return ResponseEntity.ok(measures);
+    }
+
+    /**
      * Get a measure by ID.
      */
     @GetMapping("/{id}")

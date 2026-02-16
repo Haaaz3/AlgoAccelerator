@@ -189,13 +189,21 @@ export interface ValidationSummary {
 // API functions
 
 /**
- * Get all measures.
+ * Get all measures (summaries only).
  */
 export async function getMeasures(params?: {
   status?: string;
   search?: string;
 }): Promise<MeasureSummary[]> {
   return get<MeasureSummary[]>('/measures', params);
+}
+
+/**
+ * Get all measures with full details in a single request.
+ * This eliminates the N+1 query problem by fetching everything at once.
+ */
+export async function getMeasuresFull(): Promise<MeasureDto[]> {
+  return get<MeasureDto[]>('/measures/full');
 }
 
 /**

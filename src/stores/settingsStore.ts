@@ -116,7 +116,7 @@ export const useSettingsStore = create<SettingsState>()(
       customLlmModelName: 'llama2',
       vsacApiKey: '',
       useBackendApi: false,
-      backendUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001',
+      backendUrl: import.meta.env.VITE_API_URL || 'http://localhost:8080', // Backend runs on 8080; Vite proxies /api
       anthropicApiKey: '', // Legacy
 
       setSelectedProvider: (provider) => {
