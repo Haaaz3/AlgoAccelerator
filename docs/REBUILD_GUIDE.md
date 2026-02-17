@@ -4,10 +4,17 @@ This guide provides step-by-step instructions for rebuilding AlgoAccelerator fro
 
 ## Prerequisites
 
+**Frontend:**
 - Node.js 18+
 - npm 9+
+
+**Backend:**
+- Java 17+ (JDK)
+- Maven 3.8+ (or use included wrapper)
+
+**General:**
 - Git
-- Code editor (VS Code recommended)
+- Code editor (VS Code or IntelliJ recommended)
 
 ## Step 1: Project Setup
 
@@ -350,14 +357,145 @@ function walkTree(node: LogicalClause | DataElement): void {
 }
 ```
 
-## Step 11: Build and Deploy
+## Step 11: Backend Setup (Spring Boot)
 
-### Development
+### Initialize Spring Boot Project
+
+Use Spring Initializr (https://start.spring.io/) or create manually:
+
+```bash
+mkdir backend && cd backend
+```
+
+**Dependencies:**
+- Spring Web
+- Spring Data JPA
+- H2 Database (dev)
+- PostgreSQL Driver (prod)
+- Lombok
+- Spring Webflux (for WebClient)
+
+### Backend Directory Structure
+
+```
+backend/
+├── src/main/java/com/algoaccel/
+│   ├── AlgoAccelApplication.java
+│   ├── config/
+│   │   ├── CorsConfig.java
+│   │   └── WebClientConfig.java
+│   ├── controller/
+│   │   ├── MeasureController.java
+│   │   ├── ComponentController.java
+│   │   └── ImportController.java
+│   ├── service/
+│   │   ├── MeasureService.java
+│   │   ├── ComponentService.java
+│   │   └── ImportService.java
+│   ├── model/
+│   │   ├── measure/
+│   │   └── component/
+│   ├── repository/
+│   └── dto/
+├── src/main/resources/
+│   ├── application.yml
+│   └── db/migration/
+└── pom.xml
+```
+
+### Key Backend Configuration
+
+**application.yml:**
+```yaml
+server:
+  port: 8080
+  servlet:
+    async:
+      timeout: 240000  # 4 minutes for LLM calls
+
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/algoaccel
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+```
+
+**WebClientConfig.java (for LLM API):**
+```java
+@Configuration
+public class WebClientConfig {
+    @Bean
+    public WebClient.Builder webClientBuilder() {
+        ConnectionProvider provider = ConnectionProvider.builder("llm-provider")
+            .maxConnections(50)
+            .maxIdleTime(Duration.ofSeconds(60))
+            .maxLifeTime(Duration.ofMinutes(5))
+            .build();
+
+        HttpClient httpClient = HttpClient.create(provider)
+            .responseTimeout(Duration.ofMinutes(5));
+
+        return WebClient.builder()
+            .clientConnector(new ReactorClientHttpConnector(httpClient));
+    }
+}
+```
+
+### Frontend-Backend Integration
+
+**vite.config.ts proxy:**
+```typescript
+export default defineConfig({
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8080'
+    }
+  }
+})
+```
+
+**API Module (`src/api/`):**
+```typescript
+// measures.ts
+export async function getMeasuresFull(): Promise<MeasureDto[]> {
+  const response = await fetch('/api/measures/full');
+  return response.json();
+}
+
+// components.ts
+export async function getComponents(): Promise<ComponentSummary[]> {
+  const response = await fetch('/api/components');
+  return response.json();
+}
+```
+
+## Step 12: Build and Deploy
+
+### Development (Both Services)
+
+**Terminal 1 - Backend:**
+```bash
+cd backend && ./mvnw spring-boot:run
+```
+
+**Terminal 2 - Frontend:**
 ```bash
 npm run dev
 ```
 
 ### Production Build
+
+**Backend:**
+```bash
+cd backend && ./mvnw package
+# Creates target/algoaccel-backend-1.0.0-SNAPSHOT.jar
+java -jar target/algoaccel-backend-1.0.0-SNAPSHOT.jar
+```
+
+**Frontend:**
 ```bash
 npm run build
 # Output in dist/
@@ -369,11 +507,18 @@ npm run preview
 ```
 
 ### Deploy
-Static files in `dist/` can be deployed to:
+
+**Frontend:** Static files in `dist/` can be deployed to:
 - Vercel
 - Netlify
 - AWS S3 + CloudFront
 - Any static hosting
+
+**Backend:** JAR file can be deployed to:
+- AWS EC2/ECS
+- Azure App Service
+- Google Cloud Run
+- Any Java hosting
 
 ## Incremental Rebuild Strategy
 

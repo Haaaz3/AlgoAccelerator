@@ -4,6 +4,7 @@ import com.algoaccel.dto.request.ImportRequest;
 import com.algoaccel.dto.response.ImportResultDto;
 import com.algoaccel.model.component.AtomicComponent;
 import com.algoaccel.model.component.LibraryComponent;
+import com.algoaccel.model.component.ComponentMetadata;
 import com.algoaccel.model.enums.*;
 import com.algoaccel.model.measure.*;
 import com.algoaccel.model.validation.TestPatient;
@@ -43,8 +44,9 @@ public class ImportService {
         int validationTracesImported = 0;
 
         try {
-            // Import components
-            if (request.components() != null) {
+            // Import components ONLY if explicitly provided (not empty)
+            // This prevents wiping out existing components when importing measures
+            if (request.components() != null && !request.components().isEmpty()) {
                 for (Map<String, Object> componentData : request.components()) {
                     try {
                         importComponent(componentData);
@@ -55,12 +57,16 @@ public class ImportService {
                 }
             }
 
-            // Import measures
+            // Import measures and auto-create components from their data elements
             if (request.measures() != null) {
                 for (Map<String, Object> measureData : request.measures()) {
                     try {
                         importMeasure(measureData);
                         measuresImported++;
+
+                        // BUG 2 FIX: Auto-create library components from measure data elements
+                        int autoCreated = createComponentsFromMeasure(measureData);
+                        componentsImported += autoCreated;
                     } catch (Exception e) {
                         log.warn("Failed to import measure: {}", e.getMessage());
                     }
@@ -100,6 +106,140 @@ public class ImportService {
                 "Import failed: " + e.getMessage()
             );
         }
+    }
+
+    /**
+     * Create library components from data elements in a measure.
+     * For each data element with a value set, creates an AtomicComponent if one doesn't exist.
+     */
+    @SuppressWarnings("unchecked")
+    private int createComponentsFromMeasure(Map<String, Object> measureData) {
+        int created = 0;
+
+        List<Map<String, Object>> populations = (List<Map<String, Object>>) measureData.get("populations");
+        if (populations == null) {
+            return 0;
+        }
+
+        for (Map<String, Object> population : populations) {
+            // Get the root clause (could be 'rootClause' or 'clause')
+            Map<String, Object> rootClause = (Map<String, Object>) population.get("rootClause");
+            if (rootClause == null) {
+                rootClause = (Map<String, Object>) population.get("clause");
+            }
+            if (rootClause != null) {
+                created += createComponentsFromClause(rootClause);
+            }
+        }
+
+        return created;
+    }
+
+    /**
+     * Recursively create components from data elements in a clause.
+     */
+    @SuppressWarnings("unchecked")
+    private int createComponentsFromClause(Map<String, Object> clauseData) {
+        int created = 0;
+
+        // Process data elements in this clause
+        List<Map<String, Object>> dataElements = (List<Map<String, Object>>) clauseData.get("dataElements");
+        if (dataElements == null) {
+            dataElements = (List<Map<String, Object>>) clauseData.get("elements");
+        }
+        if (dataElements != null) {
+            for (Map<String, Object> element : dataElements) {
+                if (createComponentFromDataElement(element)) {
+                    created++;
+                }
+            }
+        }
+
+        // Process child clauses recursively
+        List<Map<String, Object>> children = (List<Map<String, Object>>) clauseData.get("children");
+        if (children == null) {
+            children = (List<Map<String, Object>>) clauseData.get("childClauses");
+        }
+        if (children != null) {
+            for (Map<String, Object> child : children) {
+                created += createComponentsFromClause(child);
+            }
+        }
+
+        return created;
+    }
+
+    /**
+     * Create a library component from a data element if it has a value set.
+     * Returns true if a new component was created.
+     */
+    @SuppressWarnings("unchecked")
+    private boolean createComponentFromDataElement(Map<String, Object> elementData) {
+        // Extract value set info
+        Map<String, Object> valueSet = (Map<String, Object>) elementData.get("valueSet");
+        if (valueSet == null) {
+            return false;
+        }
+
+        String vsOid = (String) valueSet.get("oid");
+        String vsName = (String) valueSet.get("name");
+
+        // Skip if no meaningful value set identifier
+        if ((vsOid == null || vsOid.isEmpty()) && (vsName == null || vsName.isEmpty())) {
+            return false;
+        }
+
+        // Generate a component ID based on value set OID or name
+        String componentId = "comp-" + (vsOid != null && !vsOid.isEmpty() ? vsOid : vsName).hashCode();
+
+        // Check if component already exists
+        if (componentRepository.existsById(componentId)) {
+            log.debug("Component for value set {} already exists", vsOid != null ? vsOid : vsName);
+            return false;
+        }
+
+        // Create the component
+        AtomicComponent component = new AtomicComponent();
+        component.setId(componentId);
+        component.setName(vsName != null ? vsName : (String) elementData.get("description"));
+        component.setDescription((String) elementData.get("description"));
+
+        // Set category based on element type via ComponentMetadata
+        String elementType = (String) elementData.get("type");
+        if (elementType == null) {
+            elementType = (String) elementData.get("elementType");
+        }
+        ComponentMetadata metadata = ComponentMetadata.builder()
+                .category(mapElementTypeToCategory(elementType))
+                .categoryAutoAssigned(true)
+                .sourceOrigin("imported")
+                .build();
+        component.setMetadata(metadata);
+
+        componentRepository.save(component);
+        log.info("Auto-created component '{}' (id={}) from data element value set", component.getName(), componentId);
+
+        return true;
+    }
+
+    /**
+     * Map data element type to component category enum.
+     */
+    private ComponentCategory mapElementTypeToCategory(String elementType) {
+        if (elementType == null) {
+            return ComponentCategory.CLINICAL_OBSERVATIONS;
+        }
+        return switch (elementType.toLowerCase()) {
+            case "demographic" -> ComponentCategory.DEMOGRAPHICS;
+            case "encounter" -> ComponentCategory.ENCOUNTERS;
+            case "diagnosis" -> ComponentCategory.CONDITIONS;
+            case "procedure" -> ComponentCategory.PROCEDURES;
+            case "medication" -> ComponentCategory.MEDICATIONS;
+            case "observation" -> ComponentCategory.CLINICAL_OBSERVATIONS;
+            case "assessment" -> ComponentCategory.ASSESSMENTS;
+            case "laboratory", "lab" -> ComponentCategory.LABORATORY;
+            default -> ComponentCategory.CLINICAL_OBSERVATIONS;
+        };
     }
 
     /**

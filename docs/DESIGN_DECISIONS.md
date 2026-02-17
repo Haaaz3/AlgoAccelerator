@@ -341,13 +341,92 @@ interface PatientValidationTrace {
 </ErrorBoundary>
 ```
 
+## Backend Persistence
+
+### Decision: Spring Boot with JPA over Express.js
+
+**Choice:** Full Java backend with Spring Boot 3.2 and Spring Data JPA
+
+**Reasoning:**
+- Strong typing and compile-time safety
+- Mature ecosystem for enterprise applications
+- Built-in connection pooling, transaction management
+- Easy database migrations with Flyway
+- Better tooling for complex business logic
+
+**Trade-offs:**
+- Larger memory footprint than Node.js
+- Slower startup time in development
+- Requires JDK installation
+
+### Decision: Merge Strategy for loadFromApi()
+
+**Choice:** Component library `loadFromApi()` merges API data with local state instead of replacing
+
+**Reasoning:**
+- Components are created locally by `linkMeasureComponents()` and persisted asynchronously
+- If `loadFromApi()` replaced state before async persistence completes, local components would be lost
+- Merge preserves local-only components while updating from API
+
+**Implementation:**
+```typescript
+const apiComponentIds = new Set(apiComponents.map(c => c.id));
+const localOnlyComponents = currentComponents.filter(c => !apiComponentIds.has(c.id));
+const mergedComponents = [...apiComponents, ...localOnlyComponents];
+```
+
+### Decision: Auto-Create Components from Data Elements
+
+**Choice:** Backend ImportService auto-creates AtomicComponents from measure data elements
+
+**Reasoning:**
+- Ensures every data element has a corresponding library component
+- Reduces frontend-backend sync complexity
+- Components created even if frontend async persistence fails
+
+**Implementation:**
+- On measure import, scan all populations → clauses → data elements
+- For each data element with a value set, check if component exists by hash
+- If not, create AtomicComponent with inferred category
+
+### Decision: Direct LLM API Calls from Frontend
+
+**Choice:** When frontend has API key, bypass backend proxy for LLM calls
+
+**Reasoning:**
+- Backend WebClient was experiencing "connection prematurely closed" errors
+- Long-running LLM requests (60+ seconds) hit various timeout limits
+- Direct browser fetch has more reliable timeout handling
+- Reduces backend complexity and load
+
+**Trade-offs:**
+- API key exposed in browser (acceptable for user-provided keys)
+- Some LLMs don't support browser CORS (fallback to backend available)
+
+**Implementation:**
+```typescript
+// In extractionService.ts
+if (apiKey) {
+  // Direct call using browser fetch
+  const response = await callLLM({ provider, model, apiKey, ... });
+} else {
+  // Fall back to backend proxy
+  const response = await fetch('/api/llm/extract', ...);
+}
+```
+
 ## Future Considerations
 
-### Planned: Server-Side Persistence
-- PostgreSQL for measures and components
-- User authentication
-- Multi-user collaboration
-- Version history with rollback
+### Completed: Server-Side Persistence ✅
+- Spring Boot backend with JPA
+- H2 for development, PostgreSQL for production
+- Full CRUD for measures and components
+- Auto-component creation on import
+
+### Planned: User Authentication
+- Spring Security integration
+- JWT or session-based auth
+- Role-based access control
 
 ### Planned: Real-Time Collaboration
 - WebSocket or CRDT-based sync

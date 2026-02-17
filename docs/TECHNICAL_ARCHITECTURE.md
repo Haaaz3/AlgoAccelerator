@@ -2,7 +2,7 @@
 
 ## Overview
 
-AlgoAccelerator is a React-based single-page application with optional Express.js backend. It uses a client-first architecture with browser localStorage persistence, enabling offline-capable operation.
+AlgoAccelerator is a full-stack application with a React frontend and Spring Boot backend. It uses a hybrid persistence architecture: primary data storage in a PostgreSQL/H2 database with client-side caching in localStorage for performance and offline capability.
 
 ## Directory Structure
 
@@ -75,11 +75,18 @@ src/
 │
 ├── utils/                    # Utility functions
 │   ├── constraintSync.ts     # Timing sync utilities
+│   ├── inferCategory.ts      # Auto-category assignment
 │   ├── integrityCheck.ts     # Data validation
 │   ├── measureMigration.ts   # Schema migrations
 │   ├── measureValidator.ts   # UMS validation
 │   ├── specParser.ts         # Spec text parsing
 │   └── timingResolver.ts     # Timing calculation
+│
+├── api/                      # Backend API integration
+│   ├── measures.ts           # Measure API calls
+│   ├── components.ts         # Component API calls
+│   ├── import.ts             # Import API calls
+│   └── transformers.ts       # DTO ↔ UMS transformers
 │
 └── data/                     # Sample data
     ├── sampleMeasures.ts     # Example measures
@@ -90,7 +97,7 @@ src/
 
 ### Zustand Stores
 
-The application uses four Zustand stores with localStorage persistence:
+The application uses four Zustand stores with hybrid persistence (localStorage + backend API):
 
 #### measureStore.ts
 **Persistence Key:** `algo-accelerator-storage`
@@ -120,7 +127,7 @@ interface MeasureState {
 #### componentLibraryStore.ts
 **Persistence Key:** `algo-accelerator-component-library`
 
-Stores reusable component library.
+Stores reusable component library with backend sync.
 
 ```typescript
 interface ComponentLibraryState {
@@ -129,16 +136,23 @@ interface ComponentLibraryState {
   editingComponentId: ComponentId | null;
   filters: LibraryBrowserFilters;
   initialized: boolean;
+  // API sync state
+  isLoadingFromApi: boolean;
+  apiError: string | null;
+  lastLoadedAt: string | null;
 }
 ```
 
 **Key Actions:**
-- `addComponent/updateComponent` - CRUD
-- `linkMeasureComponents` - Auto-link measure to library
+- `loadFromApi` - Fetch from backend, **merge** with local (preserves local-only)
+- `addComponent/deleteComponent` - CRUD with backend persistence
+- `linkMeasureComponents` - Auto-link measure to library, persist new components
 - `mergeComponents` - Combine components
 - `syncComponentToMeasures` - Propagate changes
 - `recalculateUsage` - Update usage counts
 - `approve/archive` - Status management
+
+**Important:** `loadFromApi()` **merges** API components with local state rather than replacing. This prevents loss of locally created components that haven't been synced to the backend yet.
 
 #### componentCodeStore.ts
 **Persistence Key:** `component-code-storage`
@@ -270,12 +284,30 @@ documentLoader.ts::extractFromFiles()
     ↓ (PDF.js for PDFs)
 measureIngestion.ts::ingestMeasureFiles()
     ↓
-aiExtractor.ts::extractMeasureWithAI()
-    ↓ (LLM API call)
-UMS Created
+extractionService.ts::extractMeasure()
+    ↓
+    ├── If frontend API key available:
+    │       llmClient.ts::callLLM() (direct to LLM provider)
+    │
+    └── Else: backend proxy
+            POST /api/llm/extract → LlmService.java
+    ↓
+UMS Created (with unique IDs for all entities)
     ↓
 componentLibraryStore.linkMeasureComponents()
+    ↓ (creates local components, persists async)
+measureStore.importMeasure()
+    ↓
+Backend ImportService.java
+    ↓
+    ├── Save measure with populations to database
+    └── Auto-create AtomicComponents from data element value sets
 ```
+
+**Extraction Service Features:**
+- Direct LLM API calls when frontend API key is configured (faster, no timeout issues)
+- Unique ID generation with random component (prevents duplicate entity errors)
+- Structured JSON response parsing with validation
 
 ### Code Generation Pipeline
 
@@ -348,21 +380,66 @@ Force component remount on selection change:
 />
 ```
 
-## Backend (Optional)
+## Backend Architecture
 
-The `server/` directory contains an Express.js API for:
-- VSAC API proxying
-- LLM API proxying (avoids CORS)
-- Future: Authentication, database storage
+The `backend/` directory contains a Spring Boot 3.2 application providing:
+- RESTful API for measures and components
+- Database persistence (H2/PostgreSQL)
+- LLM API proxying with timeout management
+- Auto-creation of components from measure data elements
 
 ```
-server/
-├── index.js          # Express app
-├── routes/
-│   ├── vsac.js       # VSAC endpoints
-│   └── llm.js        # LLM endpoints
-└── .env.example      # Environment template
+backend/
+├── src/main/java/com/algoaccel/
+│   ├── AlgoAccelApplication.java   # Main entry point
+│   ├── config/
+│   │   ├── WebClientConfig.java    # LLM API client with timeouts
+│   │   └── CorsConfig.java         # CORS configuration
+│   ├── controller/
+│   │   ├── MeasureController.java  # /api/measures endpoints
+│   │   ├── ComponentController.java # /api/components endpoints
+│   │   ├── ImportController.java   # /api/import endpoint
+│   │   └── LlmController.java      # /api/llm/extract endpoint
+│   ├── service/
+│   │   ├── MeasureService.java     # Measure business logic
+│   │   ├── ComponentService.java   # Component business logic
+│   │   ├── ImportService.java      # Import with auto-component creation
+│   │   └── LlmService.java         # LLM API integration
+│   ├── model/
+│   │   ├── measure/                # Measure JPA entities
+│   │   └── component/              # Component JPA entities
+│   ├── repository/                 # Spring Data JPA repositories
+│   └── dto/                        # Request/Response DTOs
+├── src/main/resources/
+│   ├── application.yml             # Spring configuration
+│   └── db/migration/               # Flyway migrations
+└── pom.xml                         # Maven build
 ```
+
+### Key Backend Services
+
+**ImportService.java**
+- Imports measures from frontend export format
+- Auto-creates AtomicComponents from data element value sets
+- Skips component import if array is empty (preserves existing)
+- Category inference from element type
+
+**WebClientConfig.java**
+- Custom connection provider for LLM API calls
+- 5-minute response timeout for long extractions
+- Connection pooling with proper lifecycle management
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/measures` | GET | List all measures |
+| `/api/measures/full` | GET | Full measures with populations |
+| `/api/measures/{id}` | GET/PUT/DELETE | Measure CRUD |
+| `/api/components` | GET | List all components |
+| `/api/components/{id}` | GET/PUT/DELETE | Component CRUD |
+| `/api/import` | POST | Import measures + auto-create components |
+| `/api/llm/extract` | POST | Proxy LLM extraction requests |
 
 ## Testing
 

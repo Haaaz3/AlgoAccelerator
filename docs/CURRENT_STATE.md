@@ -26,8 +26,22 @@ This document captures the current implementation state as of February 2026.
 | Test Validation | Complete | Pre-loaded patients, detailed traces |
 | Review Workflow | Complete | Approve/flag, complexity scoring |
 | Settings | Complete | LLM provider, API keys, theme |
+| **Spring Boot Backend** | Complete | Full REST API with JPA persistence |
+| **Backend Persistence** | Complete | Measures, components, test patients |
+| **AI Extraction Pipeline** | Complete | Direct API + backend proxy |
+| **Auto-Component Creation** | Complete | Backend creates components from data elements |
 
-### Recent Fixes (Last Session)
+### Recent Fixes (Current Session)
+
+1. **Duplicate Entity IDs** - Fixed by adding random component to ID generation in extractionService.ts
+2. **Measure Delete Persistence** - deleteMeasure now calls backend API before updating local state
+3. **Component Add/Delete Persistence** - addComponent and deleteComponent now sync to backend
+4. **LLM Connection Timeouts** - Created WebClientConfig.java with 5-minute timeout, custom connection provider
+5. **Backend 503 Errors** - Fixed by implementing direct frontend API calls when API key available
+6. **Component Library Zeroing** - Fixed loadFromApi() to MERGE instead of replace components
+7. **Auto-Create Components** - ImportService now auto-creates AtomicComponents from measure data elements
+
+### Previous Session Fixes
 
 1. **Language Tag on Code Overrides** - Fixed SQL overrides showing as CQL
 2. **Code Search Navigation** - Fixed offset calculation in CodeGeneration
@@ -46,14 +60,26 @@ None currently tracked.
 ## File Counts
 
 ```
+Frontend:
 src/components/   14 files
-src/services/     15 files
+src/services/     16 files (including extractionService.ts, llmClient.ts)
 src/stores/        4 files
 src/types/         5 files
-src/utils/         5 files
+src/utils/         6 files (including inferCategory.ts)
+src/api/           4 files (measures.ts, components.ts, import.ts, transformers.ts)
 src/constants/     2 files
 src/data/          2 files
 src/__tests__/     6 files
+
+Backend:
+backend/src/main/java/com/algoaccel/
+├── controller/    5 files
+├── service/       5 files
+├── model/        15 files
+├── repository/    4 files
+├── dto/          12 files
+├── config/        3 files
+└── enums/         8 files
 ```
 
 ## Store State Summary
@@ -63,14 +89,20 @@ src/__tests__/     6 files
 - `selectedMeasureId` - Currently editing measure
 - `activeTab` - Current navigation tab
 - `validationTraces{}` - Cached validation results
+- `isLoadingFromApi` - Backend fetch in progress
+- `apiError` - Last API error message
 - Persistence key: `algo-accelerator-storage`
+- **API**: `loadFromApi()` fetches from backend, replaces local
 
 ### componentLibraryStore
 - `components[]` - All library components
 - `selectedComponentId` - Selected in library browser
 - `editingComponentId` - Being edited
 - `filters` - Library browser filters
+- `isLoadingFromApi` - Backend fetch in progress
+- `lastLoadedAt` - Timestamp of last API sync
 - Persistence key: `algo-accelerator-component-library`
+- **API**: `loadFromApi()` fetches from backend, **merges** with local (preserves local-only)
 
 ### componentCodeStore
 - `codeStates{}` - Keyed by `measureId::elementId`
@@ -86,20 +118,36 @@ src/__tests__/     6 files
 
 ## Critical Code Paths
 
-### Measure Import
+### Measure Import (AI Extraction)
 ```
-MeasureLibrary.tsx → measureIngestion.ts → aiExtractor.ts
-    → measureStore.addMeasure()
+MeasureLibrary.tsx
+    → measureIngestion.ts::ingestMeasureFiles()
+    → extractionService.ts::extractMeasure()
+        → (if API key) llmClient.ts::callLLM() [direct to LLM]
+        → (else) POST /api/llm/extract [backend proxy]
+    → convertToUMS() [with unique IDs]
     → componentLibraryStore.linkMeasureComponents()
+    → measureStore.importMeasure()
+        → POST /api/import [backend persistence]
+        → ImportService.importData() [auto-creates components]
 ```
 
 ### Component Library Linking
 ```
 componentLibraryStore.linkMeasureComponents()
     → componentMatcher.parseDataElementToComponent()
-    → componentMatcher.findExactMatch()
+    → componentMatcher.findExactMatchPrioritizeApproved()
     → Create or link component
-    → recalculateUsage()
+    → Persist new components async (non-blocking)
+    → rebuildUsageIndex()
+```
+
+### API Load Flow (App Mount)
+```
+App.tsx useEffect
+    → measureStore.loadFromApi() [GET /api/measures/full]
+    → componentLibraryStore.loadFromApi() [GET /api/components]
+        → MERGE with local components (preserves un-synced)
 ```
 
 ### Code Generation
@@ -236,9 +284,37 @@ OPENAI_API_KEY=sk-...
 
 Based on product roadmap:
 
-1. **Server-Side Storage** - PostgreSQL backend
+1. ~~**Server-Side Storage** - PostgreSQL backend~~ ✅ **COMPLETE** (Spring Boot + H2/PostgreSQL)
 2. **User Authentication** - Login/logout, user sessions
 3. **Multi-User Collaboration** - Real-time sync
 4. **CQL Execution Engine** - In-browser CQL evaluation
 5. **FHIR Measure Import** - Parse existing FHIR measures
 6. **Audit Logging** - Track all changes for compliance
+7. **Production Deployment** - Docker, cloud hosting configuration
+
+## Backend API Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/measures` | GET | List measure summaries |
+| `/api/measures/full` | GET | Full measures with populations |
+| `/api/measures/{id}` | GET | Single measure with full details |
+| `/api/measures` | POST | Create new measure |
+| `/api/measures/{id}` | PUT | Update measure |
+| `/api/measures/{id}` | DELETE | Delete measure |
+| `/api/components` | GET | List component summaries |
+| `/api/components/{id}` | GET | Single component with full details |
+| `/api/components` | POST | Create new atomic component |
+| `/api/components/{id}` | DELETE | Delete component |
+| `/api/import` | POST | Import measures + auto-create components |
+| `/api/llm/extract` | POST | Proxy LLM extraction request |
+
+## Key Configuration Files
+
+### Backend
+- `backend/src/main/resources/application.yml` - Spring config, timeouts, DB
+- `backend/src/main/java/.../WebClientConfig.java` - LLM API client config
+
+### Frontend
+- `vite.config.ts` - Dev proxy to backend
+- `src/stores/settingsStore.ts` - API keys, provider selection

@@ -34,6 +34,13 @@ spring:
 
 server:
   port: 8080
+  servlet:
+    async:
+      timeout: 240000
+
+spring.mvc:
+  async:
+    request-timeout: 240000
 
 # CORS configuration - override via CORS_ALLOWED_ORIGINS environment variable
 cors:

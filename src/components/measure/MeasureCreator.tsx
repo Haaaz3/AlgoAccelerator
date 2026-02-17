@@ -471,6 +471,16 @@ export function MeasureCreator({ isOpen, onClose }: MeasureCreatorProps) {
       }
 
       // Store the extracted UMS for use in handleCreate
+      console.log('[processAiInput] Extraction result:', {
+        success: result.success,
+        populationsCount: result.ums?.populations?.length,
+        populations: result.ums?.populations?.map(p => ({
+          type: p.type,
+          hasCriteria: !!p.criteria,
+          criteriaChildren: p.criteria?.children?.length || 0,
+        })),
+        valueSetsCount: result.ums?.valueSets?.length,
+      });
       setExtractedUMS(result.ums);
 
       // Extract metadata and populations for form population
@@ -848,6 +858,16 @@ Return ONLY valid JSON.`;
     } else if (extractedUMS) {
       // Use the extracted UMS from backend extraction service
       // This preserves the full population trees with criteria and data elements
+      console.log('[handleCreate] Using extractedUMS:', {
+        id: extractedUMS.id,
+        populationsCount: extractedUMS.populations?.length,
+        populations: extractedUMS.populations?.map(p => ({
+          type: p.type,
+          hasCriteria: !!p.criteria,
+          criteriaChildren: p.criteria?.children?.length || 0,
+        })),
+        valueSetsCount: extractedUMS.valueSets?.length,
+      });
       newMeasure = {
         ...extractedUMS,
         id,

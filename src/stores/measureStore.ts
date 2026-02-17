@@ -53,7 +53,7 @@ interface MeasureState {
   addMeasure: (measure: UniversalMeasureSpec) => void;
   updateMeasure: (id: string, updates: Partial<UniversalMeasureSpec>) => void;
   batchUpdateMeasures: (updates: Array<{ id: string; updates: Partial<UniversalMeasureSpec> }>) => { success: boolean; error?: string };
-  deleteMeasure: (id: string) => void;
+  deleteMeasure: (id: string) => Promise<void>;
   setActiveMeasure: (id: string | null) => void;
   setActiveTab: (tab: MeasureState['activeTab']) => void;
   setEditorSection: (section: string | null) => void;
@@ -178,8 +178,25 @@ export const useMeasureStore = create<MeasureState>()(
       importMeasure: async (measure) => {
         try {
           // Convert UMS to import format expected by backend
+          const converted = convertUmsToImportFormat(measure);
+
+          // Debug: Log what we're sending
+          console.log('[importMeasure] UMS populations:', measure.populations.map(p => ({
+            id: p.id,
+            type: p.type,
+            hasCriteria: !!p.criteria,
+            criteriaChildren: p.criteria?.children?.length || 0,
+          })));
+          console.log('[importMeasure] Converted populations:', (converted.populations as any[])?.map((p: any) => ({
+            id: p.id,
+            type: p.populationType,
+            hasRootClause: !!p.rootClause,
+            dataElements: p.rootClause?.dataElements?.length || 0,
+            childClauses: p.rootClause?.children?.length || 0,
+          })));
+
           const importRequest = {
-            measures: [convertUmsToImportFormat(measure)],
+            measures: [converted],
             components: [],
             validationTraces: [],
             codeStates: {},
@@ -278,11 +295,22 @@ export const useMeasureStore = create<MeasureState>()(
         return { success: true };
       },
 
-      deleteMeasure: (id) =>
+      deleteMeasure: async (id) => {
+        try {
+          // Delete from backend first
+          const { deleteMeasure: deleteMeasureApi } = await import('../api/measures');
+          await deleteMeasureApi(id);
+          console.log(`Deleted measure ${id} from backend`);
+        } catch (error) {
+          console.error('Failed to delete measure from backend:', error);
+          // Continue with local delete even if backend fails
+        }
+        // Always update local state
         set((state) => ({
           measures: state.measures.filter((m) => m.id !== id),
           activeMeasureId: state.activeMeasureId === id ? null : state.activeMeasureId,
-        })),
+        }));
+      },
 
       setActiveMeasure: (id) => set({ activeMeasureId: id, activeTab: id ? 'editor' : 'library' }),
       setActiveTab: (tab) => set({ activeTab: tab }),

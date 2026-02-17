@@ -165,12 +165,13 @@ Extract the following information in valid JSON format:
 
 Important guidelines:
 1. Extract ALL populations mentioned (IP, Denominator, Numerator, Exclusions, Exceptions)
-2. Capture timing constraints precisely (during measurement period, within 90 days, etc.)
-3. Identify value sets by their OIDs when available
-4. Use proper FHIR resource types for data elements
-5. For age constraints, identify the calculation method (at start, at end, or during period)
-6. Preserve the logical structure (AND/OR groupings) of criteria
-7. If something is unclear, use null or omit it rather than guessing
+2. CRITICAL: For each population, you MUST include a "criteria" object with an array of "children" data elements. Never leave criteria empty - extract at least one data element per population.
+3. Capture timing constraints precisely (during measurement period, within 90 days, etc.)
+4. Identify value sets by their OIDs when available
+5. Use proper FHIR resource types for data elements (Condition, Procedure, Encounter, Observation, MedicationRequest, Immunization, etc.)
+6. For age constraints, identify the calculation method (at start, at end, or during period)
+7. Preserve the logical structure (AND/OR groupings) of criteria
+8. Each data element in children MUST have: dataType (FHIR resource type), description (what this criterion checks for), and valueSet if applicable
 
 Return ONLY the JSON object, no additional text or markdown.`;
 
@@ -199,25 +200,33 @@ Return ONLY the JSON object, no additional text.`;
 
 const POPULATION_DETAIL_PROMPT = `You are an expert in healthcare quality measures. Given the following measure specification text and population type, extract detailed criteria for that population.
 
+CRITICAL: You MUST include at least one data element in the criteria.children array. Never return empty children.
+
 Extract in this JSON format:
 
 {
   "type": "the_population_type",
-  "description": "Human-readable description",
-  "narrative": "Full narrative from the spec",
+  "description": "Human-readable description of who is in this population",
+  "narrative": "Full narrative text from the specification",
   "criteria": {
-    "operator": "AND|OR",
+    "operator": "AND",
     "children": [
       {
         "type": "dataElement",
-        "dataType": "Condition|Procedure|Encounter|Observation|MedicationRequest",
-        "valueSet": { "oid": "2.16.840.1...", "name": "Name" },
-        "timing": { "type": "during|before|after|within", "period": "measurement_period" },
-        "description": "Description"
+        "dataType": "Encounter",
+        "valueSet": { "oid": "2.16.840.1.113883.3.464.1003.101.12.1001", "name": "Office Visit" },
+        "timing": { "type": "during", "period": "measurement_period" },
+        "description": "Patient had an office visit during the measurement period"
       }
     ]
   }
 }
+
+Guidelines:
+- dataType must be a FHIR resource type: Condition, Procedure, Encounter, Observation, MedicationRequest, Immunization, etc.
+- Always include at least one meaningful data element in children array
+- Include valueSet with OID and name when referenced in the specification
+- Include timing constraints when specified
 
 Return ONLY the JSON object.`;
 
@@ -268,6 +277,14 @@ export async function extractMeasure(
     if (!extractedData) {
       throw new Error('Failed to parse extraction response');
     }
+
+    // Debug: Log extracted data
+    console.log('[extractMeasure] Raw LLM response:', fullResult.content.substring(0, 500));
+    console.log('[extractMeasure] Extracted populations:', extractedData.populations?.map(p => ({
+      type: p.type,
+      hasCriteria: !!p.criteria,
+      criteriaChildren: p.criteria?.children?.length || 0,
+    })));
 
     onProgress?.('extraction_complete', `Extracted ${extractedData.populations?.length || 0} populations`);
 
@@ -415,14 +432,44 @@ interface LlmExtractRequest {
 }
 
 /**
- * Call the backend LLM extract endpoint.
+ * Call LLM for extraction - tries direct API first, falls back to backend proxy.
  */
 async function callLlmExtract(request: LlmExtractRequest): Promise<LlmResponse> {
+  // Try to get API key from settings store for direct API call
+  const { useSettingsStore } = await import('../stores/settingsStore');
+  const settings = useSettingsStore.getState();
+  const apiKey = settings.getActiveApiKey?.() || settings.apiKeys?.anthropic;
+  const provider = request.provider || settings.selectedProvider || 'anthropic';
+  const model = request.model || settings.selectedModel || 'claude-sonnet-4-20250514';
+
+  // If we have an API key, use direct API call (bypasses backend WebClient issues)
+  if (apiKey) {
+    console.log('[callLlmExtract] Using direct API call with frontend API key');
+    const { callLLM } = await import('./llmClient');
+
+    const response = await callLLM({
+      provider: provider as 'anthropic' | 'openai' | 'google' | 'custom',
+      model,
+      apiKey,
+      systemPrompt: request.systemPrompt,
+      userPrompt: request.userPrompt,
+      maxTokens: request.maxTokens || 16000,
+      images: request.images,
+    });
+
+    return {
+      content: response.content,
+      tokensUsed: response.tokensUsed || 0,
+    };
+  }
+
+  // Fall back to backend proxy
+  console.log('[callLlmExtract] Using backend proxy (no frontend API key)');
   const response = await post<LlmResponse>('/llm/extract', {
     systemPrompt: request.systemPrompt,
     userPrompt: request.userPrompt,
-    provider: request.provider || null,
-    model: request.model || null,
+    provider: provider || null,
+    model: model || null,
     maxTokens: request.maxTokens || 16000,
     images: request.images || null,
   });
@@ -473,16 +520,29 @@ function convertToUMS(extractedData: ExtractedData): UniversalMeasureSpec {
   const now = new Date().toISOString();
   const metadata = extractedData.metadata || {};
 
+  // Helper for unique IDs - prevents duplicate entity errors in backend
+  const uniqueId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Debug: Log input populations
+  console.log('[convertToUMS] Input populations:', extractedData.populations?.length || 0);
+  extractedData.populations?.forEach((pop, i) => {
+    console.log(`[convertToUMS] Pop ${i}: type=${pop.type}, criteria=${JSON.stringify(pop.criteria)?.substring(0, 200)}`);
+  });
+
   // Build populations array
-  const populations: PopulationDefinition[] = (extractedData.populations || []).map((pop, idx) => ({
-    id: `pop-${Date.now()}-${idx}`,
-    type: mapPopulationType(pop.type),
-    description: pop.description || '',
-    narrative: pop.narrative || pop.description || '',
-    criteria: convertCriteria(pop.criteria),
-    confidence: 'medium' as ConfidenceLevel,
-    reviewStatus: 'pending' as ReviewStatus,
-  }));
+  const populations: PopulationDefinition[] = (extractedData.populations || []).map((pop, idx) => {
+    const criteria = convertCriteria(pop.criteria);
+    console.log(`[convertToUMS] Converted pop ${idx}: type=${pop.type}, criteriaChildren=${criteria.children?.length || 0}`);
+    return {
+      id: `pop-${uniqueId()}`,
+      type: mapPopulationType(pop.type),
+      description: pop.description || '',
+      narrative: pop.narrative || pop.description || '',
+      criteria,
+      confidence: 'medium' as ConfidenceLevel,
+      reviewStatus: 'pending' as ReviewStatus,
+    };
+  });
 
   // Ensure we have at least IP, Denominator, Numerator
   const existingTypes = new Set(populations.map(p => p.type));
@@ -491,12 +551,12 @@ function convertToUMS(extractedData: ExtractedData): UniversalMeasureSpec {
   for (const type of requiredTypes) {
     if (!existingTypes.has(type)) {
       populations.push({
-        id: `pop-${Date.now()}-${type}`,
+        id: `pop-${uniqueId()}`,
         type,
         description: formatPopulationType(type),
         narrative: '',
         criteria: {
-          id: `clause-${Date.now()}-${type}`,
+          id: `clause-${uniqueId()}`,
           operator: 'AND',
           description: '',
           children: [],
@@ -511,7 +571,7 @@ function convertToUMS(extractedData: ExtractedData): UniversalMeasureSpec {
 
   // Build value sets array
   const valueSets: ValueSetReference[] = (extractedData.valueSets || []).map((vs, idx) => ({
-    id: `vs-${Date.now()}-${idx}`,
+    id: `vs-${uniqueId()}`,
     oid: vs.oid || '',
     name: vs.name || 'Unnamed Value Set',
     purpose: vs.purpose || '',
@@ -565,9 +625,13 @@ function convertToUMS(extractedData: ExtractedData): UniversalMeasureSpec {
  * Convert extracted criteria to UMS LogicalClause format.
  */
 function convertCriteria(criteria?: ExtractedCriteria): LogicalClause {
+  // Helper to generate truly unique IDs
+  const uniqueId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
   if (!criteria) {
+    console.log('[convertCriteria] No criteria provided, returning empty clause');
     return {
-      id: `clause-${Date.now()}`,
+      id: `clause-${uniqueId()}`,
       operator: 'AND',
       description: '',
       children: [],
@@ -575,9 +639,10 @@ function convertCriteria(criteria?: ExtractedCriteria): LogicalClause {
       reviewStatus: 'pending' as ReviewStatus,
     };
   }
+  console.log(`[convertCriteria] Converting criteria: operator=${criteria.operator}, children=${criteria.children?.length || 0}`);
 
   const clause: LogicalClause = {
-    id: `clause-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    id: `clause-${uniqueId()}`,
     operator: criteria.operator || 'AND',
     description: criteria.description || '',
     children: [],
@@ -592,10 +657,11 @@ function convertCriteria(criteria?: ExtractedCriteria): LogicalClause {
         return convertCriteria(child as ExtractedCriteria);
       }
 
-      // Data element
+      // Data element - use unique IDs to avoid duplicates across populations
       const criterion = child as ExtractedCriterion;
+      const elemId = uniqueId();
       const dataElement: DataElement = {
-        id: `elem-${Date.now()}-${idx}`,
+        id: `elem-${elemId}`,
         type: mapElementType(criterion.dataType),
         description: criterion.description || '',
         confidence: 'medium' as ConfidenceLevel,
@@ -604,7 +670,7 @@ function convertCriteria(criteria?: ExtractedCriteria): LogicalClause {
 
       if (criterion.valueSet) {
         dataElement.valueSet = {
-          id: `vs-${Date.now()}-${idx}`,
+          id: `vs-${uniqueId()}`,
           oid: criterion.valueSet.oid || '',
           name: criterion.valueSet.name || '',
           codes: [],

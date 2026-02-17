@@ -11,6 +11,7 @@ This document maps exactly how data flows through the application for every majo
 │ • measures[]        │                      │ • components[]          │
 │ • selectedMeasureId │                      │ • selectedComponentId   │
 │ • validationTraces  │                      │ • filters               │
+│ • isLoadingFromApi  │                      │ • isLoadingFromApi      │
 └─────────────────────┘                      └─────────────────────────┘
          │                                              │
          │ reads/writes                                 │ reads
@@ -21,6 +22,17 @@ This document maps exactly how data flows through the application for every majo
 │ • codeStates{}      │                      │ • selectedProvider      │
 │ • defaultFormat     │                      │ • apiKeys               │
 └─────────────────────┘                      └─────────────────────────┘
+         │
+         │                      Backend API
+         ▼                      ────────────
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Spring Boot Backend                              │
+│                                                                      │
+│  /api/measures ──► MeasureService ──► MeasureRepository ──► DB      │
+│  /api/components ► ComponentService ► ComponentRepository ► DB      │
+│  /api/import ───► ImportService (auto-creates components)           │
+│  /api/llm/extract ► LlmService ──► External LLM API                 │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Flow 1: Import Measure from PDF
@@ -36,9 +48,17 @@ documentLoader.ts::extractFromFiles()
     ▼
 measureIngestion.ts::ingestMeasureFiles()
     │
-    ├──▶ aiExtractor.ts::extractMeasureWithAI()
-    │         │ Calls LLM API (Anthropic/OpenAI)
-    │         │ Returns structured populations, value sets
+    ├──▶ extractionService.ts::extractMeasure()
+    │         │
+    │         ├──▶ If frontend API key configured:
+    │         │       llmClient.ts::callLLM() (direct to LLM)
+    │         │
+    │         └──▶ Else: POST /api/llm/extract (backend proxy)
+    │         │
+    │         ▼
+    │    LLM returns structured JSON
+    │         ▼
+    │    convertToUMS() with unique IDs (Date.now + random)
     │         ▼
     │    parsedContent = { populations, valueSets, metadata }
     │
@@ -46,14 +66,11 @@ measureIngestion.ts::ingestMeasureFiles()
 UMS Created from parsed content
     │
     ▼
-measureStore.addMeasure(measure)
-    │ Persists to localStorage
-    ▼
 componentLibraryStore.linkMeasureComponents(measureId, populations)
     │
     ├──▶ For each DataElement:
     │       ├──▶ parseDataElementToComponent() → creates identity hash
-    │       ├──▶ findExactMatch() → searches library
+    │       ├──▶ findExactMatchPrioritizeApproved() → searches library
     │       │
     │       ├──▶ If match found:
     │       │       • Set element.libraryComponentId
@@ -61,13 +78,24 @@ componentLibraryStore.linkMeasureComponents(measureId, populations)
     │       │       • Sync codes if element has codes and component doesn't
     │       │
     │       └──▶ If no match + has codes:
-    │               • Create new AtomicComponent
+    │               • Create new AtomicComponent locally
     │               • Link element to new component
-    │
-    └──▶ recalculateUsage(measures)
+    │               • Persist to backend async (non-blocking)
     │
     ▼
-UI: Measure appears in library, components linked
+measureStore.importMeasure(measure)
+    │ POST /api/import
+    ▼
+Backend: ImportService.importData()
+    │
+    ├──▶ Save measure to database
+    │
+    └──▶ For each data element with valueSet:
+            ├──▶ Check if component exists by hash
+            └──▶ If not: auto-create AtomicComponent
+    │
+    ▼
+UI: Measure appears in library, components linked and persisted
 ```
 
 ## Flow 2: Edit Value Set Codes
@@ -393,6 +421,40 @@ Apply override if exists
 Display final code
 ```
 
+## Flow 11: App Load / API Sync
+
+**Trigger:** App mounts in App.tsx
+
+```
+App.tsx useEffect
+    │
+    ├──▶ measureStore.loadFromApi()
+    │       │ GET /api/measures/full
+    │       ▼
+    │    Backend returns all measures with populations
+    │       ▼
+    │    Transform DTOs to UMS format
+    │       ▼
+    │    Replace local measures with API data
+    │
+    └──▶ componentLibraryStore.loadFromApi()
+            │ GET /api/components (summaries)
+            │ GET /api/components/{id} (for each, full details)
+            ▼
+         Transform DTOs to LibraryComponent format
+            ▼
+         **MERGE** API components with local:
+            • API components take precedence
+            • Local-only components preserved
+            • Prevents loss of un-synced components
+            ▼
+         UI: Components from both sources available
+```
+
+**Why Merge Instead of Replace?**
+
+Components created by `linkMeasureComponents()` are persisted to the backend asynchronously. If `loadFromApi()` is called before persistence completes, a simple replace would wipe out the locally created components. The merge strategy keeps local-only components while updating from the API.
+
 ## Data Consistency Rules
 
 1. **Component usage.measureIds must match DataElement.libraryComponentId**
@@ -409,3 +471,13 @@ Display final code
 4. **Timing modifications don't auto-propagate**
    - Requires explicit "Update All" user choice
    - Creates version if "Create Copy" chosen
+
+5. **Backend auto-creates components from measure data elements**
+   - On import, ImportService scans all data elements
+   - Creates AtomicComponent for each unique value set
+   - Prevents orphaned data elements without library links
+
+6. **Component persistence is two-phase**
+   - Phase 1: Local state update (immediate, for UI responsiveness)
+   - Phase 2: Backend sync (async, non-blocking)
+   - loadFromApi() merges to prevent data loss between phases

@@ -99,30 +99,59 @@ AlgoAccelerator automates this process:
 | Styling | Tailwind CSS 4 |
 | State | Zustand 5 |
 | PDF Parsing | PDF.js |
-| Backend (optional) | Express.js |
+| Backend | Spring Boot 3.2 (Java 17) |
+| Database | H2 (dev) / PostgreSQL (prod) |
+| API | RESTful JSON |
 
 ## Data Storage
 
-All data persists in browser localStorage:
-- Measures and corrections
-- Component library
-- User settings and API keys
+**Hybrid Architecture:** Data persists both in browser localStorage and server-side database:
 
-Data stays local except for:
-- AI extraction requests (to configured LLM provider)
-- VSAC lookups (if configured)
+**Server-Side (Primary):**
+- Measures with full population structure
+- Component library with version history
+- Test patients and validation traces
+
+**Client-Side (Cache/Fallback):**
+- Local state for fast UI interactions
+- Offline capability for viewing
+- Settings and API keys
+
+**Data Flow:**
+- On app load: fetch from backend API, merge with local cache
+- On import: sync to backend, auto-create components from data elements
+- On edit: update local state immediately, persist to backend async
 
 ## Getting Started
 
 ```bash
-# Install dependencies
+# Install frontend dependencies
 npm install
 
-# Start development server
+# Start backend (in separate terminal)
+cd backend && ./mvnw spring-boot:run
+
+# Start frontend development server
 npm run dev
 
 # Build for production
 npm run build
 ```
 
-The application runs at `http://localhost:5173`
+**URLs:**
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:8080`
+
+## AI Extraction Pipeline
+
+The AI-guided measure extraction uses a hybrid approach:
+
+1. **Direct API Calls (Preferred):** When an API key is configured in settings, extraction calls go directly from the browser to the LLM provider (Anthropic, OpenAI, Google). This provides faster response times and avoids backend timeout issues.
+
+2. **Backend Proxy (Fallback):** If no frontend API key is configured, requests route through the Spring Boot backend, which handles timeout management and connection pooling.
+
+The extraction pipeline automatically:
+- Parses population structures (IPP, Denominator, Numerator, Exclusions)
+- Extracts value sets with code references
+- Creates component library entries from data elements
+- Links measures to existing library components

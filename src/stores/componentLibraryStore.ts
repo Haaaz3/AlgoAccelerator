@@ -77,9 +77,9 @@ interface ComponentLibraryState {
 
   // Actions (kept for backwards compatibility)
   initializeWithSampleData: () => void;
-  addComponent: (component: LibraryComponent) => void;
+  addComponent: (component: LibraryComponent) => Promise<void>;
   updateComponent: (id: ComponentId, updates: Partial<LibraryComponent>) => void;
-  deleteComponent: (id: ComponentId) => void;
+  deleteComponent: (id: ComponentId) => Promise<void>;
   setSelectedComponent: (id: ComponentId | null) => void;
   setFilters: (filters: Partial<LibraryBrowserFilters>) => void;
   setEditingComponent: (id: ComponentId | null) => void;
@@ -187,6 +187,8 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
       },
 
       // Load components from backend API
+      // IMPORTANT: This function MERGES API components with local components to avoid
+      // wiping out locally created components that haven't been synced to the backend yet.
       loadFromApi: async () => {
         // Skip if already loading
         if (get().isLoadingFromApi) return;
@@ -212,7 +214,7 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           );
 
           // Filter out nulls and hydrate with complexity scores
-          const validComponents = fullComponents
+          const apiComponents = fullComponents
             .filter((c): c is LibraryComponent => c !== null)
             .map((component) => {
               if (component.type === 'atomic') {
@@ -224,14 +226,25 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
               return component;
             });
 
+          // MERGE: Keep local components that don't exist in API response
+          // This prevents wiping out locally created components that haven't been synced yet
+          const currentComponents = get().components;
+          const apiComponentIds = new Set(apiComponents.map(c => c.id));
+
+          // Keep local-only components (not in API response)
+          const localOnlyComponents = currentComponents.filter(c => !apiComponentIds.has(c.id));
+
+          // Merge: API components take precedence, but keep local-only components
+          const mergedComponents = [...apiComponents, ...localOnlyComponents];
+
           set({
-            components: validComponents,
+            components: mergedComponents,
             initialized: true,
             isLoadingFromApi: false,
             lastLoadedAt: new Date().toISOString(),
           });
 
-          console.log(`Loaded ${validComponents.length} components from API`);
+          console.log(`Loaded ${apiComponents.length} components from API, kept ${localOnlyComponents.length} local-only components`);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to load components';
           console.error('Failed to load components from API:', error);
@@ -272,24 +285,54 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
       },
 
       // CRUD Actions
-      addComponent: (component) =>
-        set((state) => {
-          // Auto-assign category if categoryAutoAssigned is not explicitly set
-          if (component.metadata.categoryAutoAssigned === undefined) {
-            const inferred = inferCategory(component);
-            component = {
-              ...component,
-              metadata: {
-                ...component.metadata,
-                category: inferred,
-                categoryAutoAssigned: true,
-              },
-            };
-          }
-          return {
-            components: [...state.components, component],
+      addComponent: async (component) => {
+        // Auto-assign category if categoryAutoAssigned is not explicitly set
+        if (component.metadata.categoryAutoAssigned === undefined) {
+          const inferred = inferCategory(component);
+          component = {
+            ...component,
+            metadata: {
+              ...component.metadata,
+              category: inferred,
+              categoryAutoAssigned: true,
+            },
           };
-        }),
+        }
+
+        // Add to local state first
+        set((state) => ({
+          components: [...state.components, component],
+        }));
+
+        // Persist to backend
+        try {
+          const { createAtomicComponent } = await import('../api/components');
+          if (component.type === 'atomic') {
+            const atomicComp = component as import('../types/componentLibrary').AtomicComponent;
+            await createAtomicComponent({
+              name: atomicComp.name,
+              category: atomicComp.metadata?.category || 'uncategorized',
+              description: atomicComp.description || undefined,
+              cqlExpression: atomicComp.cqlExpression || undefined,
+              sqlTemplate: atomicComp.sqlTemplate || undefined,
+              valueSet: atomicComp.valueSet ? {
+                oid: atomicComp.valueSet.oid || undefined,
+                name: atomicComp.valueSet.name || undefined,
+                codes: atomicComp.valueSet.codes?.map(c => ({
+                  code: c.code,
+                  system: c.system,
+                  display: c.display || undefined,
+                })),
+              } : undefined,
+              tags: atomicComp.metadata?.tags || undefined,
+            });
+            console.log(`Component ${component.id} persisted to backend`);
+          }
+        } catch (error) {
+          console.warn('Failed to persist component to backend:', error);
+          // Keep local state even if backend fails
+        }
+      },
 
       updateComponent: (id, updates) =>
         set((state) => {
@@ -336,12 +379,23 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
           };
         }),
 
-      deleteComponent: (id) =>
+      deleteComponent: async (id) => {
+        // Delete from backend first
+        try {
+          const { deleteComponent: deleteComponentApi } = await import('../api/components');
+          await deleteComponentApi(id);
+          console.log(`Deleted component ${id} from backend`);
+        } catch (error) {
+          console.error('Failed to delete component from backend:', error);
+          // Continue with local delete even if backend fails
+        }
+        // Update local state
         set((state) => ({
           components: state.components.filter((c) => c.id !== id),
           selectedComponentId: state.selectedComponentId === id ? null : state.selectedComponentId,
           editingComponentId: state.editingComponentId === id ? null : state.editingComponentId,
-        })),
+        }));
+      },
 
       // UI State
       setSelectedComponent: (id) => set({ selectedComponentId: id }),
@@ -618,6 +672,38 @@ export const useComponentLibraryStore = create<ComponentLibraryState>()(
             components = [...components, ...newComponents];
             return { components, initialized: true };
           });
+
+          // Persist new components to backend (async, non-blocking)
+          if (newComponents.length > 0) {
+            import('../api/components').then(({ createAtomicComponent: createAtomicApi }) => {
+              for (const comp of newComponents) {
+                if (comp.type === 'atomic') {
+                  const atomicComp = comp as AtomicComponent;
+                  createAtomicApi({
+                    name: atomicComp.name,
+                    category: atomicComp.metadata?.category || 'uncategorized',
+                    description: atomicComp.description || undefined,
+                    cqlExpression: atomicComp.cqlExpression || undefined,
+                    sqlTemplate: atomicComp.sqlTemplate || undefined,
+                    valueSet: atomicComp.valueSet ? {
+                      oid: atomicComp.valueSet.oid || undefined,
+                      name: atomicComp.valueSet.name || undefined,
+                      codes: atomicComp.valueSet.codes?.map(c => ({
+                        code: c.code,
+                        system: c.system,
+                        display: c.display || undefined,
+                      })),
+                    } : undefined,
+                    tags: atomicComp.metadata?.tags || undefined,
+                  }).then(() => {
+                    console.log(`[linkMeasureComponents] Persisted component ${comp.id} to backend`);
+                  }).catch((err) => {
+                    console.warn(`[linkMeasureComponents] Failed to persist component ${comp.id}:`, err);
+                  });
+                }
+              }
+            });
+          }
         }
 
         return linkMap;
