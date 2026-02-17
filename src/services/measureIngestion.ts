@@ -9,6 +9,7 @@
 
 import { extractFromFiles, type ExtractionResult } from './documentLoader';
 import { extractMeasureWithAI } from './aiExtractor';
+import { extractMeasure as extractMeasureViaBackend } from './extractionService';
 import { parseMeasureSpec } from '../utils/specParser';
 import type { UniversalMeasureSpec } from '../types/ums';
 
@@ -106,17 +107,8 @@ export async function ingestMeasureFiles(
     }
 
     // Stage 2: Use AI to extract structured data
-    if (!apiKey) {
-      return {
-        success: false,
-        documentInfo: {
-          filesProcessed: files.length,
-          totalCharacters: extractionResult.combinedContent.length,
-          extractionErrors: extractionResult.errors,
-        },
-        error: 'API key is required for AI extraction. Please configure your API key in settings.',
-      };
-    }
+    // Try backend extraction service first (routes through /api/llm/extract)
+    // Falls back to direct API if backend fails
 
     const providerNames: Record<string, string> = {
       anthropic: 'Claude',
@@ -131,28 +123,79 @@ export async function ingestMeasureFiles(
       progress: 30,
     });
 
-    console.log('[Measure Ingestion] Sending to AI:', {
-      provider,
-      model,
+    console.log('[Measure Ingestion] Sending to backend AI extraction:', {
       contentLength: extractionResult.combinedContent.length,
       contentPreview: extractionResult.combinedContent.substring(0, 500) + '...',
     });
 
-    const aiResult = await extractMeasureWithAI(
-      extractionResult.combinedContent,
-      apiKey,
-      (aiProgress) => {
-        onProgress?.({
-          stage: 'ai_processing',
-          message: aiProgress.message,
-          progress: 30 + (aiProgress.progress * 0.6), // Scale AI progress to 30-90%
-        });
-      },
-      provider,
-      model,
-      customConfig,
-      extractionResult.pageImages // Pass page images for vision-based extraction fallback
-    );
+    // Try backend extraction first (uses server-side API key)
+    let aiResult: { success: boolean; ums?: UniversalMeasureSpec; error?: string; tokensUsed?: number };
+
+    try {
+      const backendResult = await extractMeasureViaBackend(extractionResult.combinedContent, {
+        onProgress: (phase, message) => {
+          onProgress?.({
+            stage: 'ai_processing',
+            message,
+            progress: 30 + (phase === 'complete' ? 60 : 30),
+          });
+        },
+      });
+
+      if (backendResult.success && backendResult.ums) {
+        console.log('[Measure Ingestion] Backend extraction successful');
+        aiResult = {
+          success: true,
+          ums: backendResult.ums,
+          tokensUsed: backendResult.tokensUsed,
+        };
+      } else {
+        console.warn('[Measure Ingestion] Backend extraction failed:', backendResult.error);
+        throw new Error(backendResult.error || 'Backend extraction failed');
+      }
+    } catch (backendError) {
+      console.warn('[Measure Ingestion] Backend extraction failed, trying direct API:', backendError);
+
+      // Fall back to direct API call if backend fails and API key is provided
+      if (!apiKey) {
+        return {
+          success: false,
+          documentInfo: {
+            filesProcessed: files.length,
+            totalCharacters: extractionResult.combinedContent.length,
+            extractionErrors: extractionResult.errors,
+          },
+          error: 'Backend AI extraction failed and no frontend API key is configured. Please configure your API key in settings or ensure the backend LLM is configured.',
+        };
+      }
+
+      onProgress?.({
+        stage: 'ai_processing',
+        message: `Backend unavailable, using direct ${providerNames[provider] || provider} API...`,
+        progress: 35,
+      });
+
+      console.log('[Measure Ingestion] Falling back to direct API:', {
+        provider,
+        model,
+      });
+
+      aiResult = await extractMeasureWithAI(
+        extractionResult.combinedContent,
+        apiKey,
+        (aiProgress) => {
+          onProgress?.({
+            stage: 'ai_processing',
+            message: aiProgress.message,
+            progress: 30 + (aiProgress.progress * 0.6),
+          });
+        },
+        provider,
+        model,
+        customConfig,
+        extractionResult.pageImages
+      );
+    }
 
     if (!aiResult.success || !aiResult.ums) {
       return {

@@ -13,13 +13,10 @@ import * as pdfjsLib from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 
-// Import the worker using Vite's ?url suffix to get the URL
-// This ensures the worker is properly bundled
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-console.log('PDF.js worker configured with bundled worker');
+// Configure PDF.js worker - use the public folder copy for reliable loading
+// This avoids CORS issues with CDN fallback
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+console.log('PDF.js worker configured with local worker from /public');
 
 export interface ExtractedDocument {
   filename: string;
