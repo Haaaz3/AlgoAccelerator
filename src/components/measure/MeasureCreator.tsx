@@ -3,7 +3,7 @@ import { X, Plus, FileText, Copy, ChevronRight, ChevronLeft, Check, Users, Targe
 import { useMeasureStore } from '../../stores/measureStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { extractFromFiles, type ExtractedDocument } from '../../services/documentLoader';
-import { callLLM, getDefaultModel } from '../../services/llmClient';
+// LLM calls now routed through extractionService which handles fallback automatically
 import { extractMeasure as extractMeasureFromBackend } from '../../services/extractionService';
 import type { UniversalMeasureSpec, MeasureMetadata, PopulationDefinition, ValueSetReference, LogicalClause, DataElement, ConfidenceLevel } from '../../types/ums';
 import { CriteriaBlockBuilder, type CriteriaBlock } from './CriteriaBlockBuilder';
@@ -578,165 +578,16 @@ export function MeasureCreator({ isOpen, onClose }: MeasureCreatorProps) {
       setAiProcessing(false);
 
     } catch (err) {
-      console.error('Backend extraction error:', err);
+      console.error('Extraction error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Extraction failed';
 
-      // Fall back to direct LLM call if backend fails
-      setAiProgress('Backend extraction failed, trying direct LLM...');
-
-      try {
-        await processAiInputFallback(combinedInput);
-      } catch (fallbackErr) {
-        console.error('Fallback extraction error:', fallbackErr);
-        setAiError(err instanceof Error ? err.message : 'Extraction failed');
-        setAiProcessing(false);
-      }
+      // The extraction service already tries both backend proxy and direct API call
+      // If both fail, show a helpful error message
+      setAiError(`AI extraction failed: ${errorMessage}. Please check your API key in Settings or ensure the backend is running.`);
+      setAiProgress('');
+      setAiProcessing(false);
     }
   }, [aiInputText, extractedContent]);
-
-  // Fallback extraction using direct LLM call (requires frontend API key)
-  const processAiInputFallback = useCallback(async (combinedInput: string) => {
-    const apiKey = getCurrentApiKey();
-    if (!apiKey && selectedProvider !== 'custom') {
-      throw new Error(`No API key configured for ${selectedProvider}. Please configure it in Settings or ensure backend LLM is configured.`);
-    }
-
-    const prompt = `You are a clinical quality measure expert. Analyze the following measure specification and extract structured data.
-
-MEASURE SPECIFICATION:
-${combinedInput}
-
-Extract and return a JSON object with this structure:
-{
-  "metadata": {
-    "measureId": "extracted measure ID",
-    "title": "measure title",
-    "description": "brief description",
-    "program": "MIPS_CQM" | "eCQM" | "HEDIS" | "QOF" | "Registry" | "Custom",
-    "steward": "organization",
-    "measureType": "process" | "outcome" | "structure" | "patient_experience",
-    "ageRange": { "min": number, "max": number }
-  },
-  "populations": [
-    {
-      "type": "initial_population" | "denominator" | "numerator" | "denominator_exclusion",
-      "description": "narrative description",
-      "criteria": []
-    }
-  ]
-}
-
-Return ONLY valid JSON.`;
-
-    const customConfig = selectedProvider === 'custom' ? getCustomLlmConfig() : undefined;
-    const modelToUse = selectedModel || getDefaultModel(selectedProvider, customConfig);
-
-    const result = await callLLM({
-      provider: selectedProvider,
-      model: modelToUse,
-      apiKey: apiKey || '',
-      userPrompt: prompt,
-      maxTokens: 8000,
-      customConfig,
-      jsonMode: selectedProvider === 'openai' || selectedProvider === 'google',
-    });
-
-    let parsed;
-    try {
-      parsed = JSON.parse(result.content);
-    } catch {
-      const jsonMatch = result.content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('Failed to parse AI response as JSON');
-      }
-    }
-
-    // Process populations and match value sets
-    const processedPopulations = (parsed.populations || []).map((pop: any) => ({
-      type: pop.type,
-      description: pop.description,
-      criteria: (pop.criteria || []).map((crit: any) => ({
-        ...crit,
-        valueSetMatch: matchValueSets(crit.valueSetName || crit.description, crit.valueSetOid),
-      })),
-    }));
-
-    setAiExtractedData({
-      metadata: parsed.metadata,
-      populations: processedPopulations,
-    });
-
-    // Auto-populate metadata
-    if (parsed.metadata) {
-      if (parsed.metadata.measureId) setMeasureId(parsed.metadata.measureId);
-      if (parsed.metadata.title) setTitle(parsed.metadata.title);
-      if (parsed.metadata.description) setDescription(parsed.metadata.description);
-      if (parsed.metadata.measureType) setMeasureType(parsed.metadata.measureType);
-      if (parsed.metadata.steward) setSteward(parsed.metadata.steward);
-
-      if (parsed.metadata.program) {
-        const programMap: Record<string, MeasureProgram> = {
-          'MIPS_CQM': 'MIPS_CQM',
-          'MIPS': 'MIPS_CQM',
-          'eCQM': 'eCQM',
-          'HEDIS': 'HEDIS',
-          'QOF': 'QOF',
-          'Registry': 'Registry',
-          'Custom': 'Custom',
-        };
-        const mappedProgram = programMap[parsed.metadata.program] || 'Custom';
-        setProgram(mappedProgram);
-      }
-
-      if (parsed.metadata.ageRange) {
-        setInitialPopCriteria(prev => ({
-          ...prev,
-          ageRange: parsed.metadata.ageRange,
-        }));
-      }
-    }
-
-    // Auto-populate criteria blocks for each population
-    for (const pop of processedPopulations) {
-      const blocks = convertToCriteriaBlocks(pop.criteria);
-
-      switch (pop.type) {
-        case 'initial_population':
-          setInitialPopCriteria(prev => ({
-            ...prev,
-            description: pop.description,
-            criteriaBlocks: blocks,
-          }));
-          break;
-        case 'denominator':
-          setDenominatorCriteria(prev => ({
-            ...prev,
-            description: pop.description,
-            criteriaBlocks: blocks,
-          }));
-          break;
-        case 'numerator':
-          setNumeratorCriteria(prev => ({
-            ...prev,
-            description: pop.description,
-            criteriaBlocks: blocks,
-          }));
-          break;
-        case 'denominator_exclusion':
-        case 'denominator_exception':
-          setExclusionCriteria(prev => ({
-            ...prev,
-            description: pop.description,
-            criteriaBlocks: blocks,
-          }));
-          break;
-      }
-    }
-
-    setAiProgress('Complete! Review the extracted data below.');
-    setAiProcessing(false);
-  }, [selectedProvider, selectedModel, getCurrentApiKey, getCustomLlmConfig, matchValueSets, convertToCriteriaBlocks]);
 
   const canGoNext = () => {
     switch (currentStep) {
