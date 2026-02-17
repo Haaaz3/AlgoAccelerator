@@ -282,3 +282,30 @@ export async function generateSql(id: string): Promise<{ sql: string }> {
 export async function generateCode(id: string): Promise<{ cql: string; sql: string }> {
   return get<{ cql: string; sql: string }>(`/measures/${id}/code`);
 }
+
+// Import/Export Types
+
+export interface ImportRequest {
+  measures?: Array<Record<string, unknown>>;
+  components?: Array<Record<string, unknown>>;
+  validationTraces?: Array<Record<string, unknown>>;
+  codeStates?: Record<string, unknown>;
+  version?: number;
+  exportedAt?: string;
+}
+
+export interface ImportResultDto {
+  componentsImported: number;
+  measuresImported: number;
+  validationTracesImported: number;
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Import measures and components via the import endpoint.
+ * This is the primary way to persist measures extracted via AI.
+ */
+export async function importMeasures(request: ImportRequest): Promise<ImportResultDto> {
+  return post<ImportResultDto>('/import', request);
+}

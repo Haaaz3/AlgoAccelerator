@@ -4,6 +4,7 @@ import { useMeasureStore } from '../../stores/measureStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { extractFromFiles, type ExtractedDocument } from '../../services/documentLoader';
 import { callLLM, getDefaultModel } from '../../services/llmClient';
+import { extractMeasure as extractMeasureFromBackend } from '../../services/extractionService';
 import type { UniversalMeasureSpec, MeasureMetadata, PopulationDefinition, ValueSetReference, LogicalClause, DataElement, ConfidenceLevel } from '../../types/ums';
 import { CriteriaBlockBuilder, type CriteriaBlock } from './CriteriaBlockBuilder';
 
@@ -87,7 +88,7 @@ interface AIExtractedCriterion {
 }
 
 export function MeasureCreator({ isOpen, onClose }: MeasureCreatorProps) {
-  const { measures, addMeasure, setActiveMeasure, setActiveTab } = useMeasureStore();
+  const { measures, addMeasure, importMeasure, setActiveMeasure, setActiveTab } = useMeasureStore();
   const { selectedProvider, selectedModel, apiKeys, getActiveApiKey, getCustomLlmConfig } = useSettingsStore();
 
   // Wizard state
@@ -735,7 +736,11 @@ Return ONLY valid JSON, no markdown or explanation.`;
     }
   };
 
-  const handleCreate = () => {
+  // State for import progress
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
     const now = new Date().toISOString();
     const id = `ums-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -836,10 +841,38 @@ Return ONLY valid JSON, no markdown or explanation.`;
       };
     }
 
-    addMeasure(newMeasure);
-    setActiveMeasure(newMeasure.id);
-    setActiveTab('editor');
-    handleCloseAfterSave();
+    // Import to backend for persistence
+    setIsImporting(true);
+    setImportError(null);
+
+    try {
+      const result = await importMeasure(newMeasure);
+
+      if (result.success) {
+        setActiveMeasure(newMeasure.id);
+        setActiveTab('editor');
+        handleCloseAfterSave();
+      } else {
+        // Fallback to local-only add if import fails
+        console.warn('Backend import failed, adding locally:', result.error);
+        setImportError(`Backend save failed: ${result.error}. Measure saved locally only.`);
+        addMeasure(newMeasure);
+        setActiveMeasure(newMeasure.id);
+        setActiveTab('editor');
+        // Don't close immediately so user sees the error
+        setTimeout(() => handleCloseAfterSave(), 2000);
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      // Fallback to local-only add
+      setImportError(`Error saving to backend. Measure saved locally only.`);
+      addMeasure(newMeasure);
+      setActiveMeasure(newMeasure.id);
+      setActiveTab('editor');
+      setTimeout(() => handleCloseAfterSave(), 2000);
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   // Convert CriteriaBlock to UMS LogicalClause/DataElement

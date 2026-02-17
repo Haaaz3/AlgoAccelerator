@@ -17,7 +17,7 @@ import type { LogicalOperator } from '../types/ums';
 import { syncAgeConstraints } from '../utils/constraintSync';
 import { calculateDataElementComplexity } from '../services/complexityCalculator';
 import { migrateMeasure, needsMigration } from '../utils/measureMigration';
-import { getMeasuresFull } from '../api/measures';
+import { getMeasuresFull, importMeasures } from '../api/measures';
 import { transformMeasureDto } from '../api/transformers';
 
 export type CodeOutputFormat = 'cql' | 'synapse';
@@ -47,6 +47,7 @@ interface MeasureState {
 
   // API Actions
   loadFromApi: () => Promise<void>;
+  importMeasure: (measure: UniversalMeasureSpec) => Promise<{ success: boolean; error?: string }>;
 
   // Actions
   addMeasure: (measure: UniversalMeasureSpec) => void;
@@ -170,6 +171,48 @@ export const useMeasureStore = create<MeasureState>()(
             isLoadingFromApi: false,
             apiError: errorMessage,
           });
+        }
+      },
+
+      // Import a measure to the backend and add to local state
+      importMeasure: async (measure) => {
+        try {
+          // Convert UMS to import format expected by backend
+          const importRequest = {
+            measures: [convertUmsToImportFormat(measure)],
+            components: [],
+            validationTraces: [],
+            codeStates: {},
+            version: 1,
+            exportedAt: new Date().toISOString(),
+          };
+
+          const result = await importMeasures(importRequest);
+
+          if (result.success) {
+            // Add to local state with FHIR alignment
+            const fhirMeasure = measure.resourceType === 'Measure'
+              ? measure
+              : needsMigration(measure)
+                ? migrateMeasure(measure)
+                : { ...measure, resourceType: 'Measure' as const };
+
+            set((state) => ({
+              measures: [...state.measures, fhirMeasure],
+              activeMeasureId: fhirMeasure.id,
+              activeTab: 'editor',
+            }));
+
+            console.log(`Imported measure ${measure.metadata.measureId} to backend`);
+            return { success: true };
+          } else {
+            console.error('Import failed:', result.message);
+            return { success: false, error: result.message };
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Import failed';
+          console.error('Failed to import measure:', error);
+          return { success: false, error: errorMessage };
         }
       },
 
@@ -1068,3 +1111,125 @@ export const useMeasureStore = create<MeasureState>()(
       },
     })
 );
+
+/**
+ * Convert UMS format to the import format expected by the backend.
+ * Backend expects a specific structure for populations with rootClause instead of criteria.
+ */
+function convertUmsToImportFormat(ums: UniversalMeasureSpec): Record<string, unknown> {
+  const mapPopulationType = (type: string): string => {
+    const mapping: Record<string, string> = {
+      'initial-population': 'INITIAL_POPULATION',
+      'denominator': 'DENOMINATOR',
+      'denominator-exclusion': 'DENOMINATOR_EXCLUSION',
+      'denominator-exception': 'DENOMINATOR_EXCEPTION',
+      'numerator': 'NUMERATOR',
+      'numerator-exclusion': 'NUMERATOR_EXCLUSION',
+      'measure-population': 'MEASURE_POPULATION',
+      'measure-observation': 'MEASURE_OBSERVATION',
+    };
+    return mapping[type] || type.toUpperCase().replace(/-/g, '_');
+  };
+
+  const mapElementType = (type: string): string => {
+    const mapping: Record<string, string> = {
+      'diagnosis': 'DIAGNOSIS',
+      'encounter': 'ENCOUNTER',
+      'procedure': 'PROCEDURE',
+      'observation': 'OBSERVATION',
+      'medication': 'MEDICATION',
+      'immunization': 'IMMUNIZATION',
+      'demographic': 'DEMOGRAPHIC',
+      'device': 'DEVICE',
+      'assessment': 'ASSESSMENT',
+      'allergy': 'ALLERGY',
+    };
+    return mapping[type] || type.toUpperCase();
+  };
+
+  const convertClause = (clause: import('../types/ums').LogicalClause): Record<string, unknown> => {
+    const dataElements: Record<string, unknown>[] = [];
+    const childClauses: Record<string, unknown>[] = [];
+
+    if (clause.children) {
+      clause.children.forEach((child, idx) => {
+        if ('operator' in child) {
+          // Nested clause
+          childClauses.push(convertClause(child as import('../types/ums').LogicalClause));
+        } else {
+          // Data element
+          const de = child as import('../types/ums').DataElement;
+          dataElements.push({
+            id: de.id,
+            elementType: mapElementType(de.type),
+            resourceType: de.type,
+            description: de.description || '',
+            libraryComponentId: de.libraryComponentId || null,
+            negation: de.negation || false,
+            negationRationale: de.negationRationale || null,
+            confidence: (de.confidence || 'MEDIUM').toUpperCase(),
+            reviewStatus: (de.reviewStatus || 'PENDING').toUpperCase(),
+            displayOrder: idx,
+            thresholds: de.thresholds || null,
+          });
+        }
+      });
+    }
+
+    return {
+      id: clause.id,
+      operator: clause.operator || 'AND',
+      description: clause.description || '',
+      displayOrder: 0,
+      children: childClauses,
+      dataElements,
+    };
+  };
+
+  return {
+    id: ums.id,
+    measureId: ums.metadata.measureId,
+    title: ums.metadata.title,
+    version: ums.metadata.version || '1.0',
+    steward: ums.metadata.steward || '',
+    program: ums.metadata.program || 'Custom',
+    measureType: ums.metadata.measureType || 'process',
+    description: ums.metadata.description || '',
+    rationale: ums.metadata.rationale || '',
+    clinicalRecommendation: ums.metadata.clinicalRecommendation || '',
+    periodStart: ums.metadata.measurementPeriod?.start || `${new Date().getFullYear()}-01-01`,
+    periodEnd: ums.metadata.measurementPeriod?.end || `${new Date().getFullYear()}-12-31`,
+    globalConstraints: ums.globalConstraints ? {
+      ageMin: ums.globalConstraints.ageRange?.min ?? null,
+      ageMax: ums.globalConstraints.ageRange?.max ?? null,
+      gender: ums.globalConstraints.gender || 'any',
+    } : null,
+    status: (ums.status || 'in_progress').toUpperCase().replace(/_/g, '_'),
+    overallConfidence: (ums.overallConfidence || 'MEDIUM').toUpperCase(),
+    populations: ums.populations.map((pop, idx) => ({
+      id: pop.id,
+      populationType: mapPopulationType(pop.type),
+      description: pop.description || '',
+      narrative: pop.narrative || '',
+      displayOrder: idx,
+      confidence: (pop.confidence || 'MEDIUM').toUpperCase(),
+      reviewStatus: (pop.reviewStatus || 'PENDING').toUpperCase(),
+      rootClause: pop.criteria ? convertClause(pop.criteria) : null,
+    })),
+    valueSets: ums.valueSets.map(vs => ({
+      id: vs.id,
+      oid: vs.oid || '',
+      name: vs.name,
+      version: vs.version || '',
+      publisher: vs.publisher || '',
+      purpose: vs.purpose || '',
+      verified: vs.verified || false,
+      codes: (vs.codes || []).map(c => ({
+        code: c.code,
+        system: c.system || 'SNOMED',
+        display: c.display || '',
+      })),
+    })),
+    corrections: [],
+  };
+}
