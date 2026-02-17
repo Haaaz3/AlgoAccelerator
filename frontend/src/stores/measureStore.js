@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import * as measureApi from '../api/measures.js';
 import * as validationApi from '../api/validation.js';
+import { transformMeasureDto, transformMeasureSummaries } from '../api/transformers.js';
 
 export const useMeasureStore = create((set, get) => ({
   // Measures data (fetched from API)
@@ -33,7 +34,9 @@ export const useMeasureStore = create((set, get) => ({
   fetchMeasures: async () => {
     set({ isLoading: true, error: null });
     try {
-      const measures = await measureApi.getMeasures();
+      const rawMeasures = await measureApi.getMeasures();
+      // Transform summaries for library view
+      const measures = transformMeasureSummaries(rawMeasures);
       set({ measures, isLoading: false });
     } catch (error) {
       console.error('Failed to fetch measures:', error);
@@ -45,7 +48,9 @@ export const useMeasureStore = create((set, get) => ({
   fetchMeasure: async (id) => {
     set({ isLoading: true, error: null });
     try {
-      const measure = await measureApi.getMeasure(id);
+      const rawMeasure = await measureApi.getMeasure(id);
+      // Transform backend DTO to frontend UMS format
+      const measure = transformMeasureDto(rawMeasure);
       set({ activeMeasure: measure, activeMeasureId: id, isLoading: false });
       return measure;
     } catch (error) {
