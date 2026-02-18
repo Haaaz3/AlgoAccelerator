@@ -459,13 +459,22 @@ export function constraintToTimingRequirement(
                                                  
                     // QI-Core Goal
 
-;                             
-             
-                                          
-                        
-                                                  
-                                    
-                      
+/** FHIR Encounter.status values relevant to eCQM logic */
+export const ENCOUNTER_STATUS_OPTIONS = ['finished', 'in-progress', 'cancelled', 'entered-in-error'];
+
+/** FHIR Observation.status values relevant to eCQM logic */
+export const OBSERVATION_STATUS_OPTIONS = ['final', 'amended', 'corrected', 'preliminary', 'registered'];
+
+/** FHIR MedicationRequest.intent values relevant to eCQM logic */
+export const MEDICATION_INTENT_OPTIONS = ['order', 'original-order', 'reflex-order', 'filler-order', 'instance-order', 'plan', 'proposal'];
+
+;
+
+
+
+
+
+
 
                                                                              
                                

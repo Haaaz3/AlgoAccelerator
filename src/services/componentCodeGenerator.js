@@ -102,20 +102,34 @@ function generateCQLForDataElement(
       }
       return `exists ["Condition": ${vsRef}] C where C.prevalenceInterval() overlaps ${measurementPeriodRef}`;
 
-    case 'encounter':
-      return `["Encounter": ${vsRef}] E where E.period during ${measurementPeriodRef} and E.status = 'finished'`;
+    case 'encounter': {
+      const status = element.encounterStatus || 'finished';
+      return `["Encounter": ${vsRef}] E where E.period during ${measurementPeriodRef} and E.status = '${status}'`;
+    }
 
-    case 'observation':
-      return `["Observation": ${vsRef}] O where O.effective.toInterval() ${timingClause} and O.status in { 'final', 'amended', 'corrected' }`;
+    case 'observation': {
+      const statuses = element.observationStatus?.length
+        ? element.observationStatus
+        : ['final', 'amended', 'corrected'];
+      const statusList = statuses.map(s => `'${s}'`).join(', ');
+      return `["Observation": ${vsRef}] O where O.effective.toInterval() ${timingClause} and O.status in { ${statusList} }`;
+    }
 
-    case 'medication':
-      return `["MedicationRequest": ${vsRef}] M where M.authoredOn during ${measurementPeriodRef} and M.intent = 'order'`;
+    case 'medication': {
+      const intent = element.medicationIntent || 'order';
+      return `["MedicationRequest": ${vsRef}] M where M.authoredOn during ${measurementPeriodRef} and M.intent = '${intent}'`;
+    }
 
     case 'immunization':
       return `["Immunization": ${vsRef}] I where I.occurrence.toInterval() ${timingClause}`;
 
-    case 'assessment':
-      return `["Observation": ${vsRef}] A where A.effective.toInterval() during ${measurementPeriodRef} and A.status in { 'final', 'amended', 'corrected' }`;
+    case 'assessment': {
+      const statuses = element.observationStatus?.length
+        ? element.observationStatus
+        : ['final', 'amended', 'corrected'];
+      const statusList = statuses.map(s => `'${s}'`).join(', ');
+      return `["Observation": ${vsRef}] A where A.effective.toInterval() during ${measurementPeriodRef} and A.status in { ${statusList} }`;
+    }
 
     case 'device':
       return `["DeviceRequest": ${vsRef}] D where D.authoredOn during ${measurementPeriodRef}`;
@@ -223,41 +237,53 @@ WHERE ${alias}.population_id = '${populationId}'
   )
   ${dateClause}`;
 
-    case 'encounter':
+    case 'encounter': {
+      const status = element.encounterStatus || 'finished';
       return `-- ${vsName}
 SELECT DISTINCT ${alias}.empi_id
 FROM ph_f_encounter ${alias}
 WHERE ${alias}.population_id = '${populationId}'
+  AND ${alias}.encounter_status = '${status}'
   AND EXISTS (
     SELECT 1 FROM valueset_codes VS
     WHERE VS.valueset_oid = '${vsOid}'
       AND VS.code = ${alias}.encounter_type_code
   )
   ${dateClause ? dateClause.replace('effective_date', 'encounter_date') : ''}`;
+    }
 
-    case 'observation':
+    case 'observation': {
+      const statuses = element.observationStatus?.length
+        ? element.observationStatus
+        : ['final', 'amended', 'corrected'];
+      const statusIn = statuses.map(s => `'${s}'`).join(', ');
       return `-- ${vsName}
 SELECT DISTINCT ${alias}.empi_id
 FROM ph_f_result ${alias}
 WHERE ${alias}.population_id = '${populationId}'
+  AND ${alias}.result_status IN (${statusIn})
   AND EXISTS (
     SELECT 1 FROM valueset_codes VS
     WHERE VS.valueset_oid = '${vsOid}'
       AND VS.code = ${alias}.result_code
   )
   ${dateClause ? dateClause.replace('effective_date', 'service_date') : ''}`;
+    }
 
-    case 'medication':
+    case 'medication': {
+      const intent = element.medicationIntent || 'order';
       return `-- ${vsName}
 SELECT DISTINCT ${alias}.empi_id
 FROM ph_f_medication ${alias}
 WHERE ${alias}.population_id = '${populationId}'
+  AND ${alias}.medication_intent = '${intent}'
   AND EXISTS (
     SELECT 1 FROM valueset_codes VS
     WHERE VS.valueset_oid = '${vsOid}'
       AND VS.code = ${alias}.medication_code
   )
   ${dateClause ? dateClause.replace('effective_date', 'prescribed_date') : ''}`;
+    }
 
     case 'immunization':
       return `-- ${vsName}
@@ -271,17 +297,23 @@ WHERE ${alias}.population_id = '${populationId}'
   )
   ${dateClause ? dateClause.replace('effective_date', 'administered_date') : ''}`;
 
-    case 'assessment':
+    case 'assessment': {
+      const statuses = element.observationStatus?.length
+        ? element.observationStatus
+        : ['final', 'amended', 'corrected'];
+      const statusIn = statuses.map(s => `'${s}'`).join(', ');
       return `-- ${vsName} (Assessment)
 SELECT DISTINCT ${alias}.empi_id
 FROM ph_f_result ${alias}
 WHERE ${alias}.population_id = '${populationId}'
+  AND ${alias}.result_status IN (${statusIn})
   AND EXISTS (
     SELECT 1 FROM valueset_codes VS
     WHERE VS.valueset_oid = '${vsOid}'
       AND VS.code = ${alias}.result_code
   )
   ${dateClause ? dateClause.replace('effective_date', 'service_date') : ''}`;
+    }
 
     case 'device':
       return `-- ${vsName} (Device - placeholder table name)

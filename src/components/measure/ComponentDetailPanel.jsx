@@ -30,6 +30,7 @@ import {
   CheckCircle,
   XCircle,
   RefreshCw,
+  Settings2,
 } from 'lucide-react';
 
 import { ComponentCodeViewer } from './ComponentCodeViewer';
@@ -327,6 +328,7 @@ export const ComponentDetailPanel = ({
   onResetTiming,
   onSaveTimingWindow,
   onResetTimingWindow,
+  onSaveElementField,
 }                           ) => {
   // Section visibility state
   const [expandedSections, setExpandedSections] = useState({
@@ -334,6 +336,7 @@ export const ComponentDetailPanel = ({
     valueSet: true,
     code: true,
     notes: false,
+    status: true,
   });
 
   // Timing editor state
@@ -582,6 +585,98 @@ export const ComponentDetailPanel = ({
                 </ul>
               </div>
             ) : null}
+          </div>
+        )}
+
+        {/* Status / Intent section - only for relevant types */}
+        {['encounter', 'observation', 'assessment', 'medication'].includes(element.type) && (
+          <div className="border-b border-[var(--border)]">
+            <SectionHeader
+              title="FHIR Status Filter"
+              icon={<Settings2 size={16} />}
+              isExpanded={expandedSections.status ?? true}
+              onToggle={() => toggleSection('status')}
+            />
+            {(expandedSections.status ?? true) && (
+              <div className="px-4 py-3 space-y-3">
+
+                {/* Encounter status */}
+                {element.type === 'encounter' && (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
+                      Encounter Status
+                    </label>
+                    <select
+                      value={element.encounterStatus || 'finished'}
+                      onChange={(e) => onSaveElementField?.(element.id, 'encounterStatus', e.target.value)}
+                      className="w-full text-sm bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
+                    >
+                      <option value="finished">finished (eCQM standard)</option>
+                      <option value="in-progress">in-progress</option>
+                      <option value="cancelled">cancelled</option>
+                      <option value="entered-in-error">entered-in-error</option>
+                    </select>
+                    <p className="text-xs text-[var(--text-dim)] mt-1">
+                      Filters to encounters with this status. Default: finished.
+                    </p>
+                  </div>
+                )}
+
+                {/* Observation / assessment status */}
+                {(element.type === 'observation' || element.type === 'assessment') && (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-2">
+                      Observation Status (select all that apply)
+                    </label>
+                    {(['final', 'amended', 'corrected', 'preliminary', 'registered']).map((status) => (
+                      <label key={status} className="flex items-center gap-2 mb-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={(element.observationStatus || ['final', 'amended', 'corrected']).includes(status)}
+                          onChange={(e) => {
+                            const current = element.observationStatus || ['final', 'amended', 'corrected'];
+                            const updated = e.target.checked
+                              ? [...current, status]
+                              : current.filter(s => s !== status);
+                            onSaveElementField?.(element.id, 'observationStatus', updated);
+                          }}
+                          className="rounded"
+                        />
+                        <span className="text-sm text-[var(--text)]">{status}</span>
+                        {status === 'final' || status === 'amended' || status === 'corrected'
+                          ? <span className="text-xs text-[var(--text-dim)]">(eCQM standard)</span>
+                          : null}
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {/* Medication intent */}
+                {element.type === 'medication' && (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
+                      MedicationRequest Intent
+                    </label>
+                    <select
+                      value={element.medicationIntent || 'order'}
+                      onChange={(e) => onSaveElementField?.(element.id, 'medicationIntent', e.target.value)}
+                      className="w-full text-sm bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
+                    >
+                      <option value="order">order (eCQM standard)</option>
+                      <option value="original-order">original-order</option>
+                      <option value="reflex-order">reflex-order</option>
+                      <option value="filler-order">filler-order</option>
+                      <option value="instance-order">instance-order</option>
+                      <option value="plan">plan</option>
+                      <option value="proposal">proposal</option>
+                    </select>
+                    <p className="text-xs text-[var(--text-dim)] mt-1">
+                      Filters to medication requests with this intent. Default: order.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
