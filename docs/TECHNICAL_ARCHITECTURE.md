@@ -15,6 +15,8 @@ src/
 ├── components/                # React UI components
 │   ├── layout/               # App shell
 │   │   └── Sidebar.tsx       # Navigation sidebar
+│   ├── copilot/              # AI Co-pilot
+│   │   └── CopilotPanel.jsx  # Floating chat interface with proposals
 │   ├── library/              # Component Library UI
 │   │   ├── LibraryBrowser.tsx
 │   │   ├── ComponentDetail.tsx
@@ -29,6 +31,7 @@ src/
 │   │   ├── ComponentDetailPanel.tsx  # Selected component details
 │   │   ├── ComponentCodeViewer.tsx   # Code view/edit
 │   │   ├── CodeGeneration.tsx    # Code export view
+│   │   ├── MeasureCodeEditor.jsx # Intuitive code editor with diffs
 │   │   ├── TimingEditor.tsx      # Timing constraint editor
 │   │   ├── ComponentBuilder.tsx  # Add component form
 │   │   └── CriteriaBlockBuilder.tsx
@@ -51,6 +54,8 @@ src/
 │   ├── componentLibraryService.ts  # Component CRUD
 │   ├── componentMatcher.ts   # Library matching logic
 │   ├── complexityCalculator.ts    # Complexity scoring
+│   ├── copilotService.ts     # AI co-pilot context and messaging
+│   ├── copilotProviders.ts   # Modular LLM provider architecture
 │   ├── documentLoader.ts     # PDF/document parsing
 │   ├── measureIngestion.ts   # Document → UMS pipeline
 │   ├── measureEvaluator.ts   # Test patient evaluation
@@ -123,6 +128,9 @@ interface MeasureState {
 - `updateTimingOverride` - Timing modifications
 - `toggleLogicalOperator` - AND/OR toggling
 - `approveElement/flagElement` - Review workflow
+- `setLastGeneratedCode(cql, sql, measureId)` - Store generated code for co-pilot
+- `saveMeasureCodeOverride(measureId, format, code, note)` - Save code customization
+- `revertMeasureCodeOverride(measureId, format)` - Revert to generated code
 
 #### componentLibraryStore.ts
 **Persistence Key:** `algo-accelerator-component-library`

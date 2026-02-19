@@ -30,6 +30,11 @@ This document captures the current implementation state as of February 2026.
 | **Backend Persistence** | Complete | Measures, components, test patients |
 | **AI Extraction Pipeline** | Complete | Direct API + backend proxy |
 | **Auto-Component Creation** | Complete | Backend creates components from data elements |
+| **AI Co-pilot** | Complete | Floating chat with measure context, proposal system |
+| **Co-pilot Proposals** | Complete | Visual diffs, apply/dismiss, logged to history |
+| **Measure Code Editor** | Complete | Intuitive editing with notes, diffs, history |
+| **Clickable Edit History** | Complete | Per-edit diffs, expandable entries |
+| **Co-pilot Edit Logging** | Complete | Applied proposals logged to edit history |
 
 ### Recent Fixes (Current Session)
 
@@ -61,8 +66,8 @@ None currently tracked.
 
 ```
 Frontend:
-src/components/   14 files
-src/services/     16 files (including extractionService.ts, llmClient.ts)
+src/components/   16 files (includes CopilotPanel.jsx, MeasureCodeEditor.jsx)
+src/services/     18 files (includes copilotService.js, copilotProviders.js)
 src/stores/        4 files
 src/types/         5 files
 src/utils/         6 files (including inferCategory.ts)
@@ -89,6 +94,8 @@ backend/src/main/java/com/algoaccel/
 - `selectedMeasureId` - Currently editing measure
 - `activeTab` - Current navigation tab
 - `validationTraces{}` - Cached validation results
+- `lastGeneratedCode{}` - Current CQL/SQL for co-pilot context
+- `measureCodeOverrides{}` - Per-measure code customizations with edit history
 - `isLoadingFromApi` - Backend fetch in progress
 - `apiError` - Last API error message
 - Persistence key: `algo-accelerator-storage`

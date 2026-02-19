@@ -53,6 +53,15 @@ AlgoAccelerator automates this process:
 - Synapse SQL for Azure cloud analytics
 - Per-component code with override support
 - Syntax highlighting and validation
+- **Intuitive Code Editor** with visual diffs and edit history
+
+### AI Co-pilot
+- Floating chat panel with full measure context
+- Ask questions about measure logic, value sets, timing
+- **Propose edits** with visual diff preview
+- Apply or dismiss suggested changes
+- All accepted changes logged to edit history
+- Modular LLM provider architecture (Anthropic, OpenAI)
 
 ### Test Validation
 - Pre-loaded synthetic test patients

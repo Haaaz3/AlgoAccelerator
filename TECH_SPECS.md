@@ -317,6 +317,33 @@ Matches measure data elements to library components.
 - Timing compatibility check
 - Confidence scoring
 
+### copilotService.ts
+AI co-pilot context building and message handling.
+
+**Functions:**
+- `buildCopilotContext(params)` - Build context from measure, components, generated code
+- `buildCopilotSystemPrompt(context)` - Generate system prompt with measure structure
+- `sendCopilotMessage(history, context, settings)` - Send message to LLM provider
+
+**Context Includes:**
+- Measure metadata and populations
+- Generated CQL and SQL code
+- Library component information
+- Active tab and UI state
+
+### copilotProviders.ts
+Modular LLM provider architecture for co-pilot.
+
+**Providers:**
+- Anthropic Claude (default)
+- OpenAI GPT
+- Backend proxy (fallback)
+
+**Features:**
+- Streaming support
+- Error handling with user-friendly messages
+- Provider-specific optimizations
+
 ### componentLibraryService.ts
 CRUD operations for library components.
 
@@ -410,6 +437,43 @@ Multi-format code generation interface.
 - HDI SQL (BigQuery)
 - FHIR Measure resource
 - Component-level code snippets
+
+**Integrated Features:**
+- MeasureCodeEditor for inline code customization
+- Override detection and display
+- Edit history with visual diffs
+
+### CopilotPanel.jsx
+Floating AI co-pilot chat interface.
+
+**Features:**
+- Measure-aware context
+- Structured proposal system for edits
+- Visual diff display for code fixes
+- Applied proposals logged to edit history
+- Modular provider architecture
+
+**Proposal Types:**
+- `propose_field_edit` - Change component field values
+- `propose_code_fix` - Fix CQL/SQL code snippets
+
+### MeasureCodeEditor.jsx
+Intuitive code editing experience for non-technical users.
+
+**Features:**
+- Click-to-edit flow with guidance
+- Required notes for audit trail
+- Visual diff view (before/after)
+- Clickable edit history with per-entry diffs
+- One-click revert to generated code
+- Override indicator badge
+
+**Components:**
+- `EditGuidance` - Contextual help for first-time editors
+- `NoteInputCard` - Note input with validation
+- `EditHistoryPanel` - Expandable history with clickable diffs
+- `HistoryEntryDiff` - Per-edit diff visualization
+- `DiffViewer` - Line-by-line diff display
 
 ### ValueSetManager.tsx
 Value set management and editing.

@@ -284,7 +284,41 @@ When editing a component used in multiple measures:
 - **Yellow warnings** - Potential issues
 - **Trace details** - Click to expand evaluation steps
 
-### 7. Code Generation
+### 7. AI Co-pilot
+
+The AI Co-pilot is an intelligent assistant that understands your measure context and can help answer questions and propose edits.
+
+#### Opening the Co-pilot
+
+1. Click the floating **"Co-pilot"** button in the bottom-right corner
+2. The panel expands showing the chat interface
+3. The active measure context is automatically loaded
+
+#### What You Can Ask
+
+- "What does the denominator exclusion logic mean?"
+- "Why does this encounter component filter to 'finished' status?"
+- "What value set should I use for colorectal cancer screening?"
+- "Change the encounter status to finished"
+
+#### Proposing Changes
+
+When you ask the Co-pilot to make a change:
+
+1. It responds with an explanation and a **Proposed Change** card
+2. The card shows a **visual diff** highlighting what will change
+3. Click **Apply** to accept the change, or **Dismiss** to reject
+4. Applied changes are logged to the Edit History with "Co-pilot fix:" prefix
+
+#### Co-pilot Context
+
+The Co-pilot has access to:
+- Current measure structure and populations
+- All value sets and codes
+- Generated CQL and SQL code
+- Library component information
+
+### 8. Code Generation
 
 #### Generating CQL
 
@@ -336,7 +370,25 @@ define "Numerator":
 3. Click **Generate**
 4. Download JSON resource
 
-### 8. Settings & Configuration
+#### Customizing Generated Code
+
+Below the code preview, the **Code Editor** allows you to customize generated code:
+
+1. **Customize Code** - Click to enter edit mode
+2. **Make changes** - Edit the code directly in the text area
+3. **Describe your changes** - Add a required note (minimum 10 characters)
+4. **Save Changes** - Your edit is saved with timestamp
+
+**Edit History Features:**
+- View all past edits with timestamps
+- Click any edit to see the **visual diff** of what changed
+- **Revert to Original** - Discard all customizations
+
+**Override Indicator:**
+- When custom code is active, a "Custom Override" badge appears
+- View **Changes** tab to see line-by-line diff from generated code
+
+### 9. Settings & Configuration
 
 #### Theme
 
@@ -452,3 +504,4 @@ Set default output format:
 | 1.0 | Feb 2026 | Initial release with core features |
 | 1.1 | Feb 2026 | Added component merge functionality |
 | 1.2 | Feb 2026 | Multiple value sets support, per-sibling operators |
+| 1.3 | Feb 2026 | AI Co-pilot with proposal system, intuitive code editor with visual diffs and edit history |
