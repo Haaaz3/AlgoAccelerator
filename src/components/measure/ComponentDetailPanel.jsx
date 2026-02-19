@@ -39,6 +39,28 @@ import { useComponentCodeStore, getStoreKey } from '../../stores/componentCodeSt
 import { formatNoteTimestamp, getAllNotesForComponent } from '../../types/componentCode';
 import { validateOID } from '../../services/oidValidator';
 
+// Simple OID format validation for VSAC OIDs
+const OID_PATTERN = /^2\.16\.840\.1\.113883(\.\d+)+$/;
+
+function validateOidFormat(oid) {
+  if (!oid || typeof oid !== 'string') return { valid: false, reason: 'OID is empty' };
+  const trimmed = oid.trim();
+  if (trimmed.startsWith('urn:oid:')) {
+    return {
+      valid: false,
+      reason: 'Remove the "urn:oid:" prefix — use the bare OID only',
+      suggestion: trimmed.replace('urn:oid:', ''),
+    };
+  }
+  if (!OID_PATTERN.test(trimmed)) {
+    return {
+      valid: false,
+      reason: 'OID must start with 2.16.840.1.113883 and contain only digits and dots',
+    };
+  }
+  return { valid: true };
+}
+
 // ============================================================================
 // Sub-Components
 // ============================================================================
@@ -107,54 +129,71 @@ const ValueSetDisplay = ({
           <h4 className="font-medium text-[var(--text)]">
             {valueSet.name}
           </h4>
-          {valueSet.oid && (
-            <div className="flex items-center gap-2 mt-1">
-              <button
-                onClick={handleCopyOid}
-                className="
-                  flex items-center gap-1 text-xs text-[var(--text-dim)]
-                  hover:text-[var(--text-muted)]
-                "
-              >
-                <span className="font-mono">{valueSet.oid}</span>
-                {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
-              </button>
+          {valueSet.oid && (() => {
+            const formatValidation = validateOidFormat(valueSet.oid);
+            return (
+              <div className="mt-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyOid}
+                    className="flex items-center gap-1 text-xs text-[var(--text-dim)] hover:text-[var(--text-muted)]"
+                  >
+                    <span className={`font-mono ${!formatValidation.valid ? 'text-amber-400' : ''}`}>
+                      {valueSet.oid}
+                    </span>
+                    {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                  </button>
 
-              {/* OID Validation Indicator */}
-              {oidValidation && (
-                <button
-                  onClick={() => setShowValidationDetails(!showValidationDetails)}
-                  className={`
-                    flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium
-                    ${oidValidation.valid && oidValidation.warnings.length === 0
-                      ? 'bg-green-500/10 text-green-500'
-                      : oidValidation.valid && oidValidation.warnings.length > 0
-                      ? 'bg-amber-500/10 text-amber-500'
-                      : 'bg-red-500/10 text-red-500'
-                    }
-                  `}
-                  title={oidValidation.valid ? 'Click for details' : 'Click to see validation errors'}
-                >
-                  {oidValidation.valid && oidValidation.warnings.length === 0 ? (
-                    <>
-                      <CheckCircle size={10} />
-                      Valid
-                    </>
-                  ) : oidValidation.valid && oidValidation.warnings.length > 0 ? (
-                    <>
-                      <AlertTriangle size={10} />
-                      Warnings
-                    </>
-                  ) : (
-                    <>
-                      <XCircle size={10} />
-                      Invalid
-                    </>
+                  {/* OID Validation Indicator */}
+                  {oidValidation && formatValidation.valid && (
+                    <button
+                      onClick={() => setShowValidationDetails(!showValidationDetails)}
+                      className={`
+                        flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium
+                        ${oidValidation.valid && oidValidation.warnings.length === 0
+                          ? 'bg-green-500/10 text-green-500'
+                          : oidValidation.valid && oidValidation.warnings.length > 0
+                          ? 'bg-amber-500/10 text-amber-500'
+                          : 'bg-red-500/10 text-red-500'
+                        }
+                      `}
+                      title={oidValidation.valid ? 'Click for details' : 'Click to see validation errors'}
+                    >
+                      {oidValidation.valid && oidValidation.warnings.length === 0 ? (
+                        <>
+                          <CheckCircle size={10} />
+                          Valid
+                        </>
+                      ) : oidValidation.valid && oidValidation.warnings.length > 0 ? (
+                        <>
+                          <AlertTriangle size={10} />
+                          Warnings
+                        </>
+                      ) : (
+                        <>
+                          <XCircle size={10} />
+                          Invalid
+                        </>
+                      )}
+                    </button>
                   )}
-                </button>
-              )}
-            </div>
-          )}
+                </div>
+                {!formatValidation.valid && (
+                  <div className="flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/20">
+                    <AlertTriangle size={12} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-300 space-y-0.5">
+                      <div>{formatValidation.reason}</div>
+                      {formatValidation.suggestion && (
+                        <div className="font-mono text-amber-200">
+                          Suggested: {formatValidation.suggestion}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* OID Validation Details */}
           {showValidationDetails && oidValidation && (
@@ -689,9 +728,16 @@ export const ComponentDetailPanel = ({
               isExpanded={expandedSections.valueSet}
               onToggle={() => toggleSection('valueSet')}
               badge={
-                <span className="px-2 py-0.5 text-xs bg-[var(--bg-tertiary)] rounded-full">
-                  {element.valueSet.codes?.length || 0}
-                </span>
+                element.valueSet?.oid && !validateOidFormat(element.valueSet.oid).valid ? (
+                  <span className="px-2 py-0.5 text-xs bg-amber-500/10 text-amber-400 rounded-full flex items-center gap-1">
+                    <AlertTriangle size={10} />
+                    Invalid OID
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 text-xs bg-[var(--bg-tertiary)] rounded-full">
+                    {element.valueSet.codes?.length || 0}
+                  </span>
+                )
               }
             />
             {expandedSections.valueSet && (
