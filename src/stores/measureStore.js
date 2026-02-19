@@ -126,6 +126,8 @@ export const useMeasureStore = create              ()(
       selectedCodeFormat: 'cql',
       validationTraces: [],
       activeTraceId: null,
+      lastGeneratedCode: { cql: null, sql: null, measureId: null },
+      measureCodeOverrides: {}, // Keyed by `${measureId}::${format}`
 
       // Load measures from backend API
       loadFromApi: async () => {
@@ -513,6 +515,59 @@ export const useMeasureStore = create              ()(
       setUploadProgress: (progress) => set({ uploadProgress: progress }),
       setIsUploading: (uploading) => set({ isUploading: uploading }),
       setSelectedCodeFormat: (format) => set({ selectedCodeFormat: format }),
+      setLastGeneratedCode: (cql, sql, measureId) =>
+        set({ lastGeneratedCode: { cql, sql, measureId } }),
+
+      // Measure-level code overrides (for CodeGeneration page)
+      saveMeasureCodeOverride: (measureId, format, code, note, originalGeneratedCode) => {
+        const key = `${measureId}::${format}`;
+        const now = new Date().toISOString();
+
+        // Get current code before this edit (for diff tracking)
+        const existingOverride = get().measureCodeOverrides[key];
+        const previousCode = existingOverride?.code || originalGeneratedCode;
+
+        const noteEntry = {
+          id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: now,
+          author: 'User',
+          content: note,
+          format,
+          // Store before/after for this specific edit (enables diff viewing in history)
+          codeBefore: previousCode,
+          codeAfter: code,
+        };
+
+        set((state) => {
+          const existing = state.measureCodeOverrides[key];
+          return {
+            measureCodeOverrides: {
+              ...state.measureCodeOverrides,
+              [key]: {
+                format,
+                code,
+                originalGeneratedCode: existing?.originalGeneratedCode || originalGeneratedCode,
+                createdAt: existing?.createdAt || now,
+                updatedAt: now,
+                notes: [...(existing?.notes || []), noteEntry],
+              },
+            },
+          };
+        });
+      },
+
+      revertMeasureCodeOverride: (measureId, format) => {
+        const key = `${measureId}::${format}`;
+        set((state) => {
+          const { [key]: removed, ...rest } = state.measureCodeOverrides;
+          return { measureCodeOverrides: rest };
+        });
+      },
+
+      getMeasureCodeOverride: (measureId, format) => {
+        const key = `${measureId}::${format}`;
+        return get().measureCodeOverrides[key] || null;
+      },
 
       updateReviewStatus: (measureId, componentId, status, notes) =>
         set((state) => {

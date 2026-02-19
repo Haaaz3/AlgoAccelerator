@@ -11,10 +11,19 @@ import { applyCQLOverrides, applySQLOverrides, getOverrideCountForMeasure, getOv
 import { useComponentCodeStore } from '../../stores/componentCodeStore';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { generateComponentAwareMeasureCode } from '../../services/componentAwareCodeGenerator';
+import { MeasureCodeEditor } from './MeasureCodeEditor';
 
 export function CodeGeneration() {
   const navigate = useNavigate();
-  const { selectedCodeFormat, setSelectedCodeFormat } = useMeasureStore();
+  const {
+    selectedCodeFormat,
+    setSelectedCodeFormat,
+    setLastGeneratedCode,
+    saveMeasureCodeOverride,
+    revertMeasureCodeOverride,
+    getMeasureCodeOverride,
+    measureCodeOverrides,
+  } = useMeasureStore();
   // Use Zustand selector for reactive updates when measure is edited
   const measure = useMeasureStore((state) =>
     state.measures.find((m) => m.id === state.activeMeasureId) || null
@@ -59,6 +68,59 @@ export function CodeGeneration() {
 
   // Override audit panel state
   const [showAuditDetails, setShowAuditDetails] = useState(false);
+
+  // Code editor mode state
+  const [showCodeEditor, setShowCodeEditor] = useState(false);
+
+  // Get measure-level code override for current format
+  const measureOverrideKey = measure ? `${measure.id}::${format === 'cql' ? 'cql' : 'synapse-sql'}` : null;
+  const measureOverride = measureOverrideKey ? measureCodeOverrides[measureOverrideKey] : null;
+
+  // Get the current displayed code (with override applied if present)
+  const currentDisplayedCode = useMemo(() => {
+    if (measureOverride?.code) {
+      return measureOverride.code;
+    }
+    if (format === 'cql' && generationResult?.cql) {
+      return generationResult.cql;
+    }
+    if (format === 'synapse' && synapseResult?.sql) {
+      return synapseResult.sql;
+    }
+    return null;
+  }, [format, generationResult, synapseResult, measureOverride]);
+
+  // Original generated code (before any overrides)
+  const originalGeneratedCode = useMemo(() => {
+    if (format === 'cql' && generationResult?.cql) {
+      return generationResult.cql;
+    }
+    if (format === 'synapse' && synapseResult?.sql) {
+      return synapseResult.sql;
+    }
+    return null;
+  }, [format, generationResult, synapseResult]);
+
+  // Handler for saving code edits
+  const handleSaveCodeOverride = useCallback(async (code, note) => {
+    if (!measure) return;
+    const formatKey = format === 'cql' ? 'cql' : 'synapse-sql';
+    saveMeasureCodeOverride(
+      measure.id,
+      formatKey,
+      code,
+      note,
+      originalGeneratedCode
+    );
+    setShowCodeEditor(false);
+  }, [measure, format, saveMeasureCodeOverride, originalGeneratedCode]);
+
+  // Handler for reverting to generated code
+  const handleRevertCodeOverride = useCallback(() => {
+    if (!measure) return;
+    const formatKey = format === 'cql' ? 'cql' : 'synapse-sql';
+    revertMeasureCodeOverride(measure.id, formatKey);
+  }, [measure, format, revertMeasureCodeOverride]);
 
   // Override count for current measure and format
   const overrideCount = useMemo(() => {
@@ -266,6 +328,9 @@ export function CodeGeneration() {
 
           setGenerationResult(result);
           setValidationResult(null);
+
+          // Update co-pilot context with generated CQL
+          setLastGeneratedCode(result.cql || null, null, measure?.id || null);
         } else {
           // Fall back to standard generation (for comparison/debugging)
           const result = generateCQL(measure);
@@ -290,6 +355,11 @@ export function CodeGeneration() {
           setGenerationResult(result);
           setComposedResult(null);
           setValidationResult(null);
+
+          // Update co-pilot context with generated CQL
+          if (result.success && result.cql) {
+            setLastGeneratedCode(result.cql, null, measure?.id || null);
+          }
 
           // Check for generation-level errors
           if (!result.success && result.errors && result.errors.length > 0) {
@@ -341,6 +411,9 @@ export function CodeGeneration() {
 
           setSynapseResult(result);
           setSynapseValidation(null);
+
+          // Update co-pilot context with generated SQL
+          setLastGeneratedCode(null, result.sql || null, measure?.id || null);
         } else {
           // Fall back to standard generation
           const result = generateHDISQL(measure, {
@@ -372,6 +445,11 @@ export function CodeGeneration() {
           setSynapseResult(result);
           setComposedResult(null);
           setSynapseValidation(null);
+
+          // Update co-pilot context with generated SQL
+          if (result.success && result.sql) {
+            setLastGeneratedCode(null, result.sql, measure?.id || null);
+          }
 
           // Check for generation-level errors
           if (!result.success && result.errors && result.errors.length > 0) {
@@ -954,18 +1032,30 @@ export function CodeGeneration() {
             <pre ref={codeRef} className="p-4 text-sm font-mono overflow-auto max-h-[600px] text-[var(--text)]">
               <code className={!canGenerate ? 'opacity-50' : ''}>
                 {(() => {
-                  // Phase 1C: Single authoritative code path - no getGeneratedCode fallback
-                  const code = (format === 'cql' && generationResult?.cql)
-                    ? generationResult.cql
-                    : (format === 'synapse' && synapseResult?.sql)
-                    ? synapseResult.sql
-                    : '// Generating...';
+                  // Use overridden code if available, otherwise generated code
+                  const code = currentDisplayedCode || '// Generating...';
                   return searchQuery && searchResults.length > 0 ? highlightCode(code) : code;
                 })()}
               </code>
             </pre>
           </div>
         </div>
+
+        {/* Measure Code Editor - Intuitive editing experience */}
+        {currentDisplayedCode && (
+          <div className="mt-6">
+            <MeasureCodeEditor
+              code={currentDisplayedCode}
+              originalCode={originalGeneratedCode}
+              format={format === 'cql' ? 'cql' : 'synapse-sql'}
+              measureId={measure?.id}
+              onSave={handleSaveCodeOverride}
+              editHistory={measureOverride?.notes || []}
+              hasOverride={!!measureOverride}
+              onRevert={handleRevertCodeOverride}
+            />
+          </div>
+        )}
 
         {/* Generation Error Display */}
         {generationError && (

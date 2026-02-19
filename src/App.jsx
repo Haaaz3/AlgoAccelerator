@@ -13,6 +13,7 @@ import { LibraryBrowser } from './components/library/LibraryBrowser';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { ChessPuzzleGate } from './components/auth/ChessPuzzleGate';
 import { PuzzleFailBanner } from './components/auth/PuzzleFailBanner';
+import { CopilotPanel } from './components/copilot/CopilotPanel';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 // Map routes to tab names
@@ -160,6 +161,7 @@ function AppContent({ puzzleFailed, bannerDismissed, setBannerDismissed }) {
           </Routes>
         </main>
       </div>
+      <CopilotPanel />
     </div>
   );
 }
