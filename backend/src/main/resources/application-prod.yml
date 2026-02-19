@@ -12,3 +12,6 @@ spring:
     enabled: true
     baseline-on-migrate: false
     locations: classpath:db/migration
+
+cors:
+  allowed-origins: https://measure-accelerator.vercel.app
