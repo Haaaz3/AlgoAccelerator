@@ -97,9 +97,45 @@ A comprehensive map of how components, stores, and services connect and communic
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
-| measureStore | `measures`, `selectedMeasureId`, `selectedCodeFormat` | `setSelectedCodeFormat` |
+| measureStore | `measures`, `selectedMeasureId`, `selectedCodeFormat`, `measureCodeOverrides` | `setSelectedCodeFormat`, `setLastGeneratedCode`, `saveMeasureCodeOverride`, `revertMeasureCodeOverride`, `getMeasureCodeOverride` |
+
+**Total Actions:** 5
+
+---
+
+#### MeasureCodeEditor.jsx
+**File:** `src/components/measure/MeasureCodeEditor.jsx`
+
+| Store | State Values Read | Actions Called |
+|-------|-------------------|----------------|
+| measureStore | `measureCodeOverrides` (via props) | `saveMeasureCodeOverride`, `revertMeasureCodeOverride` (via callbacks) |
+
+**Total Actions:** 2 (via parent)
+
+**Features:**
+- Intuitive code editor for non-technical users
+- Edit history with clickable per-edit diffs
+- Required notes for audit trail
+- Visual diff viewer (before/after)
+
+---
+
+#### CopilotPanel.jsx
+**File:** `src/components/copilot/CopilotPanel.jsx`
+
+| Store | State Values Read | Actions Called |
+|-------|-------------------|----------------|
+| measureStore | `measures`, `selectedMeasureId`, `lastGeneratedCode`, `measureCodeOverrides` | `saveMeasureCodeOverride` |
+| componentLibraryStore | `components` | - |
+| settingsStore | `apiKeys`, `selectedProvider`, `selectedModel` | - |
 
 **Total Actions:** 1
+
+**Features:**
+- Floating chat interface with measure context
+- Structured proposal system (field edits, code fixes)
+- Visual diff display for code proposals
+- Applied proposals logged to edit history
 
 ---
 
@@ -175,10 +211,10 @@ A comprehensive map of how components, stores, and services connect and communic
 
 | Store | Total Actions | Used By Components |
 |-------|---------------|-------------------|
-| measureStore | 18 actions | 10 components |
-| componentLibraryStore | 15 actions | 5 components |
+| measureStore | 23 actions | 12 components |
+| componentLibraryStore | 15 actions | 6 components |
 | componentCodeStore | 6 actions | 3 components |
-| settingsStore | 4 actions | 2 components |
+| settingsStore | 4 actions | 3 components |
 
 ---
 
@@ -199,6 +235,8 @@ A comprehensive map of how components, stores, and services connect and communic
 | `testPatientGenerator.ts` | Test patient creation | `generateTestPatients`, `generatePatientBundle` |
 | `measureEvaluator.ts` | Measure evaluation | `evaluateMeasure`, `evaluatePopulation` |
 | `complexityCalculator.ts` | Complexity scoring | `calculateDataElementComplexity`, `calculateCompositeComplexity` |
+| `copilotService.ts` | AI co-pilot context & messaging | `buildCopilotContext`, `buildCopilotSystemPrompt`, `sendCopilotMessage` |
+| `copilotProviders.ts` | Modular LLM provider architecture | `AnthropicProvider`, `OpenAIProvider`, `getProvider` |
 | `api.ts` | External API calls | `fetchVSACValueSet`, `callLLM` |
 
 ---
@@ -293,6 +331,65 @@ A comprehensive map of how components, stores, and services connect and communic
 │                   └──▶ generateEvaluationTrace()                             │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           AI CO-PILOT PIPELINE                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  CopilotPanel.jsx                                                            │
+│         │                                                                    │
+│         ├──▶ copilotService.ts::buildCopilotContext()                        │
+│         │         │                                                          │
+│         │         ├──▶ Read measureStore.lastGeneratedCode                   │
+│         │         ├──▶ Read componentLibraryStore.components                 │
+│         │         └──▶ Build measure structure context                       │
+│         │                                                                    │
+│         ├──▶ copilotService.ts::buildCopilotSystemPrompt()                   │
+│         │         │                                                          │
+│         │         └──▶ Generate CQL/FHIR domain-aware system prompt          │
+│         │                                                                    │
+│         └──▶ copilotService.ts::sendCopilotMessage()                         │
+│                   │                                                          │
+│                   └──▶ copilotProviders.ts::getProvider()                    │
+│                             │                                                │
+│                             ├──▶ AnthropicProvider → Anthropic API           │
+│                             └──▶ OpenAIProvider → OpenAI API                 │
+│                                                                              │
+│  Proposal Flow:                                                              │
+│         │                                                                    │
+│         └──▶ CopilotPanel.jsx::handleApplyProposal()                         │
+│                   │                                                          │
+│                   └──▶ measureStore.saveMeasureCodeOverride()                │
+│                             │                                                │
+│                             └──▶ Logs to edit history with "Co-pilot fix:"   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         CODE CUSTOMIZATION PIPELINE                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  CodeGeneration.tsx                                                          │
+│         │                                                                    │
+│         ├──▶ Generate CQL/SQL                                                │
+│         │         │                                                          │
+│         │         └──▶ measureStore.setLastGeneratedCode()                   │
+│         │                   (stores for co-pilot context)                    │
+│         │                                                                    │
+│         └──▶ MeasureCodeEditor.jsx                                           │
+│                   │                                                          │
+│                   ├──▶ User edits code                                       │
+│                   ├──▶ Requires note (audit trail)                           │
+│                   ├──▶ measureStore.saveMeasureCodeOverride()                │
+│                   │         │                                                │
+│                   │         ├──▶ Stores codeBefore/codeAfter per edit        │
+│                   │         └──▶ Appends to edit history                     │
+│                   │                                                          │
+│                   └──▶ measureStore.revertMeasureCodeOverride()              │
+│                             │                                                │
+│                             └──▶ Clears override, returns to generated       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -310,6 +407,11 @@ A comprehensive map of how components, stores, and services connect and communic
 | componentLibraryStore | complexityCalculator | Complexity scoring |
 | testPatientGenerator | (standalone) | Patient generation |
 | measureEvaluator | (standalone) | Measure evaluation |
+| copilotService | copilotProviders | LLM provider selection |
+| copilotService | measureStore | Context building (lastGeneratedCode) |
+| copilotService | componentLibraryStore | Component context |
+| CopilotPanel | copilotService | Message handling |
+| CopilotPanel | measureStore | Apply proposals |
 
 ---
 
@@ -644,6 +746,142 @@ UI: Panel closes, badge shows warning color, reset button appears
 
 ---
 
+### Flow 11: Ask Co-pilot a Question
+
+```
+User Action: Opens Co-pilot panel → Types question → Send
+    │
+    ▼
+CopilotPanel.jsx (lines 180-220)
+    │ handleSend() captures message
+    ▼
+copilotService.ts::buildCopilotContext()
+    │
+    ├──▶ Reads measureStore.lastGeneratedCode (CQL + SQL)
+    ├──▶ Reads componentLibraryStore.components
+    ├──▶ Reads measure populations and value sets
+    └──▶ Returns structured context object
+    │
+    ▼
+copilotService.ts::buildCopilotSystemPrompt(context)
+    │
+    ├──▶ Generates CQL/FHIR domain-aware instructions
+    ├──▶ Includes measure structure in prompt
+    └──▶ Defines proposal JSON response format
+    │
+    ▼
+copilotService.ts::sendCopilotMessage(history, context, settings)
+    │
+    └──▶ copilotProviders.ts::getProvider(settings.provider)
+              │
+              ├──▶ AnthropicProvider.chat() → Anthropic API
+              └──▶ OpenAIProvider.chat() → OpenAI API
+    │
+    ▼
+State Changes:
+    • conversationHistory: [...history, userMsg, assistantMsg]
+    • isLoading: false
+    │
+    ▼
+UI: Response displays, may include ProposalCard if structured proposal
+```
+
+---
+
+### Flow 12: Apply Co-pilot Code Fix Proposal
+
+```
+User Action: Clicks "Apply" on ProposalCard
+    │
+    ▼
+CopilotPanel.jsx::handleApplyProposal(messageId, proposal)
+    │
+    ├──▶ Extracts proposal.action === 'propose_code_fix'
+    ├──▶ Gets current code from measureStore.lastGeneratedCode
+    ├──▶ Applies proposal.code_snippet (new code)
+    │
+    ▼
+measureStore.saveMeasureCodeOverride(measureId, format, code, note, originalCode)
+    │
+    ├──▶ Creates note entry with "Co-pilot fix: {description}"
+    ├──▶ Stores codeBefore (original) and codeAfter (fixed)
+    └──▶ Appends to measureCodeOverrides[key].notes[]
+    │
+    ▼
+State Changes:
+    • measureCodeOverrides[measureId::format].code: updated
+    • measureCodeOverrides[measureId::format].notes: [..., newNote]
+    • proposal.applied: true
+    │
+    ▼
+UI: ProposalCard shows "Applied" badge, edit history updated
+```
+
+---
+
+### Flow 13: Customize Code in MeasureCodeEditor
+
+```
+User Action: Clicks "Customize Code" → Edits → Adds note → Save
+    │
+    ▼
+MeasureCodeEditor.jsx (lines 85-120)
+    │ Opens edit mode
+    ▼
+User modifies code in textarea
+    │
+    ▼
+User enters required note (min 10 chars)
+    │
+    ▼
+MeasureCodeEditor.jsx::handleSave()
+    │
+    └──▶ Parent callback → CodeGeneration.tsx::handleSaveCodeOverride()
+              │
+              └──▶ measureStore.saveMeasureCodeOverride(measureId, format, code, note, originalCode)
+                        │
+                        ├──▶ Calculates codeBefore from previous state
+                        ├──▶ Creates note entry with timestamp
+                        └──▶ Updates override state
+    │
+    ▼
+State Changes:
+    • measureCodeOverrides[key].code: new code
+    • measureCodeOverrides[key].notes: [..., { codeBefore, codeAfter, content, timestamp }]
+    • measureCodeOverrides[key].lastModifiedAt: ISO timestamp
+    │
+    ▼
+UI: "Custom Override" badge appears, edit history shows entry
+     Click history entry → expands to show per-edit diff
+```
+
+---
+
+### Flow 14: Revert Code to Generated
+
+```
+User Action: Clicks "Revert to Original" in MeasureCodeEditor
+    │
+    ▼
+MeasureCodeEditor.jsx::handleRevert()
+    │
+    └──▶ Parent callback → CodeGeneration.tsx::handleRevertCodeOverride()
+              │
+              └──▶ measureStore.revertMeasureCodeOverride(measureId, format)
+                        │
+                        └──▶ Deletes measureCodeOverrides[key]
+    │
+    ▼
+State Changes:
+    • measureCodeOverrides[key]: deleted
+    │
+    ▼
+UI: Code reverts to generated, "Custom Override" badge removed
+     Edit history cleared
+```
+
+---
+
 ## 4. Orphan Report
 
 ### Summary
@@ -773,6 +1011,8 @@ Internal `get()` calls within measureStore:
 | LibraryBrowser.tsx | 2 stores | Recalculates usage from measures |
 | MeasureLibrary.tsx | 3 stores | Links components on import |
 | ComponentDetail.tsx | 2 stores | Displays code state for components |
+| CopilotPanel.jsx | 3 stores | Builds context, applies proposals to measures |
+| CodeGeneration.tsx | 1 store | Generates code, manages overrides |
 
 ---
 
@@ -894,3 +1134,4 @@ CodeGeneration.tsx
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | Feb 2026 | AI-assisted | Initial manifest creation |
+| 1.1 | Feb 2026 | AI-assisted | Added AI Co-pilot pipeline, MeasureCodeEditor, code customization flows |
