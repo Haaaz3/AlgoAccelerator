@@ -3193,6 +3193,92 @@ function DetailedEvaluationSummary({ trace, patient, measure }) {
     );
   };
 
+  // Render a single vaccine/criterion as a clean card (for Numerator)
+  const renderVaccineCard = (node, index) => {
+    // Extract dose info from facts
+    const doseFacts = node.facts?.filter(f => f.doseNumber !== undefined) || [];
+    const doseSummary = node.facts?.find(f => f.code === 'DOSE_SUMMARY');
+
+    // Get required count from summary fact or parse from description
+    const required = doseSummary?.requiredCount || parseRequiredDoses(node.description || node.title);
+    const found = doseSummary?.foundCount ?? doseFacts.length;
+    const isMet = node.status === 'pass' || node.status === 'partial';
+
+    // Check if this is an anaphylaxis/medical exclusion qualification
+    const titleLower = (node.title || '').toLowerCase();
+    const isAnaphylaxisQualification = titleLower.includes('anaphyla') ||
+                                        titleLower.includes('encephalitis') ||
+                                        titleLower.includes('reaction to');
+
+    // Clean up the title
+    let displayTitle = cleanDescription(node.title || 'Criterion');
+
+    return (
+      <div key={node.id || index} className={`mb-2 p-3 rounded-lg border ${
+        isMet
+          ? 'bg-[var(--success)]/5 border-[var(--success)]/20'
+          : 'bg-[var(--danger)]/5 border-[var(--danger)]/20'
+      }`}>
+        {/* Header: icon + name + Met/Not Met */}
+        <div className="flex items-center gap-2">
+          {isMet ? (
+            <CheckCircle className="w-4 h-4 text-[var(--success)] flex-shrink-0" />
+          ) : (
+            <XCircle className="w-4 h-4 text-[var(--danger)] flex-shrink-0" />
+          )}
+          <span className="font-medium text-sm text-[var(--text)]">{displayTitle}</span>
+          <span className={`text-xs ${isMet ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
+            — {isMet ? 'Met' : 'Not Met'}
+          </span>
+        </div>
+
+        {/* For anaphylaxis qualifications, show simple message */}
+        {isAnaphylaxisQualification && isMet ? (
+          <p className="text-xs text-[var(--text-muted)] ml-6 mt-1 italic">
+            Qualifies via medical exclusion
+          </p>
+        ) : (
+          <>
+            {/* Dose count */}
+            <p className={`text-xs ml-6 mt-1 ${isMet ? 'text-[var(--text-muted)]' : 'text-[var(--danger)]'}`}>
+              {found} of {required} required dose{required !== 1 ? 's' : ''}
+            </p>
+
+            {/* Individual doses */}
+            {doseFacts.length > 0 ? (
+              <div className="ml-6 mt-2 space-y-0.5 font-mono text-xs">
+                {doseFacts.map((dose, i) => (
+                  <div key={i} className="flex items-center gap-3 text-[var(--text-muted)]">
+                    <code className="text-[var(--accent)] w-16">{dose.system || 'CVX'} {dose.code}</code>
+                    <span className="flex-1 truncate">{dose.display}</span>
+                    {dose.date && (
+                      <span className="text-[var(--text-dim)] flex-shrink-0">
+                        {new Date(dose.date).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {/* Show missing dose placeholders */}
+                {!isMet && required > found && (
+                  Array.from({ length: required - found }).map((_, i) => (
+                    <div key={`missing-${i}`} className="flex items-center gap-3 text-xs text-[var(--danger)] italic">
+                      <span className="w-16">???</span>
+                      <span>Missing dose</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : !isMet ? (
+              <p className="text-xs text-[var(--text-dim)] ml-6 mt-1 italic">
+                No matching immunization records found
+              </p>
+            ) : null}
+          </>
+        )}
+      </div>
+    );
+  };
+
   // Render a population section
   const renderPopulationSection = (
     label,
@@ -3202,7 +3288,11 @@ function DetailedEvaluationSummary({ trace, patient, measure }) {
   ) => {
     const { isImplied, impliedText, showTrigger, hideIfEmpty } = options;
     const { met, nodes } = populationResult || { met: false, nodes: [] };
-    const allNodes = flattenNodes(nodes);
+
+    // For Numerator, use flattenForDisplay to get clean vaccine cards
+    // For other sections, use the simple flattenNodes
+    const isNumerator = sectionId === 'numer';
+    const allNodes = isNumerator ? flattenForDisplay(nodes) : flattenNodes(nodes);
     const isCollapsed = collapsedSections[sectionId] || false;
 
     // Skip if no nodes and hideIfEmpty is true
@@ -3261,8 +3351,16 @@ function DetailedEvaluationSummary({ trace, patient, measure }) {
         </button>
 
         {!isCollapsed && allNodes.length > 0 && (
-          <div className="mt-1.5 ml-6 border-l-2 border-[var(--border)] pl-2">
-            {allNodes.map((node, idx) => renderCriterionNode(node, idx, idx === allNodes.length - 1))}
+          <div className="mt-2 ml-4">
+            {isNumerator ? (
+              // Use clean vaccine cards for Numerator
+              allNodes.map((node, idx) => renderVaccineCard(node, idx))
+            ) : (
+              // Use simple criterion rendering for other sections
+              <div className="border-l-2 border-[var(--border)] pl-2">
+                {allNodes.map((node, idx) => renderCriterionNode(node, idx, idx === allNodes.length - 1))}
+              </div>
+            )}
           </div>
         )}
 
