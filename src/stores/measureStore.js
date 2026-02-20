@@ -176,7 +176,10 @@ export const useMeasureStore = create              ()(
             if (localVersionJson) {
               try {
                 const localMeasure = JSON.parse(localVersionJson);
-                console.log(`[measureStore] Using local version of ${m.metadata.measureId} (has enriched data)`);
+                // Debug: log numerator criteria count to help diagnose stale cache issues
+                const numeratorPop = localMeasure.populations?.find(p => p.type === 'numerator');
+                const criteriaCount = numeratorPop?.criteria?.children?.length || 0;
+                console.log(`[measureStore] Using local version of ${m.metadata.measureId} (numerator has ${criteriaCount} criteria)`);
                 return localMeasure                        ;
               } catch (e) {
                 console.error(`[measureStore] Failed to parse local measure ${m.metadata.measureId}:`, e);
@@ -221,6 +224,15 @@ export const useMeasureStore = create              ()(
       // Import a measure to the backend and add to local state
       // NOTE: Backend may return 403 due to auth issues, but we ALWAYS save locally
       importMeasure: async (measure) => {
+        // IMPORTANT: Clear any stale localStorage cache FIRST before processing
+        // This ensures the new import always takes precedence over old cached data
+        const incomingMeasureId = measure.metadata?.measureId;
+        if (incomingMeasureId) {
+          localStorage.removeItem(`measure-local-${incomingMeasureId}`);
+          localStorage.removeItem(`measure-deleted-${incomingMeasureId}`);
+          console.log(`[importMeasure] Cleared stale localStorage for ${incomingMeasureId}`);
+        }
+
         // Add to local state with FHIR alignment FIRST (before backend attempt)
         let fhirMeasure = measure.resourceType === 'Measure'
           ? measure
