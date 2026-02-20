@@ -2324,6 +2324,178 @@ function findFirstQualifyingFact(nodes                  )                       
   return earliest;
 }
 
+/**
+ * Flatten nested OR/AND groups into a simple display list.
+ * - OR groups: render only the qualifying child (vaccine OR anaphylaxis, whichever Met)
+ * - AND groups: flatten recursively
+ * - Skip group wrapper nodes entirely
+ */
+function flattenForDisplay(nodes) {
+  const result = [];
+  for (const node of nodes) {
+    if (node.children && node.children.length > 0) {
+      // This is a group node (OR or AND)
+      if (node.operator === 'OR') {
+        // OR group: find the qualifying child and render ONLY that
+        const metChild = node.children.find(c => c.status === 'pass' || c.status === 'partial');
+        if (metChild) {
+          // If metChild itself has children (nested group), flatten it
+          if (metChild.children && metChild.children.length > 0) {
+            result.push(...flattenForDisplay([metChild]));
+          } else {
+            result.push(metChild);
+          }
+        } else {
+          // Nothing met — find the primary criterion (not anaphylaxis) and show as Not Met
+          const primaryChild = node.children.find(c => {
+            const t = (c.title || c.description || '').toLowerCase();
+            return !t.includes('anaphyla') && !t.includes('encephalitis') &&
+                   !t.includes('contraindic') && !t.includes('reaction to');
+          });
+          if (primaryChild) {
+            result.push(primaryChild);
+          } else {
+            // Fallback: show first child
+            result.push(node.children[0]);
+          }
+        }
+      } else {
+        // AND group or other: flatten recursively
+        result.push(...flattenForDisplay(node.children));
+      }
+    } else {
+      // Leaf node: include directly (but skip anaphylaxis/contraindication nodes)
+      const t = (node.title || node.description || '').toLowerCase();
+      const isAnaphylaxis = t.includes('anaphyla') || t.includes('encephalitis') ||
+                            t.includes('contraindic') || t.includes('reaction to');
+      if (!isAnaphylaxis) {
+        result.push(node);
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Parse required dose count from description text.
+ * "Four DTaP vaccinations" → 4
+ * "Three IPV vaccinations" → 3
+ * "at least 2 doses" → 2
+ */
+function parseRequiredDoses(text) {
+  if (!text) return 1;
+  const lower = text.toLowerCase();
+
+  const wordMap = {
+    'one': 1, 'two': 2, 'three': 3, 'four': 4,
+    'five': 5, 'six': 6, 'seven': 7, 'eight': 8
+  };
+
+  // Check for word numbers
+  for (const [word, num] of Object.entries(wordMap)) {
+    if (lower.includes(word)) return num;
+  }
+
+  // Check for digits
+  const digitMatch = lower.match(/(\d+)/);
+  if (digitMatch) return parseInt(digitMatch[1]);
+
+  return 1;
+}
+
+/**
+ * Render a single vaccine/criterion result as a clean card.
+ * Shows: title, Met/Not Met, dose count, individual doses with dates.
+ */
+function VaccineResultCard({ node, onClick }) {
+  // Extract dose info from facts
+  const doseFacts = node.facts?.filter(f => f.doseNumber !== undefined) || [];
+  const doseSummary = node.facts?.find(f => f.code === 'DOSE_SUMMARY');
+
+  // Get required count from summary fact or parse from description
+  const required = doseSummary?.requiredCount || parseRequiredDoses(node.description || node.title);
+  const found = doseSummary?.foundCount ?? doseFacts.length;
+  const isMet = node.status === 'pass' || node.status === 'partial';
+
+  // Check if this is an anaphylaxis/medical exclusion qualification
+  const titleLower = (node.title || '').toLowerCase();
+  const isAnaphylaxisQualification = titleLower.includes('anaphyla') ||
+                                      titleLower.includes('encephalitis') ||
+                                      titleLower.includes('reaction to');
+
+  // Clean up the title - remove technical prefixes
+  let displayTitle = node.title || 'Criterion';
+  displayTitle = cleanDescription(displayTitle);
+
+  return (
+    <div
+      onClick={onClick}
+      className={`mb-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+        isMet
+          ? 'bg-[var(--success)]/5 border-[var(--success)]/20 hover:border-[var(--success)]/40'
+          : 'bg-[var(--danger)]/5 border-[var(--danger)]/20 hover:border-[var(--danger)]/40'
+      }`}
+    >
+      {/* Header: icon + name + Met/Not Met */}
+      <div className="flex items-center gap-2">
+        {isMet ? (
+          <CheckCircle className="w-5 h-5 text-[var(--success)] flex-shrink-0" />
+        ) : (
+          <XCircle className="w-5 h-5 text-[var(--danger)] flex-shrink-0" />
+        )}
+        <span className="font-medium text-sm text-[var(--text)]">{displayTitle}</span>
+        <span className={`text-xs ${isMet ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
+          — {isMet ? 'Met' : 'Not Met'}
+        </span>
+      </div>
+
+      {/* For anaphylaxis qualifications, show simple message */}
+      {isAnaphylaxisQualification && isMet ? (
+        <p className="text-xs text-[var(--text-muted)] ml-7 mt-1 italic">
+          Qualifies via medical exclusion
+        </p>
+      ) : (
+        <>
+          {/* Dose count - show without internal labels */}
+          <p className={`text-xs ml-7 mt-1 ${isMet ? 'text-[var(--text-muted)]' : 'text-[var(--danger)]'}`}>
+            {found} of {required} required dose{required !== 1 ? 's' : ''}
+          </p>
+
+          {/* Individual doses */}
+          {doseFacts.length > 0 ? (
+            <div className="ml-7 mt-2 space-y-0.5 font-mono text-xs">
+              {doseFacts.map((dose, i) => (
+                <div key={i} className="flex items-center gap-3 text-[var(--text-muted)]">
+                  <code className="text-[var(--accent)] w-16">{dose.system || 'CVX'} {dose.code}</code>
+                  <span className="flex-1 truncate">{dose.display}</span>
+                  {dose.date && (
+                    <span className="text-[var(--text-dim)] flex-shrink-0">
+                      {new Date(dose.date).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {/* Show missing dose placeholders */}
+              {!isMet && required > found && (
+                Array.from({ length: required - found }).map((_, i) => (
+                  <div key={`missing-${i}`} className="flex items-center gap-3 text-xs text-[var(--danger)] italic">
+                    <span className="w-16">???</span>
+                    <span>Missing dose</span>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : !isMet ? (
+            <p className="text-xs text-[var(--text-dim)] ml-7 mt-1 italic">
+              No matching immunization records found
+            </p>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 function ValidationSection({
   title,
   subtitle,
@@ -2332,20 +2504,10 @@ function ValidationSection({
   resultChip,
   resultPositive,
   onInspect,
-}   
-                
-                    
-                          
-                         
-                     
-                          
-                                            
- ) {
-  const useListLayout = nodes.length > 4;
-  const metCount = nodes.filter(n => n.status === 'pass').length;
-
-  // Find the first qualifying fact for this section
-  const firstQualification = resultPositive ? findFirstQualifyingFact(nodes) : null;
+}) {
+  // Flatten the node tree for clean display - no group wrappers, no anaphylaxis alternatives
+  const displayNodes = flattenForDisplay(nodes);
+  const metCount = displayNodes.filter(n => n.status === 'pass' || n.status === 'partial').length;
 
   return (
     <div className={`mb-6 rounded-xl border p-5 transition-colors ${
@@ -2354,7 +2516,7 @@ function ValidationSection({
         : 'bg-[var(--bg-secondary)] border-[var(--border-light)]'
     }`}>
       {/* Header with status indicator */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <div className="flex items-center gap-2">
             {resultPositive ? (
@@ -2369,11 +2531,9 @@ function ValidationSection({
           {subtitle && <p className="text-xs text-[var(--text-dim)] mt-1 ml-7">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-3">
-          {useListLayout && (
-            <span className="text-xs text-[var(--text-muted)]">
-              {metCount} of {nodes.length} met
-            </span>
-          )}
+          <span className="text-xs text-[var(--text-muted)]">
+            {metCount} of {displayNodes.length} met
+          </span>
           <div className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap ${
             resultPositive
               ? 'bg-[var(--success)] text-white'
@@ -2384,22 +2544,16 @@ function ValidationSection({
         </div>
       </div>
 
-      {/* Qualifying event - shows the first triggering event */}
-      {firstQualification && (
-        <div className="mb-4 p-3 bg-[var(--success)]/10 border border-[var(--success)]/20 rounded-lg">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Calendar className="w-3.5 h-3.5 text-[var(--success)]" />
-            <code className="text-[var(--accent)] bg-[var(--accent-light)] px-1.5 py-0.5 rounded text-xs font-mono">
-              {firstQualification.code}
-            </code>
-            <span className="text-sm text-[var(--text)]">{firstQualification.display}</span>
-            <span className="text-xs text-[var(--text-muted)]">on {firstQualification.date}</span>
-            <span className="text-[10px] text-[var(--text-dim)]">via {firstQualification.nodeTitle}</span>
-          </div>
-        </div>
-      )}
-
-      <ValidationNodeList nodes={nodes} operator={operator} onInspect={onInspect} />
+      {/* Render flattened nodes as simple cards */}
+      <div className="space-y-0">
+        {displayNodes.map((node, i) => (
+          <VaccineResultCard
+            key={node.id || i}
+            node={node}
+            onClick={() => onInspect(node)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
