@@ -93,10 +93,11 @@ Application configuration and preferences.
 
 ```typescript
 interface SettingsState {
-  theme: 'dark' | 'light' | 'system';
-  codeGenTarget: 'cql' | 'hdi-sql' | 'fhir';
-  aiProvider: 'anthropic' | 'openai';
+  selectedProvider: 'anthropic' | 'openai' | 'google' | 'custom';
+  selectedModel: string;
   apiKeys: Record<string, string>;
+  customLlmBaseUrl: string;
+  customLlmModelName: string;
 }
 ```
 
@@ -430,12 +431,11 @@ Test patient validation interface.
 - Pass/fail visualization
 
 ### CodeGeneration.tsx
-Multi-format code generation interface.
+Code generation interface.
 
 **Outputs:**
 - CQL (Clinical Quality Language)
-- HDI SQL (BigQuery)
-- FHIR Measure resource
+- Synapse SQL (Azure Synapse Analytics)
 - Component-level code snippets
 
 **Integrated Features:**

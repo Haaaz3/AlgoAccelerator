@@ -28,7 +28,7 @@ AlgoAccelerator is a powerful platform for developing, validating, and deploying
 | **Components** | Manage reusable component library |
 | **Value Sets** | Edit value sets and codes |
 | **Validation** | Test measures with synthetic patients |
-| **Code Gen** | Generate CQL, SQL, and FHIR code |
+| **Code Gen** | Generate CQL and Synapse SQL code |
 | **Settings** | Configure application preferences |
 
 ## Core Workflows
@@ -256,26 +256,19 @@ When editing a component used in multiple measures:
 
 ### 6. Validation & Testing
 
-#### Generating Test Patients
+#### Test Patients
 
-1. Navigate to **Validation** tab
-2. Click **Generate Test Patients**
-3. Configure patient scenarios:
-   - Numerator-positive (should qualify)
-   - Denominator-only (should fail numerator)
-   - Excluded (should be excluded)
-   - Edge cases (boundary conditions)
-4. Click **Generate**
+When you navigate to the **Validation** tab with a measure selected, test patients are automatically generated based on the measure's criteria. The system creates a diverse set of synthetic patients covering different population outcomes.
 
-#### Running Validation
+#### Reviewing Validation Results
 
-1. Select a test patient
-2. Click **Evaluate**
-3. Review the trace output:
-   - Step-by-step evaluation
+1. Navigate to **Validation** tab with a measure selected
+2. Test patients are displayed in a list showing their population results
+3. Click on any patient to view the detailed evaluation trace:
+   - Step-by-step criteria evaluation
    - Resource matching details
-   - Population results (IPP, Denom, Numer)
-   - Pass/Fail indicators
+   - Population results (IPP, Denom, Numer, Exclusions)
+   - Pass/Fail indicators for each criterion
 
 #### Interpreting Results
 
@@ -323,14 +316,10 @@ The Co-pilot has access to:
 #### Generating CQL
 
 1. Navigate to **Code Gen** tab
-2. Select **CQL** format
-3. Configure options:
-   - Library name and version
-   - FHIR version (R4)
-   - QI-Core version
-4. Click **Generate**
-5. Review generated CQL
-6. Click **Copy** or **Download**
+2. Select **CQL** format (default)
+3. CQL is automatically generated from the measure structure
+4. Review generated CQL in the code viewer
+5. Click **Copy** or **Download**
 
 **Example Output:**
 ```cql
@@ -353,22 +342,12 @@ define "Numerator":
     and exists "HbA1c Test Performed"
 ```
 
-#### Generating HDI SQL
+#### Generating Synapse SQL
 
-1. Select **HDI SQL** format
-2. Configure:
-   - Database dialect (BigQuery)
-   - Table naming conventions
-   - Date format
-3. Click **Generate**
-4. Review and download
-
-#### Generating FHIR Measure
-
-1. Select **FHIR** format
-2. Configure FHIR resource properties
-3. Click **Generate**
-4. Download JSON resource
+1. Click the **Synapse SQL** toggle in the Code Gen tab
+2. SQL is automatically generated from the measure structure
+3. Review the generated SQL with CTEs and population logic
+4. Click **Copy** or **Download**
 
 #### Customizing Generated Code
 
@@ -390,26 +369,31 @@ Below the code preview, the **Code Editor** allows you to customize generated co
 
 ### 9. Settings & Configuration
 
-#### Theme
+#### LLM Provider
 
-- **Dark** - Dark background (default)
-- **Light** - Light background
-- **System** - Follow OS preference
+Configure the AI provider for document ingestion and co-pilot:
+- **Anthropic (Claude)** - Recommended for best extraction quality
+- **OpenAI (GPT-4)** - Alternative provider
+- **Google (Gemini)** - Alternative provider
+- **Custom LLM** - Self-hosted or custom endpoint (OpenAI-compatible API)
 
-#### AI Provider
+#### API Key Configuration
 
-Configure AI for document ingestion:
-- **Anthropic (Claude)** - Recommended
-- **OpenAI (GPT-4)**
+1. Navigate to **Settings** tab
+2. Select your preferred LLM provider
+3. Enter your API key in the secure field
+4. Click **Save**
 
-Enter API key in the secure field.
+Your API key is stored locally in your browser and never sent to our servers. All AI calls are made directly from your browser to the LLM provider.
 
-#### Code Generation Target
+#### Custom LLM Configuration
 
-Set default output format:
-- CQL
-- HDI SQL
-- FHIR
+For self-hosted models (Ollama, LM Studio, vLLM, etc.):
+1. Select **Custom LLM** provider
+2. Enter the API Base URL (e.g., `http://localhost:11434/v1`)
+3. Enter the model name
+4. Optionally enter an API key if required
+5. Click **Save Custom Configuration**
 
 ## Best Practices
 
@@ -505,3 +489,4 @@ Set default output format:
 | 1.1 | Feb 2026 | Added component merge functionality |
 | 1.2 | Feb 2026 | Multiple value sets support, per-sibling operators |
 | 1.3 | Feb 2026 | AI Co-pilot with proposal system, intuitive code editor with visual diffs and edit history |
+| 1.4 | Feb 2026 | Documentation accuracy review: removed unimplemented features (theme, FHIR export, patient config) |
