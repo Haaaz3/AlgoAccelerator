@@ -2634,30 +2634,34 @@ function ValidationNodeList({
           <div key={node.id}>
             {i > 0 && <OperatorSeparator operator={operator} />}
             {node.children && node.children.length > 0 ? (
-              /* AND group node — render as a nested section */
-              <div className={`ml-2 rounded-lg border p-3 ${
-                node.status === 'skipped'
-                  ? 'border-[var(--border-light)] bg-[var(--bg-tertiary)]/30 opacity-60'
-                  : 'border-[var(--border-light)] bg-[var(--bg-tertiary)]/50'
-              }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  {node.status === 'pass' ? (
-                    <CheckCircle className="w-4 h-4 text-[var(--success)]" />
-                  ) : node.status === 'partial' ? (
-                    <AlertTriangle className="w-4 h-4 text-[var(--warning)]" />
-                  ) : node.status === 'skipped' ? (
-                    <div className="w-4 h-4 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border)] flex items-center justify-center text-[10px] text-[var(--text-dim)]">○</div>
-                  ) : (
-                    <XCircle className="w-4 h-4 text-[var(--danger)]" />
-                  )}
-                  <h4 className="text-sm font-medium text-[var(--text-muted)]">{cleanDescription(node.title)}</h4>
+              /* AND group node — render with left border like other sections */
+              <div className={`ml-2 ${node.status === 'skipped' ? 'opacity-60' : ''}`}>
+                <div className="flex items-start gap-2 py-1.5 border-b border-[var(--border-light)]">
+                  <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                    node.status === 'pass' ? 'bg-[var(--success-light)]' :
+                    node.status === 'partial' ? 'bg-[var(--warning-light)]' :
+                    'bg-[var(--danger-light)]'
+                  }`}>
+                    {node.status === 'pass' ? (
+                      <CheckCircle className="w-3 h-3 text-[var(--success)]" />
+                    ) : node.status === 'partial' ? (
+                      <AlertTriangle className="w-3 h-3 text-[var(--warning)]" />
+                    ) : node.status === 'skipped' ? (
+                      <div className="w-3 h-3 text-[10px] text-[var(--text-dim)]">○</div>
+                    ) : (
+                      <XCircle className="w-3 h-3 text-[var(--danger)]" />
+                    )}
+                  </div>
+                  <span className="text-sm font-medium text-[var(--text)]">{cleanDescription(node.title)}</span>
                 </div>
                 {node.status !== 'skipped' && (
-                  <ValidationNodeList
-                    nodes={node.children}
-                    operator={node.operator || 'AND'}
-                    onInspect={onInspect}
-                  />
+                  <div className="ml-4 border-l-2 border-[var(--border)] pl-2 mt-1">
+                    <ValidationNodeList
+                      nodes={node.children}
+                      operator={node.operator || 'AND'}
+                      onInspect={onInspect}
+                    />
+                  </div>
                 )}
               </div>
             ) : (
@@ -2698,94 +2702,79 @@ function ValidationNodeRow({ node, onClick }) {
     return null;
   }
 
+  // Determine styling based on status (matches renderCriterionNode)
+  const isPass = node.status === 'pass';
+  const iconBgClass = isPass ? 'bg-[var(--success-light)]' : 'bg-[var(--danger-light)]';
+  const badgeClass = isPass ? 'bg-[var(--success-light)] text-[var(--success)]' : 'bg-[var(--danger-light)] text-[var(--danger)]';
+  const badgeText = isPass ? 'Met' : 'Not Met';
+  const cleanedDesc = node.description ? cleanDescription(node.description) : null;
+
   return (
     <div
       onClick={onClick}
-      className={`flex items-start gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors border ${
-        node.status === 'pass'
-          ? 'bg-[var(--success)]/5 border-[var(--success)]/20 hover:border-[var(--success)]/40'
-          : node.status === 'not_applicable'
-          ? 'bg-[var(--bg-tertiary)] border-[var(--border-light)] hover:border-[var(--border)]'
-          : 'bg-[var(--danger)]/5 border-[var(--danger)]/20 hover:border-[var(--danger)]/40'
-      }`}
+      className="flex items-start gap-2 py-1.5 border-b border-[var(--border-light)] cursor-pointer hover:bg-[var(--bg-tertiary)]/50"
     >
-      {/* Pass/Fail icon */}
-      <div className="flex-shrink-0 mt-0.5">
-        {node.status === 'pass' ? (
-          <CheckCircle className="w-5 h-5 text-[var(--success)]" />
-        ) : node.status === 'not_applicable' ? (
-          <div className="w-5 h-5 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-xs text-[var(--text-muted)]">—</div>
+      {/* Small circular icon (matches renderCriterionNode) */}
+      <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${iconBgClass}`}>
+        {isPass ? (
+          <CheckCircle className="w-3 h-3 text-[var(--success)]" />
         ) : (
-          <XCircle className="w-5 h-5 text-[var(--danger)]" />
+          <XCircle className="w-3 h-3 text-[var(--danger)]" />
         )}
       </div>
 
-      {/* Criterion title, dose summary, and dose-by-dose detail */}
+      {/* Criterion title, badge, description, and evidence */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h4 className="font-medium text-[var(--text)] text-sm">{cleanDescription(node.title)}</h4>
-          <span className={`text-xs ${
-            node.status === 'pass' ? 'text-[var(--success)]' : 'text-[var(--danger)]'
-          }`}>
-            — {node.status === 'pass' ? 'Met' : 'Not Met'}
+        {/* Main line: Title + Badge + Description (all inline, matches renderCriterionNode) */}
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-sm font-medium text-[var(--text)]">{cleanDescription(node.title)}</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badgeClass}`}>
+            {badgeText}
           </span>
+          {cleanedDesc && (
+            <>
+              <span className="text-[var(--text-dim)]">—</span>
+              <span className="text-xs text-[var(--text-muted)]">{cleanedDesc}</span>
+            </>
+          )}
         </div>
 
-        {/* Show dose count summary (without internal label) */}
+        {/* Show dose count summary */}
         {doseSummaryFact && (
-          <p className={`text-xs mt-1 ${
-            node.status === 'pass' ? 'text-[var(--text-muted)]' : 'text-[var(--danger)]'
-          }`}>
+          <p className={`text-[11px] mt-0.5 ${isPass ? 'text-[var(--text-muted)]' : 'text-[var(--danger)]'}`}>
             {doseSummaryFact.foundCount || 0} of {doseSummaryFact.requiredCount || 1} required dose{doseSummaryFact.requiredCount !== 1 ? 's' : ''}
           </p>
         )}
 
         {/* Show dose-by-dose detail for immunizations */}
         {doseFacts.length > 0 ? (
-          <div className="mt-2 space-y-0.5 font-mono text-xs">
+          <div className="mt-1 space-y-0.5">
             {doseFacts.map((fact, i) => (
-              <div key={i} className="flex items-center gap-3 text-[var(--text-muted)]">
-                <code className="text-[var(--accent)] w-16">{fact.system || 'CVX'} {fact.code}</code>
-                <span className="flex-1 truncate">{fact.display}</span>
+              <div key={i} className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                <span className="text-[var(--text-muted)]">{fact.display}</span>
                 {fact.date && (
-                  <span className="text-[var(--text-dim)] flex-shrink-0">{new Date(fact.date).toLocaleDateString()}</span>
+                  <span className="text-[var(--text-dim)]">on {new Date(fact.date).toLocaleDateString()}</span>
                 )}
               </div>
             ))}
-            {/* Show missing doses if not met */}
-            {node.status !== 'pass' && doseSummaryFact?.requiredCount > (doseSummaryFact?.foundCount || 0) && (
-              Array.from({ length: doseSummaryFact.requiredCount - (doseSummaryFact.foundCount || 0) }).map((_, i) => (
-                <div key={`missing-${i}`} className="flex items-center gap-3 text-xs text-[var(--danger)] italic">
-                  <span className="w-16">???</span>
-                  <span>Missing dose</span>
-                </div>
-              ))
-            )}
           </div>
         ) : noMatchFact ? (
-          <p className="text-xs text-[var(--text-dim)] mt-1">No matching immunization records found</p>
+          <p className="text-[11px] text-[var(--text-dim)] mt-0.5 italic">No matching immunization records found</p>
         ) : detailFacts.length > 0 ? (
           /* Show other detail facts if no dose facts */
-          <div className="mt-1.5 space-y-0.5">
+          <div className="mt-1 space-y-0.5">
             {detailFacts.map((fact, i) => (
-              <div key={i} className="text-xs text-[var(--text-muted)] flex items-center gap-2">
+              <div key={i} className="flex items-center gap-1.5 flex-wrap text-[11px]">
                 {fact.code && fact.code !== '—' && (
                   <code className="text-[var(--accent)] bg-[var(--accent-light)] px-1 rounded text-[10px] font-mono">{fact.code}</code>
                 )}
-                <span>{fact.display}</span>
-                {fact.date && <span className="text-[var(--text-dim)]">({new Date(fact.date).toLocaleDateString()})</span>}
+                <span className="text-[var(--text-muted)]">{fact.display}</span>
+                {fact.date && <span className="text-[var(--text-dim)]">on {new Date(fact.date).toLocaleDateString()}</span>}
               </div>
             ))}
           </div>
-        ) : noMatchFact ? (
-          <p className="text-xs text-[var(--text-dim)] mt-0.5">{noMatchFact.display}</p>
-        ) : (
-          <p className="text-xs text-[var(--text-dim)] mt-0.5">{cleanDescription(node.description)}</p>
-        )}
+        ) : null}
       </div>
-
-      {/* Click-to-inspect indicator */}
-      <ChevronRight className="w-4 h-4 text-[var(--text-dim)] flex-shrink-0 mt-1" />
     </div>
   );
 }
