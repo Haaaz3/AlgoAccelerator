@@ -84,6 +84,7 @@ export function MeasureCreator({ isOpen, onClose }                     ) {
   const [initialPopCriteria, setInitialPopCriteria] = useState                    ({
     description: '',
     ageRange: {},
+    sex: null, // null = any, 'male' or 'female'
     valueSets: new Set(),
     criteriaBlocks: [],
   });
@@ -140,7 +141,7 @@ export function MeasureCreator({ isOpen, onClose }                     ) {
     setSteward('');
     setRationale('');
     setSourceMeasureId(null);
-    setInitialPopCriteria({ description: '', ageRange: {}, valueSets: new Set(), criteriaBlocks: [] });
+    setInitialPopCriteria({ description: '', ageRange: {}, sex: null, valueSets: new Set(), criteriaBlocks: [] });
     setDenominatorCriteria({ description: '', valueSets: new Set(), criteriaBlocks: [] });
     setNumeratorCriteria({ description: '', valueSets: new Set(), criteriaBlocks: [] });
     setExclusionCriteria({ description: '', valueSets: new Set(), criteriaBlocks: [] });
@@ -870,6 +871,17 @@ export function MeasureCreator({ isOpen, onClose }                     ) {
           ageMax: initialPopCriteria.ageRange.max,
         },
         confidence: 'medium',
+        reviewStatus: 'pending',
+      }               );
+    }
+
+    if (initialPopCriteria.sex) {
+      ipChildren.push({
+        id: `sex-${timestamp}`,
+        type: 'demographic',
+        description: `Patient Sex: ${initialPopCriteria.sex.charAt(0).toUpperCase() + initialPopCriteria.sex.slice(1)}`,
+        genderValue: initialPopCriteria.sex,
+        confidence: 'high',
         reviewStatus: 'pending',
       }               );
     }
@@ -1694,6 +1706,48 @@ This text will be combined with any uploaded documents for AI analysis.`}
                 </div>
               </div>
 
+              {/* Patient Sex - toggle selector */}
+              <div>
+                <label className="block text-sm font-medium text-[var(--text)] mb-2">
+                  Patient Sex
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInitialPopCriteria({ ...initialPopCriteria, sex: null })}
+                    className={`flex-1 px-4 py-3 rounded-lg font-medium transition-colors border ${
+                      initialPopCriteria.sex === null
+                        ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
+                        : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--accent)]/50'
+                    }`}
+                  >
+                    Any
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInitialPopCriteria({ ...initialPopCriteria, sex: 'male' })}
+                    className={`flex-1 px-4 py-3 rounded-lg font-medium transition-colors border ${
+                      initialPopCriteria.sex === 'male'
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border)] hover:border-blue-500/50'
+                    }`}
+                  >
+                    Male
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInitialPopCriteria({ ...initialPopCriteria, sex: 'female' })}
+                    className={`flex-1 px-4 py-3 rounded-lg font-medium transition-colors border ${
+                      initialPopCriteria.sex === 'female'
+                        ? 'bg-pink-500 text-white border-pink-500'
+                        : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border)] hover:border-pink-500/50'
+                    }`}
+                  >
+                    Female
+                  </button>
+                </div>
+              </div>
+
               {/* Clinical Criteria Builder */}
               <div className="pt-4 border-t border-[var(--border)]">
                 <CriteriaBlockBuilder
@@ -1857,6 +1911,11 @@ This text will be combined with any uploaded documents for AI analysis.`}
                         {(initialPopCriteria.ageRange?.min !== undefined || initialPopCriteria.ageRange?.max !== undefined) && (
                           <p className="text-xs text-[var(--text-dim)] mt-1">
                             Age: {initialPopCriteria.ageRange?.min || 0} - {initialPopCriteria.ageRange?.max || '∞'} years
+                          </p>
+                        )}
+                        {initialPopCriteria.sex && (
+                          <p className="text-xs text-[var(--text-dim)] mt-1">
+                            Sex: {initialPopCriteria.sex.charAt(0).toUpperCase() + initialPopCriteria.sex.slice(1)}
                           </p>
                         )}
                         {(initialPopCriteria.valueSets?.size || 0) > 0 && (
