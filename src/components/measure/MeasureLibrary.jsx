@@ -142,6 +142,9 @@ export function MeasureLibrary() {
           console.warn('Backend import failed, measure saved locally only:', importResult.error);
         }
 
+        // Navigate to editor after successful import
+        navigate('/editor');
+
         // Immediately match against component library — link to existing approved components
         console.log('[MeasureLibrary] About to call linkMeasureComponents for:', measureWithStatus.metadata.measureId);
         console.log('[MeasureLibrary] Populations:', JSON.stringify(measureWithStatus.populations, null, 2).slice(0, 2000));
@@ -194,7 +197,7 @@ export function MeasureLibrary() {
 
     // Brief pause then process next
     setTimeout(() => processNext(), 1500);
-  }, [getActiveApiKey, importMeasure, updateMeasure, selectedProvider, selectedModel, getCustomLlmConfig, linkMeasureComponents, rebuildUsageIndex, measures]);
+  }, [getActiveApiKey, importMeasure, updateMeasure, selectedProvider, selectedModel, getCustomLlmConfig, linkMeasureComponents, rebuildUsageIndex, measures, navigate]);
 
   // Handle files: either start processing or add to queue
   const handleFiles = useCallback(async (files        ) => {

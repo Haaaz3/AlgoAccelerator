@@ -2427,70 +2427,81 @@ function VaccineResultCard({ node, onClick }) {
   let displayTitle = node.title || 'Criterion';
   displayTitle = cleanDescription(displayTitle);
 
+  // Styling based on status (matches renderCriterionNode)
+  let iconBgClass, iconComponent, badgeClass, badgeText;
+  if (isMet) {
+    iconBgClass = 'bg-[var(--success-light)]';
+    iconComponent = <CheckCircle className="w-3 h-3 text-[var(--success)]" />;
+    badgeClass = 'bg-[var(--success-light)] text-[var(--success)]';
+    badgeText = 'Met';
+  } else {
+    iconBgClass = 'bg-[var(--danger-light)]';
+    iconComponent = <XCircle className="w-3 h-3 text-[var(--danger)]" />;
+    badgeClass = 'bg-[var(--danger-light)] text-[var(--danger)]';
+    badgeText = 'Not Met';
+  }
+
+  // Clean description
+  const cleanedDesc = node.description ? cleanDescription(node.description) : null;
+
   return (
     <div
       onClick={onClick}
-      className={`mb-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-        isMet
-          ? 'bg-[var(--success)]/5 border-[var(--success)]/20 hover:border-[var(--success)]/40'
-          : 'bg-[var(--danger)]/5 border-[var(--danger)]/20 hover:border-[var(--danger)]/40'
-      }`}
+      className="flex items-start gap-2 py-1.5 border-b border-[var(--border-light)] cursor-pointer hover:bg-[var(--bg-tertiary)]/50"
     >
-      {/* Header: icon + name + Met/Not Met */}
-      <div className="flex items-center gap-2">
-        {isMet ? (
-          <CheckCircle className="w-5 h-5 text-[var(--success)] flex-shrink-0" />
-        ) : (
-          <XCircle className="w-5 h-5 text-[var(--danger)] flex-shrink-0" />
-        )}
-        <span className="font-medium text-sm text-[var(--text)]">{displayTitle}</span>
-        <span className={`text-xs ${isMet ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
-          — {isMet ? 'Met' : 'Not Met'}
-        </span>
+      <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${iconBgClass}`}>
+        {iconComponent}
       </div>
+      <div className="flex-1 min-w-0">
+        {/* Main line: Title + Badge + Description (all inline) */}
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-sm font-medium text-[var(--text)]">{displayTitle}</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badgeClass}`}>
+            {badgeText}
+          </span>
+          {cleanedDesc && (
+            <>
+              <span className="text-[var(--text-dim)]">—</span>
+              <span className="text-xs text-[var(--text-muted)]">{cleanedDesc}</span>
+            </>
+          )}
+        </div>
 
-      {/* For anaphylaxis qualifications, show simple message */}
-      {isAnaphylaxisQualification && isMet ? (
-        <p className="text-xs text-[var(--text-muted)] ml-7 mt-1 italic">
-          Qualifies via medical exclusion
-        </p>
-      ) : (
-        <>
-          {/* Dose count - show without internal labels */}
-          <p className={`text-xs ml-7 mt-1 ${isMet ? 'text-[var(--text-muted)]' : 'text-[var(--danger)]'}`}>
-            {found} of {required} required dose{required !== 1 ? 's' : ''}
+        {/* For anaphylaxis qualifications, show simple message */}
+        {isAnaphylaxisQualification && isMet ? (
+          <p className="text-[11px] text-[var(--text-muted)] mt-0.5 italic">
+            Qualifies via medical exclusion
           </p>
-
-          {/* Individual doses */}
-          {doseFacts.length > 0 ? (
-            <div className="ml-7 mt-2 space-y-0.5 text-xs">
-              {doseFacts.map((dose, i) => (
-                <div key={i} className="flex items-center justify-between text-[var(--text-muted)]">
-                  <span>{dose.display}</span>
-                  {dose.date && (
-                    <span className="text-[var(--text-dim)]">
-                      {new Date(dose.date).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              ))}
-              {/* Show missing dose placeholders */}
-              {!isMet && required > found && (
-                Array.from({ length: required - found }).map((_, i) => (
-                  <div key={`missing-${i}`} className="flex items-center gap-3 text-xs text-[var(--danger)] italic">
-                    <span className="w-16">???</span>
-                    <span>Missing dose</span>
-                  </div>
-                ))
-              )}
-            </div>
-          ) : !isMet ? (
-            <p className="text-xs text-[var(--text-dim)] ml-7 mt-1 italic">
-              No matching immunization records found
+        ) : (
+          <>
+            {/* Dose count line */}
+            <p className={`text-[11px] mt-0.5 ${isMet ? 'text-[var(--text-muted)]' : 'text-[var(--danger)]'}`}>
+              {found} of {required} required dose{required !== 1 ? 's' : ''}
             </p>
-          ) : null}
-        </>
-      )}
+
+            {/* Individual doses - shown as evidence lines */}
+            {doseFacts.length > 0 && (
+              <div className="mt-1 space-y-0.5">
+                {doseFacts.map((dose, i) => (
+                  <div key={i} className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <span className="text-[var(--text-muted)]">{dose.display}</span>
+                    {dose.date && (
+                      <span className="text-[var(--text-dim)]">on {new Date(dose.date).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Show missing message if no doses found */}
+            {doseFacts.length === 0 && !isMet && (
+              <p className="text-[11px] text-[var(--text-dim)] mt-0.5 italic">
+                No matching immunization records found
+              </p>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -2509,50 +2520,48 @@ function ValidationSection({
   const metCount = displayNodes.filter(n => n.status === 'pass' || n.status === 'partial').length;
 
   return (
-    <div className={`mb-6 rounded-xl border p-5 transition-colors ${
-      resultPositive
-        ? 'bg-[var(--success)]/5 border-[var(--success)]/30'
-        : 'bg-[var(--bg-secondary)] border-[var(--border-light)]'
-    }`}>
-      {/* Header with status indicator */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            {resultPositive ? (
-              <CheckCircle className="w-5 h-5 text-[var(--success)]" />
-            ) : (
-              <XCircle className="w-5 h-5 text-[var(--danger)]" />
-            )}
-            <h3 className={`text-sm font-semibold uppercase tracking-wider ${
-              resultPositive ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'
-            }`}>{title}</h3>
+    <div className="mb-4">
+      {/* Header - clickable button style matching renderPopulationSection */}
+      <button className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors text-left">
+        <div className="flex items-center gap-2">
+          {resultPositive ? (
+            <CheckCircle className="w-4 h-4 text-[var(--success)]" />
+          ) : (
+            <XCircle className="w-4 h-4 text-[var(--danger)]" />
+          )}
+          <div>
+            <span className="text-sm font-medium text-[var(--text)]">{title}</span>
+            {subtitle && <p className="text-xs text-[var(--text-dim)] mt-0.5">{subtitle}</p>}
           </div>
-          {subtitle && <p className="text-xs text-[var(--text-dim)] mt-1 ml-7">{subtitle}</p>}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-[var(--text-muted)]">
-            {metCount} of {displayNodes.length} met
-          </span>
-          <div className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap ${
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${
             resultPositive
-              ? 'bg-[var(--success)] text-white'
-              : 'bg-[var(--danger-light)] text-[var(--danger)] border border-[var(--danger)]/30'
+              ? 'bg-[var(--success-light)] text-[var(--success)]'
+              : 'bg-[var(--danger-light)] text-[var(--danger)]'
           }`}>
             {resultChip}
+          </span>
+          <span className="text-xs text-[var(--text-dim)]">
+            ({metCount}/{displayNodes.length} criteria)
+          </span>
+        </div>
+      </button>
+
+      {/* Render flattened nodes as plain rows with left border */}
+      {displayNodes.length > 0 && (
+        <div className="mt-2 ml-4">
+          <div className="border-l-2 border-[var(--border)] pl-2">
+            {displayNodes.map((node, i) => (
+              <VaccineResultCard
+                key={node.id || i}
+                node={node}
+                onClick={() => onInspect(node)}
+              />
+            ))}
           </div>
         </div>
-      </div>
-
-      {/* Render flattened nodes as simple cards */}
-      <div className="space-y-0">
-        {displayNodes.map((node, i) => (
-          <VaccineResultCard
-            key={node.id || i}
-            node={node}
-            onClick={() => onInspect(node)}
-          />
-        ))}
-      </div>
+      )}
     </div>
   );
 }
