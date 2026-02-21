@@ -3285,7 +3285,7 @@ function DetailedEvaluationSummary({ trace, patient, measure }) {
               )}
             </>
           )}
-        )}
+        </div>
       </div>
     );
   };
