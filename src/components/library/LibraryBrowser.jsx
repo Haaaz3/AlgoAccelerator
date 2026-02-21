@@ -26,6 +26,7 @@ import { useMeasureStore } from '../../stores/measureStore';
 import { getComplexityColor, getComplexityDots } from '../../services/complexityCalculator';
 import { ComponentDetail } from './ComponentDetail';
 import ComponentEditor from './ComponentEditor';
+import CreateComponentWizard from './CreateComponentWizard';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
 
 const CATEGORIES                                                      = [
@@ -479,11 +480,19 @@ export function LibraryBrowser() {
         </div>
       </div>
 
-      {/* Editor Modal */}
-      {editingComponentId && (
+      {/* Editor Modal - use Wizard for new, Editor for existing */}
+      {editingComponentId === 'new' && (
+        <ErrorBoundary fallbackName="Create Component Wizard">
+          <CreateComponentWizard
+            onSave={handleCloseEditor}
+            onClose={handleCloseEditor}
+          />
+        </ErrorBoundary>
+      )}
+      {editingComponentId && editingComponentId !== 'new' && (
         <ErrorBoundary fallbackName="Component Editor">
           <ComponentEditor
-            componentId={editingComponentId === 'new' ? undefined : editingComponentId}
+            componentId={editingComponentId}
             onSave={handleCloseEditor}
             onClose={handleCloseEditor}
           />
