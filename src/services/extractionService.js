@@ -1257,37 +1257,93 @@ export function enrichDataElementsWithCqlCodes(
 }
 
 /**
- * Fallback enrichment: Match data elements by description keywords to known vaccine value sets.
- * This catches cases where the LLM outputs stub entries without OIDs.
+ * Generic enrichment: Match data elements to value sets from HTML/CQL parsed sources.
+ * Uses fuzzy matching on descriptions and value set names - works for ANY measure.
  */
-export function enrichVaccinesByDescription(ums                      )       {
-  // Map of description keywords → correct OID and name for childhood immunization vaccines
-  const vaccineOidMap = [
-    { keywords: ['dtap', 'diphtheria', 'tetanus', 'pertussis'], oid: '2.16.840.1.113883.3.464.1003.196.12.1214', name: 'DTaP Vaccine' },
-    { keywords: ['ipv', 'polio', 'inactivated polio'], oid: '2.16.840.1.113883.3.464.1003.196.12.1219', name: 'Inactivated Polio Vaccine (IPV)' },
-    { keywords: ['mmr', 'measles', 'mumps', 'rubella'], oid: '2.16.840.1.113883.3.464.1003.196.12.1224', name: 'Measles, Mumps and Rubella (MMR) Vaccine' },
-    { keywords: ['hib', 'h influenza', 'haemophilus'], oid: '2.16.840.1.113883.3.464.1003.110.12.1083', name: 'Hib Vaccine (3 dose schedule)' },
-    { keywords: ['hepatitis b', 'hep b', 'hepb'], oid: '2.16.840.1.113883.3.464.1003.196.12.1189', name: 'Hepatitis B Vaccine' },
-    { keywords: ['vzv', 'varicella', 'chicken pox', 'chickenpox'], oid: '2.16.840.1.113883.3.464.1003.196.12.1170', name: 'Varicella Zoster Vaccine (VZV)' },
-    { keywords: ['pcv', 'pneumococcal'], oid: '2.16.840.1.113883.3.464.1003.196.12.1221', name: 'Pneumococcal Conjugate Vaccine' },
-    { keywords: ['hepatitis a', 'hep a', 'hepa'], oid: '2.16.840.1.113883.3.464.1003.196.12.1215', name: 'Hepatitis A Vaccine' },
-    { keywords: ['rotavirus', 'rota'], oid: '2.16.840.1.113883.3.464.1003.196.12.1223', name: 'Rotavirus Vaccine (2 dose schedule)' },
-    { keywords: ['influenza', 'flu'], oid: '2.16.840.1.113883.3.464.1003.196.12.1218', name: 'Child Influenza Vaccine' },
-  ];
+export function enrichDataElementsFromParsedSources(
+  ums                      ,
+  htmlParsed                                                                                                ,
+  cqlParsed
+)       {
+  // Collect all value sets from both deterministic sources
+  const knownValueSets = new Map                                         ();
+
+  // From HTML parser
+  for (const vs of htmlParsed?.valueSets || []) {
+    if (vs.oid && vs.name) {
+      knownValueSets.set(vs.name.toLowerCase(), { oid: vs.oid, name: vs.name });
+    }
+  }
+
+  // From CQL parser
+  for (const vs of cqlParsed?.valueSets || []) {
+    if (vs.oid && vs.name) {
+      knownValueSets.set(vs.name.toLowerCase(), { oid: vs.oid, name: vs.name });
+    }
+  }
+
+  // Collect data element mappings from HTML parser
+  const descriptionMappings = htmlParsed?.dataElementMappings || [];
 
   let enrichedCount = 0;
 
-  // Helper: check if element already has a real OID
-  const hasRealOid = (elem     )          => {
-    const oid = elem.valueSet?.oid || elem.valueSetOid;
+  // Helper: check if element already has a valid OID
+  const hasValidOid = (node     )          => {
+    const oid = node.valueSet?.oid || node.valueSetOid;
     return oid && /^\d+\.\d+/.test(oid);
+  };
+
+  // Fuzzy match: do two descriptions refer to the same thing?
+  const fuzzyDescriptionMatch = (desc1        , desc2        )          => {
+    if (!desc1 || !desc2) return false;
+    const stopwords = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'not', 'are', 'was', 'has', 'been', 'during', 'before', 'after', 'between', 'prior', 'service', 'services', 'different', 'dates', 'days', 'administered']);
+    const getWords = (s        ) => s.split(/\W+/).filter(w => w.length >= 3 && !stopwords.has(w));
+    const words1 = getWords(desc1);
+    const words2 = getWords(desc2);
+    if (words1.length === 0 || words2.length === 0) return false;
+
+    const set2 = new Set(words2);
+    const overlap = words1.filter(w => set2.has(w)).length;
+    const overlapRatio = overlap / Math.min(words1.length, words2.length);
+
+    return overlapRatio >= 0.5;
+  };
+
+  // Does a description contain a value set name's key terms?
+  const descContainsValueSetName = (desc        , vsNameLower        )          => {
+    const keyTerms = vsNameLower.split(/\W+/).filter(w => w.length >= 3);
+    if (keyTerms.length === 0) return false;
+    const matchCount = keyTerms.filter(term => desc.includes(term)).length;
+    return matchCount >= Math.ceil(keyTerms.length * 0.6);
+  };
+
+  // Apply a match to a node
+  const applyMatch = (node     , match                              )       => {
+    console.log(`[enrichFromParsedSources] Matched "${node.description}" → ${match.name} (${match.oid})`);
+    if (!node.valueSet) {
+      node.valueSet = { oid: match.oid, name: match.name, codes: [] };
+    } else {
+      if (!node.valueSet.oid || !/^\d+\.\d+/.test(node.valueSet.oid)) {
+        node.valueSet.oid = match.oid;
+      }
+      if (!node.valueSet.name) {
+        node.valueSet.name = match.name;
+      }
+    }
+    node.valueSetOid = match.oid;
+    node.valueSetName = match.name;
+
+    // Fix type based on value set name patterns
+    const nameLower = match.name.toLowerCase();
+    if (nameLower.includes('vaccine') || nameLower.includes('immuniz')) {
+      node.type = 'immunization';
+    }
   };
 
   // Walk the criteria tree
   function walkAndEnrich(node     )       {
     if (!node) return;
 
-    // If it's a clause with children, recurse
     if (node.children && Array.isArray(node.children)) {
       for (const child of node.children) {
         walkAndEnrich(child);
@@ -1295,33 +1351,38 @@ export function enrichVaccinesByDescription(ums                      )       {
       return;
     }
 
-    // It's a data element - check if it needs OID enrichment
-    if (hasRealOid(node)) return;
+    // Skip if already has a valid OID
+    if (hasValidOid(node)) return;
 
     const desc = (node.description || '').toLowerCase();
+    const existingName = (node.valueSet?.name || node.valueSetName || '').toLowerCase();
 
-    // Try to match by keywords
-    for (const mapping of vaccineOidMap) {
-      if (mapping.keywords.some(kw => desc.includes(kw))) {
-        console.log(`[enrichVaccinesByDescription] Matched "${node.description}" → ${mapping.name} (${mapping.oid})`);
-
-        // Attach OID to the element
-        if (!node.valueSet) {
-          node.valueSet = { oid: mapping.oid, name: mapping.name, codes: [] };
-        } else {
-          node.valueSet.oid = mapping.oid;
-          node.valueSet.name = mapping.name;
-        }
-        node.valueSetOid = mapping.oid;
-        node.valueSetName = mapping.name;
-
-        // Also fix type to immunization if it's a vaccine
-        if (desc.includes('vaccin') || desc.includes('immuniz')) {
-          node.type = 'immunization';
-        }
-
+    // Strategy 1: Match by existing valueSet name (LLM gave name but no/bad OID)
+    if (existingName && knownValueSets.has(existingName)) {
+      const match = knownValueSets.get(existingName);
+      if (match) {
+        applyMatch(node, match);
         enrichedCount++;
-        break;
+        return;
+      }
+    }
+
+    // Strategy 2: Match by HTML data element mappings (description → value set)
+    for (const mapping of descriptionMappings) {
+      const mappingDesc = (mapping.description || '').toLowerCase();
+      if (fuzzyDescriptionMatch(desc, mappingDesc) && mapping.valueSetOid) {
+        applyMatch(node, { oid: mapping.valueSetOid, name: mapping.valueSetName || '' });
+        enrichedCount++;
+        return;
+      }
+    }
+
+    // Strategy 3: Fuzzy match description against known value set names
+    for (const [vsNameLower, vsInfo] of knownValueSets) {
+      if (descContainsValueSetName(desc, vsNameLower)) {
+        applyMatch(node, vsInfo);
+        enrichedCount++;
+        return;
       }
     }
   }
@@ -1331,7 +1392,7 @@ export function enrichVaccinesByDescription(ums                      )       {
     if (pop.criteria) walkAndEnrich(pop.criteria);
   }
 
-  console.log(`[enrichVaccinesByDescription] Enriched ${enrichedCount} vaccine DataElements with OIDs`);
+  console.log(`[enrichFromParsedSources] Enriched ${enrichedCount} DataElements from HTML/CQL parsed sources`);
 }
 
 export default {

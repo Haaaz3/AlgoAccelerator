@@ -13,7 +13,7 @@ import {
   extractMeasure as extractMeasureViaBackend,
   enrichDataElementsWithHtmlSpec,
   enrichDataElementsWithCqlCodes,
-  enrichVaccinesByDescription,
+  enrichDataElementsFromParsedSources,
 } from './extractionService';
 import { parseMeasureSpec } from '../utils/specParser';
 ;                                                                                    
@@ -622,9 +622,9 @@ export async function ingestMeasureFiles(
     // FINAL PASS: Resolve remaining placeholder OIDs using CQL value sets
     resolvePlaceholderOids(aiResult.ums, cqlParsed, htmlParsed);
 
-    // FALLBACK: Match vaccine data elements by description keywords to known OIDs
-    // This catches cases where the LLM outputs stub entries without OIDs
-    enrichVaccinesByDescription(aiResult.ums);
+    // GENERIC ENRICHMENT: Match data elements to value sets from HTML/CQL parsers
+    // Uses fuzzy matching on descriptions - works for ANY measure, not just vaccines
+    enrichDataElementsFromParsedSources(aiResult.ums, htmlParsed, cqlParsed);
 
     // POPULATE CODES: Use bundled value set expansions to fill in code lists
     populateBundledValueSetCodes(aiResult.ums);
