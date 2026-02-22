@@ -81,11 +81,34 @@ function migratePopulation(pop                      )                       {
 
 /**
  * Migrate a logical clause
+ * Also flattens any "Additional Criteria" or "Alternative Criteria" wrappers
  */
 function migrateClause(clause               )                {
+  // First, flatten any "Additional Criteria" or "Alternative Criteria" wrappers
+  const flattenedChildren = [];
+  for (const child of clause.children || []) {
+    if ('operator' in child) {
+      const childClause = child                 ;
+      // Check if this is an "Additional Criteria" or "Alternative Criteria" wrapper
+      if (
+        childClause.description === 'Additional Criteria' ||
+        childClause.description === 'Alternative Criteria'
+      ) {
+        // Pull its children up to the parent level
+        for (const grandchild of childClause.children || []) {
+          flattenedChildren.push(grandchild);
+        }
+      } else {
+        flattenedChildren.push(child);
+      }
+    } else {
+      flattenedChildren.push(child);
+    }
+  }
+
   return {
     ...clause,
-    children: clause.children.map(child => {
+    children: flattenedChildren.map(child => {
       if ('operator' in child) {
         return migrateClause(child                 );
       } else {

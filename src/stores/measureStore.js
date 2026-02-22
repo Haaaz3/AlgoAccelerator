@@ -954,6 +954,7 @@ export const useMeasureStore = create              ()(
         }),
 
       // Component builder: add a new component to a population's criteria
+      // Always adds directly to the root criteria children (no "Additional Criteria" wrapper)
       addComponentToPopulation: (measureId, populationId, component, logicOperator) =>
         set((state) => ({
           measures: state.measures.map((m) => {
@@ -980,52 +981,13 @@ export const useMeasureStore = create              ()(
 
                 const criteria = pop.criteria;
 
-                // If chosen operator matches the top-level, just append
-                if (!logicOperator || criteria.operator === logicOperator) {
-                  return {
-                    ...pop,
-                    criteria: {
-                      ...criteria,
-                      children: [...(criteria.children || []), component],
-                    },
-                  };
-                }
-
-                // Operator differs — find or create a subclause with the chosen operator
-                const existingSubclause = criteria.children.find(
-                  (c     ) => 'operator' in c && c.operator === logicOperator
-                );
-
-                if (existingSubclause && 'children' in existingSubclause) {
-                  // Append to the existing subclause
-                  return {
-                    ...pop,
-                    criteria: {
-                      ...criteria,
-                      children: criteria.children.map((c     ) =>
-                        c.id === existingSubclause.id
-                          ? { ...c, children: [...(c       ).children, component] }
-                          : c
-                      ),
-                    },
-                  };
-                }
-
-                // Create a new subclause with the chosen operator
-                const newSubclause = {
-                  id: `${pop.type}-${logicOperator.toLowerCase()}-${Date.now()}`,
-                  operator: logicOperator                ,
-                  description: logicOperator === 'OR' ? 'Alternative Criteria' : 'Additional Criteria',
-                  confidence: 'high'         ,
-                  reviewStatus: 'pending'         ,
-                  children: [component],
-                };
-
+                // Always append directly to the root criteria children
+                // The component inherits the same operator context as its siblings
                 return {
                   ...pop,
                   criteria: {
                     ...criteria,
-                    children: [...criteria.children, newSubclause],
+                    children: [...(criteria.children || []), component],
                   },
                 };
               }),
@@ -1159,8 +1121,17 @@ export const useMeasureStore = create              ()(
               const fromIdx = children.findIndex((c     ) => c.id === componentId);
               if (fromIdx === -1 || fromIdx === targetIndex) return obj;
 
+              // Remove the element from its current position
               const [moved] = children.splice(fromIdx, 1);
-              children.splice(targetIndex, 0, moved);
+
+              // Adjust target index: if we removed from before the target,
+              // the target index shifts down by 1
+              let adjustedTarget = targetIndex;
+              if (fromIdx < targetIndex) {
+                adjustedTarget = targetIndex - 1;
+              }
+
+              children.splice(adjustedTarget, 0, moved);
               return { ...obj, children };
             }
 

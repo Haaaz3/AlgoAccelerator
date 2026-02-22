@@ -16,6 +16,7 @@ import { getComplexityColor, getComplexityDots, getComplexityLevel, calculateDat
 import { getAllStandardValueSets, searchStandardValueSets } from '../../constants/standardValueSets';
 import { handleAIAssistantRequest, buildAssistantContext, applyAIChanges, formatChangesForDisplay } from '../../services/aiAssistant';
 import SharedEditWarning from '../library/SharedEditWarning';
+import AddComponentModal from '../library/AddComponentModal';
 import {
   recordComponentFeedback,
   snapshotFromDataElement,
@@ -62,6 +63,7 @@ export function UMSEditor() {
   const [selectedNode, setSelectedNode] = useState               (null);
   const [activeValueSet, setActiveValueSet] = useState                          (null);
   const [builderTarget, setBuilderTarget] = useState                                                         (null);
+  const [addComponentTarget, setAddComponentTarget] = useState                                                         (null);
   const [deepMode, setDeepMode] = useState(false);
   const [showValueSetBrowser, setShowValueSetBrowser] = useState(false);
   const [componentLinkMap, setComponentLinkMap] = useState                        ({});
@@ -967,7 +969,7 @@ export function UMSEditor() {
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
                 onSelectValueSet={setActiveValueSet}
-                onAddComponent={() => setBuilderTarget({ populationId: population.id, populationType: population.type })}
+                onAddComponent={() => setAddComponentTarget({ populationId: population.id, populationType: population.type })}
                 icon={getPopulationIcon(population.type)}
                 label={getPopulationLabel(population.type)}
                 updateReviewStatus={updateReviewStatus}
@@ -1147,7 +1149,40 @@ export function UMSEditor() {
         />
       )}
 
-      {/* Component Builder modal */}
+      {/* Add Component Modal - Library browser first */}
+      {addComponentTarget && measure && (
+        <AddComponentModal
+          targetMeasure={measure.metadata?.title || measure.id}
+          targetSection={addComponentTarget.populationType || 'Population'}
+          onClose={() => setAddComponentTarget(null)}
+          onAdd={(libraryComponent) => {
+            // Create a component reference from the library component
+            const component = {
+              id: `comp-${Date.now()}`,
+              type: 'DataElement',
+              name: libraryComponent.name,
+              description: libraryComponent.description,
+              valueSetRef: libraryComponent.valueSet?.id,
+              libraryRef: libraryComponent.id,
+              timing: libraryComponent.timing || {},
+              negation: libraryComponent.negation || false,
+              category: libraryComponent.category,
+            };
+            // Add component to population with AND logic by default
+            addComponentToPopulation(measure.id, addComponentTarget.populationId, component, 'and');
+          }}
+          onCreateNew={() => {
+            // Switch to ComponentBuilder for creating new
+            setBuilderTarget({
+              populationId: addComponentTarget.populationId,
+              populationType: addComponentTarget.populationType,
+            });
+            setAddComponentTarget(null);
+          }}
+        />
+      )}
+
+      {/* Component Builder modal - for creating new components */}
       {builderTarget && measure && (
         <ComponentBuilder
           measureId={measure.id}
@@ -1755,12 +1790,9 @@ function CriteriaNode({
   const canMoveUp = index > 0;
   const canMoveDown = index < totalSiblings - 1;
 
-  // DEBUG: Log what we're rendering
-  console.log(`[CriteriaNode] Rendering node: isClause=${isClause}, id=${node.id}, depth=${depth}`);
 
   if (isClause) {
     const clause = node                 ;
-    console.log(`[CriteriaNode] Clause has ${clause.children?.length || 0} children`);
     return (
       <div className="ml-7 space-y-2">
         {/* Clause header - description only, no operator badge (operators only appear between siblings) */}
@@ -1919,7 +1951,7 @@ function CriteriaNode({
 
       <div
         onClick={() => onSelectNode(isSelected ? null : element.id)}
-        className={`p-3 rounded-lg cursor-pointer transition-all ${
+        className={`group p-3 rounded-lg cursor-pointer transition-all ${
           isDragging ? 'opacity-40' :
           isSelectedForMerge
             ? 'border-2 bg-purple-500/5 border-purple-500/50 ring-2 ring-purple-500/20'
@@ -2073,9 +2105,9 @@ function CriteriaNode({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {/* Deep mode controls for elements */}
+          {/* Deep mode arrow controls - hidden by default, visible on hover */}
           {deepMode && parentId && (
-            <>
+            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -2099,7 +2131,7 @@ function CriteriaNode({
                 <ArrowDown className="w-4 h-4" />
               </button>
               <div className="w-px h-4 bg-[var(--border)] mx-1" />
-            </>
+            </div>
           )}
           <button
             onClick={(e) => {
