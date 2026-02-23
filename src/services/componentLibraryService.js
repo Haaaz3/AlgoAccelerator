@@ -26,6 +26,7 @@
                                    
 import { calculateAtomicComplexity, calculateCompositeComplexity } from './complexityCalculator';
 import { validateOID,                          } from './oidValidator';
+import { deriveDueDateDays } from '../components/shared/TimingSection';
 
 // ============================================================================
 // ID Generation
@@ -124,6 +125,9 @@ export function createAtomicComponent(params                    )               
     timing: params.timing,
     negation: params.negation,
     oidValidation,
+    dueDateDays: params.dueDateDays ?? deriveDueDateDays(params.timing, params.category, params.negation),
+    dueDateDaysOverridden: params.dueDateDaysOverridden ?? false,
+    ageEvaluatedAt: params.ageEvaluatedAt, // For age components: end-of-mp, start-of-mp, as-of-today, qualifying-encounter
     versionInfo: createInitialVersionInfo(params.createdBy || 'user', now),
     usage: createInitialUsage(),
     metadata: createInitialMetadata(params.category, params.tags || [], params.createdBy || 'user', now),
@@ -156,6 +160,8 @@ export function createCompositeComponent(params                       )         
     description: params.description,
     operator: params.operator,
     children: params.children,
+    dueDateDays: params.dueDateDays ?? 365, // Composites default to annual
+    dueDateDaysOverridden: params.dueDateDaysOverridden ?? false,
     versionInfo: createInitialVersionInfo(params.createdBy || 'user', now),
     usage: createInitialUsage(),
     metadata: createInitialMetadata(params.category, params.tags || [], params.createdBy || 'user', now),

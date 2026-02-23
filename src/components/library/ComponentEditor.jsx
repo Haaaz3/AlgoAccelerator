@@ -3,7 +3,6 @@ import {
   X,
   Save,
   Search,
-  Clock,
   Tag,
   Layers,
   Plus,
@@ -20,36 +19,11 @@ import { useMeasureStore } from '../../stores/measureStore';
 import { createAtomicComponent, createCompositeComponent } from '../../services/componentLibraryService';
 import SharedEditWarning from './SharedEditWarning';
 import { InlineErrorBanner } from '../shared/ErrorBoundary';
+import { TimingSection, deriveDueDateDays } from '../shared/TimingSection';
 
 // ============================================================================
 // Types
 // ============================================================================
-
-const TIMING_OPERATORS                                             = [
-  { value: 'during', label: 'During' },
-  { value: 'before', label: 'Before' },
-  { value: 'after', label: 'After' },
-  { value: 'starts before', label: 'Starts Before' },
-  { value: 'starts after', label: 'Starts After' },
-  { value: 'ends before', label: 'Ends Before' },
-  { value: 'ends after', label: 'Ends After' },
-  { value: 'within', label: 'Within' },
-  { value: 'overlaps', label: 'Overlaps' },
-];
-
-const TIMING_UNITS                                                          = [
-  { value: 'years', label: 'Years' },
-  { value: 'months', label: 'Months' },
-  { value: 'days', label: 'Days' },
-];
-
-const TIMING_POSITIONS                                     = [
-  { value: '', label: 'None' },
-  { value: 'before start of', label: 'Before Start Of' },
-  { value: 'before end of', label: 'Before End Of' },
-  { value: 'after start of', label: 'After Start Of' },
-  { value: 'after end of', label: 'After End Of' },
-];
 
 const CATEGORIES                                                = [
   { value: 'demographics', label: 'Demographics' },
@@ -106,23 +80,32 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
   const [vsName, setVsName] = useState(
     existingComponent?.type === 'atomic' ? existingComponent.valueSet.name : ''
   );
-  const [timingOperator, setTimingOperator] = useState                (
-    existingComponent?.type === 'atomic' ? existingComponent.timing.operator : 'during'
+
+  // Timing state - unified object for TimingSection
+  const [timing, setTiming] = useState(() => {
+    if (existingComponent?.type === 'atomic') {
+      return existingComponent.timing || { operator: 'during', reference: 'Measurement Period' };
+    }
+    return { operator: 'during', reference: 'Measurement Period' };
+  });
+
+  // Due Date (T-Days) state
+  const [dueDateDays, setDueDateDays] = useState(() => {
+    if (existingComponent?.dueDateDays != null) return existingComponent.dueDateDays;
+    if (existingComponent?.type === 'atomic') {
+      return deriveDueDateDays(existingComponent.timing, existingComponent.metadata.category, existingComponent.negation);
+    }
+    return 365;
+  });
+  const [dueDateOverridden, setDueDateOverridden] = useState(
+    existingComponent?.dueDateDaysOverridden ?? false
   );
-  const [timingQuantity, setTimingQuantity] = useState        (
-    existingComponent?.type === 'atomic' && existingComponent.timing.quantity != null
-      ? String(existingComponent.timing.quantity)
-      : ''
+
+  // Age evaluation reference point (for age components only)
+  const [ageEvaluatedAt, setAgeEvaluatedAt] = useState(
+    existingComponent?.ageEvaluatedAt ?? 'end-of-mp'
   );
-  const [timingUnit, setTimingUnit] = useState                                       (
-    existingComponent?.type === 'atomic' ? (existingComponent.timing.unit ?? 'years') : 'years'
-  );
-  const [timingPosition, setTimingPosition] = useState        (
-    existingComponent?.type === 'atomic' ? (existingComponent.timing.position ?? '') : ''
-  );
-  const [timingReference, setTimingReference] = useState(
-    existingComponent?.type === 'atomic' ? existingComponent.timing.reference : 'Measurement Period'
-  );
+
   const [negation, setNegation] = useState(
     existingComponent?.type === 'atomic' ? existingComponent.negation : false
   );
@@ -175,8 +158,8 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
   const previewComplexity = useMemo(() => {
     let score = 1;
     if (componentType === 'atomic') {
-      if (timingQuantity) score += 1;
-      if (timingPosition) score += 1;
+      if (timing?.quantity) score += 1;
+      if (timing?.position) score += 1;
       if (negation) score += 1;
     } else {
       score = selectedChildIds.size;
@@ -185,7 +168,7 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
     if (score <= 2) return { level: 'low', score, color: 'text-green-400' };
     if (score <= 4) return { level: 'medium', score, color: 'text-yellow-400' };
     return { level: 'high', score, color: 'text-red-400' };
-  }, [componentType, timingQuantity, timingPosition, negation, selectedChildIds.size, operator]);
+  }, [componentType, timing?.quantity, timing?.position, negation, selectedChildIds.size, operator]);
 
   // --------------------------------------------------------------------------
   // Handlers
@@ -202,17 +185,15 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
     });
   }, []);
 
-  const buildTimingExpression = useCallback(() => {
-    const parts           = [timingOperator];
-    if (timingQuantity) {
-      parts.push(timingQuantity, timingUnit);
-    }
-    if (timingPosition) {
-      parts.push(timingPosition);
-    }
-    parts.push(timingReference);
+  // Build display expression from timing object
+  const buildDisplayExpression = useCallback((t) => {
+    if (!t) return 'during Measurement Period';
+    const parts = [t.operator];
+    if (t.quantity) parts.push(String(t.quantity), t.unit);
+    if (t.position) parts.push(t.position);
+    parts.push(t.reference || 'Measurement Period');
     return parts.join(' ');
-  }, [timingOperator, timingQuantity, timingUnit, timingPosition, timingReference]);
+  }, []);
 
   const handleSave = useCallback(() => {
     if (!name.trim()) return;
@@ -233,18 +214,15 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
           name: vsName.trim(),
         },
         timing: {
-          operator: timingOperator,
-          quantity: timingQuantity ? Number(timingQuantity) : undefined,
-          unit: timingQuantity ? timingUnit : undefined,
-          position: timingPosition
-            ? (timingPosition                                                                           )
-            : undefined,
-          reference: timingReference || 'Measurement Period',
-          displayExpression: buildTimingExpression(),
+          ...timing,
+          displayExpression: timing.displayExpression || buildDisplayExpression(timing),
         },
         negation,
         category,
         tags,
+        dueDateDays,
+        dueDateDaysOverridden: dueDateOverridden,
+        ageEvaluatedAt,
       });
 
       // Attach codes to the component's valueSet
@@ -257,6 +235,9 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
           timing: component.timing,
           negation: component.negation,
           complexity: component.complexity,
+          dueDateDays,
+          dueDateDaysOverridden: dueDateOverridden,
+          ageEvaluatedAt,
           metadata: {
             ...existingComponent.metadata,
             category,
@@ -354,9 +335,10 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
     onSave();
   }, [
     name, tagsInput, componentType, vsOid, vsName, vsVersion,
-    timingOperator, timingQuantity, timingUnit, timingPosition, timingReference,
-    buildTimingExpression, negation, category, isEditMode, existingComponent,
-    updateComponent, addComponent, selectedChildIds, components, operator, onSave,
+    timing, buildDisplayExpression, negation, category, dueDateDays, dueDateOverridden,
+    ageEvaluatedAt, isEditMode, existingComponent, updateComponent, addComponent, selectedChildIds,
+    components, operator, onSave, codes, categoryAutoAssigned, syncComponentToMeasures,
+    measures, batchUpdateMeasures,
   ]);
 
   const canSave = useMemo(() => {
@@ -633,132 +615,33 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
               </fieldset>
 
               {/* Timing Section */}
-              <fieldset
-                className="border rounded-lg p-4 space-y-3"
-                style={{ borderColor: 'var(--border)' }}
-              >
-                <legend
-                  className="text-xs font-semibold uppercase tracking-wide px-2"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Clock size={12} /> Timing
-                  </span>
-                </legend>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-                      Operator
-                    </label>
-                    <select
-                      value={timingOperator}
-                      onChange={(e) => setTimingOperator(e.target.value                  )}
-                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-                      style={{
-                        backgroundColor: 'var(--bg-primary)',
-                        borderColor: 'var(--border)',
-                        color: 'var(--text)',
-                      }}
-                    >
-                      {TIMING_OPERATORS.map((op) => (
-                        <option key={op.value} value={op.value}>
-                          {op.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-                      Quantity (optional)
-                    </label>
-                    <input
-                      type="number"
-                      value={timingQuantity}
-                      onChange={(e) => setTimingQuantity(e.target.value)}
-                      placeholder="e.g., 3"
-                      min={0}
-                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-                      style={{
-                        backgroundColor: 'var(--bg-primary)',
-                        borderColor: 'var(--border)',
-                        color: 'var(--text)',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-                      Unit
-                    </label>
-                    <select
-                      value={timingUnit}
-                      onChange={(e) => setTimingUnit(e.target.value                               )}
-                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-                      style={{
-                        backgroundColor: 'var(--bg-primary)',
-                        borderColor: 'var(--border)',
-                        color: 'var(--text)',
-                      }}
-                    >
-                      {TIMING_UNITS.map((u) => (
-                        <option key={u.value} value={u.value}>
-                          {u.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-                      Position (optional)
-                    </label>
-                    <select
-                      value={timingPosition}
-                      onChange={(e) => setTimingPosition(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-                      style={{
-                        backgroundColor: 'var(--bg-primary)',
-                        borderColor: 'var(--border)',
-                        color: 'var(--text)',
-                      }}
-                    >
-                      {TIMING_POSITIONS.map((p) => (
-                        <option key={p.value} value={p.value}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-                    Reference
-                  </label>
-                  <input
-                    type="text"
-                    value={timingReference}
-                    onChange={(e) => setTimingReference(e.target.value)}
-                    placeholder="Measurement Period"
-                    className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-                    style={{
-                      backgroundColor: 'var(--bg-primary)',
-                      borderColor: 'var(--border)',
-                      color: 'var(--text)',
-                    }}
-                  />
-                </div>
-
-                {/* Timing Preview */}
-                <div
-                  className="text-xs px-3 py-2 rounded-md font-mono"
-                  style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-secondary)' }}
-                >
-                  {buildTimingExpression()}
-                </div>
-              </fieldset>
+              <TimingSection
+                timing={timing}
+                onChange={(newTiming) => {
+                  setTiming(newTiming);
+                  // Auto-update due date if not overridden
+                  if (!dueDateOverridden) {
+                    setDueDateDays(deriveDueDateDays(newTiming, category, negation));
+                  }
+                }}
+                dueDateDays={dueDateDays}
+                onDueDateChange={(days) => {
+                  setDueDateDays(days);
+                  setDueDateOverridden(true);
+                }}
+                dueDateOverridden={dueDateOverridden}
+                componentCategory={category}
+                negation={negation}
+                componentData={{
+                  name,
+                  description,
+                  genderValue: existingComponent?.genderValue,
+                  resourceType: existingComponent?.resourceType,
+                  thresholds: existingComponent?.thresholds,
+                }}
+                ageEvaluatedAt={ageEvaluatedAt}
+                onAgeEvaluatedAtChange={setAgeEvaluatedAt}
+              />
 
               {/* Negation */}
               <div className="flex items-center gap-3">

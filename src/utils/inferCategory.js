@@ -114,12 +114,43 @@ function isExclusionComponent(component                  )          {
 
 /**
  * Check if a component is age-related (demographics)
+ * Exported for use in TimingSection and other components
  */
-function isAgeComponent(component                 )          {
-  const name = component.name.toLowerCase();
+export function isAgeComponent(component                 )          {
+  // Check for age thresholds (ageMin/ageMax)
+  if (component.thresholds?.ageMin != null || component.thresholds?.ageMax != null) {
+    return true;
+  }
+  // Fallback: check name/description for age keywords
+  const name = (component.name || '').toLowerCase();
   const desc = (component.description || '').toLowerCase();
   const text = name + ' ' + desc;
   return text.includes('age') || text.includes('years old') || text.includes('years of age');
+}
+
+/**
+ * Check if a component is a sex/gender component (demographics)
+ * Exported for use in TimingSection and other components
+ */
+export function isSexGenderComponent(component                 )          {
+  // Check for genderValue field (library components)
+  if (component.genderValue) {
+    return true;
+  }
+  // Check for Patient resourceType with gender indicators
+  if (component.resourceType === 'Patient') {
+    return true;
+  }
+  // Fallback: check name/description for sex/gender keywords (for UMS DataElements)
+  const name = (component.name || component.description || '').toLowerCase();
+  if (name.includes('sex') || name.includes('gender') ||
+      name.includes('female') || name.includes('male')) {
+    // Only if it's a demographic type or has no type (to avoid false positives)
+    if (!component.type || component.type === 'demographic') {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -171,8 +202,8 @@ export function inferCategory(component                                      )  
   if (component.type === 'atomic') {
     const atomic = component                   ;
 
-    // Patient resource type or genderValue → Demographics
-    if (atomic.resourceType === 'Patient' || atomic.genderValue) {
+    // Sex/Gender components → Demographics
+    if (isSexGenderComponent(atomic)) {
       return 'demographics';
     }
 

@@ -689,6 +689,19 @@ function ComponentCard({
             </span>
           </div>
 
+          {/* Due Date */}
+          {component.dueDateDays != null && (
+            <div className="flex items-center gap-1.5 text-xs text-[var(--text-dim)] mb-3">
+              <Clock className="w-3 h-3" />
+              <span>T-{component.dueDateDays}</span>
+              <span className="text-[var(--text-dim)]/60">
+                ({component.dueDateDays === 365 ? 'Annual'
+                  : component.dueDateDays % 365 === 0 ? `${component.dueDateDays / 365}yr`
+                  : `${component.dueDateDays}d`})
+              </span>
+            </div>
+          )}
+
           {/* Footer: Usage + Status */}
           <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
             <span className="text-xs text-[var(--text-dim)] flex items-center gap-1">
@@ -747,6 +760,19 @@ function ComponentCard({
           {component.complexity.level}
         </span>
       </div>
+
+      {/* Due Date */}
+      {component.dueDateDays != null && (
+        <div className="flex items-center gap-1.5 text-xs text-[var(--text-dim)] mb-3">
+          <Clock className="w-3 h-3" />
+          <span>T-{component.dueDateDays}</span>
+          <span className="text-[var(--text-dim)]/60">
+            ({component.dueDateDays === 365 ? 'Annual'
+              : component.dueDateDays % 365 === 0 ? `${component.dueDateDays / 365}yr`
+              : `${component.dueDateDays}d`})
+          </span>
+        </div>
+      )}
 
       {/* Footer: Usage + Status */}
       <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">

@@ -37,8 +37,9 @@ import {
 import {
   extractWithMultiPass,
   isLargeDocument,
-                                           
+
 } from './multiPassExtractor';
+import { deriveDueDateDays } from '../components/shared/TimingSection';
 
 ;                                    
                                                                       
@@ -665,6 +666,14 @@ function convertToUMS(data                      )                       {
         ageMax: crit.ageRange.max,
       } : undefined;
 
+      // Derive due date from timing
+      const timingForDueDate = crit.timing ? {
+        operator: crit.timing.window ? 'within' : 'during',
+        quantity: crit.timing.window?.value || null,
+        unit: crit.timing.window?.unit || null,
+      } : null;
+      const dueDateDays = deriveDueDateDays(timingForDueDate, elementType, false);
+
       const dataElement              = {
         id: `${popType}-elem-${idx}-${cidx}`,
         type: elementType       ,
@@ -683,6 +692,8 @@ function convertToUMS(data                      )                       {
         } : undefined),
         timingRequirements: timingRequirements.length > 0 ? timingRequirements : undefined,
         additionalRequirements: additionalRequirements.length > 0 ? additionalRequirements : undefined,
+        dueDateDays,
+        dueDateDaysOverridden: false,
         confidence: linkedValueSet ? 'high'                    : 'medium'                   ,
         source: 'AI Extraction',
         reviewStatus: 'pending'         ,

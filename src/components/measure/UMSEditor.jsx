@@ -11,6 +11,8 @@ import { ComponentBuilder } from './ComponentBuilder';
 import { ComponentDetailPanel } from './ComponentDetailPanel';
 import { getOperatorBetween } from '../../types/ums';
 import { MeasurePeriodBar, TimingBadge, TimingEditorPanel, TimingWindowLabel, TimingWindowEditor } from './TimingEditor';
+import { TimingSection, deriveDueDateDays } from '../shared/TimingSection';
+import { getEffectiveWindow, getEffectiveTiming } from '../../types/ums';
 import { parseTimingText } from '../../utils/timingResolver';
 import { getComplexityColor, getComplexityDots, getComplexityLevel, calculateDataElementComplexity, calculatePopulationComplexity, calculateMeasureComplexity } from '../../services/complexityCalculator';
 import { getAllStandardValueSets, searchStandardValueSets } from '../../constants/standardValueSets';
@@ -2103,6 +2105,13 @@ function CriteriaNode({
               ))}
             </div>
           )}
+
+          {/* Due Date Badge */}
+          {element.dueDateDays != null && (
+            <span className="mt-2 inline-block text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-dim)] font-mono">
+              ⏱ T-{element.dueDateDays}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           {/* Deep mode arrow controls - hidden by default, visible on hover */}
@@ -2367,6 +2376,75 @@ function NodeDetailPanel({
   }, [nodeId]);
 
   if (!node) return null;
+
+  // ========================================================================
+  // Timing Adapter Functions for TimingSection integration
+  // ========================================================================
+
+  /**
+   * Convert a UMS DataElement's timing data to the library timing format
+   * that TimingSection expects.
+   */
+  const nodeTimingAsLibraryFormat = (n) => {
+    // Try structured timing window first
+    const window = n.timingWindow;
+    if (window) {
+      const effective = getEffectiveWindow(window);
+      if (effective) {
+        // Convert window format to library format
+        return {
+          operator: 'within',
+          quantity: effective.start?.offsetValue || null,
+          unit: effective.start?.offsetUnit?.replace('(s)', 's') || null,
+          position: 'before end of',
+          reference: 'Measurement Period',
+        };
+      }
+    }
+
+    // Try timing requirements (legacy format)
+    const timingReq = n.timingRequirements?.[0];
+    if (timingReq) {
+      return {
+        operator: timingReq.window ? 'within' : 'during',
+        quantity: timingReq.window?.value || null,
+        unit: timingReq.window?.unit || null,
+        position: timingReq.window?.direction === 'before' ? 'before end of' : null,
+        reference: 'Measurement Period',
+        displayExpression: timingReq.description,
+      };
+    }
+
+    // Try timingOverride (structured constraint)
+    if (n.timingOverride) {
+      const effective = getEffectiveTiming(n.timingOverride);
+      if (effective) {
+        return {
+          operator: effective.operator,
+          quantity: effective.value || null,
+          unit: effective.unit?.replace('(s)', 's') || null,
+          position: null,
+          reference: effective.anchor || 'Measurement Period',
+        };
+      }
+    }
+
+    return { operator: 'during', reference: 'Measurement Period' };
+  };
+
+  /**
+   * Convert library timing format back to a TimingConstraint override
+   * for saving via the UMS store.
+   */
+  const convertToTimingOverride = (libraryTiming, n) => {
+    return {
+      operator: libraryTiming.operator,
+      value: libraryTiming.quantity || null,
+      unit: libraryTiming.unit ? libraryTiming.unit.replace('s', '(s)') : null,
+      anchor: libraryTiming.reference || 'Measurement Period End',
+      concept: n.description || n.valueSet?.name || 'Component',
+    };
+  };
 
   // Support multiple value sets for merged components
   // Prioritize the node's own value sets (which have accurate codes) over looked-up versions
@@ -2917,65 +2995,123 @@ function NodeDetailPanel({
           </div>
         )}
 
-        {/* Structured Timing Requirements */}
-        {(() => {
-          // Get structured timing window, or try to parse from text
-          const timingWindow = node.timingWindow;
-          const timingText = node.timingRequirements?.[0]?.description;
-          const parsedWindow = timingText ? parseTimingText(timingText) : null;
+        {/* Timing — shared component */}
+        <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
+          <TimingSection
+            timing={nodeTimingAsLibraryFormat(node)}
+            onChange={(newTiming) => {
+              // Convert library timing format to UMS TimingWindow based on the pattern
+              let timingWindow = null;
 
-          // Create a TimingWindowOverride if we only have parsed text
-          const effectiveOverride                                  = timingWindow ?? (parsedWindow ? {
-            original: parsedWindow,
-            modified: null,
-            sourceText: timingText || '',
-            modifiedAt: null,
-            modifiedBy: null,
-          } : undefined);
+              // Detect pattern from the timing object
+              const isDuringMP = newTiming.operator === 'during' && newTiming.reference !== 'Any';
+              const isAnytime = newTiming.reference === 'Any';
+              const isLookbackEnd = newTiming.position === 'before end of' && newTiming.quantity;
+              const isLookbackStart = newTiming.position === 'before start of' && newTiming.quantity;
 
-          if (!effectiveOverride && !timingText) return null;
+              if (isAnytime) {
+                // Anytime: clear timing window (null removes constraint)
+                timingWindow = null;
+              } else if (isDuringMP && !newTiming.quantity) {
+                // During MP: start=MP Start, end=MP End, no offsets
+                timingWindow = {
+                  start: {
+                    anchor: 'Measurement Period Start',
+                    offsetValue: 0,
+                    offsetUnit: 'day(s)',
+                    offsetDirection: 'after',
+                  },
+                  end: {
+                    anchor: 'Measurement Period End',
+                    offsetValue: 0,
+                    offsetUnit: 'day(s)',
+                    offsetDirection: 'before',
+                  },
+                };
+              } else if (isLookbackEnd) {
+                // Lookback from MP End: start = offset before MP End, end = MP End
+                timingWindow = {
+                  start: {
+                    anchor: 'Measurement Period End',
+                    offsetValue: newTiming.quantity,
+                    offsetUnit: newTiming.unit ? newTiming.unit.replace(/s$/, '(s)') : 'year(s)',
+                    offsetDirection: 'before',
+                  },
+                  end: {
+                    anchor: 'Measurement Period End',
+                    offsetValue: 0,
+                    offsetUnit: 'day(s)',
+                    offsetDirection: 'before',
+                  },
+                };
+              } else if (isLookbackStart) {
+                // Lookback from MP Start: start = offset before MP Start, end = MP Start
+                timingWindow = {
+                  start: {
+                    anchor: 'Measurement Period Start',
+                    offsetValue: newTiming.quantity,
+                    offsetUnit: newTiming.unit ? newTiming.unit.replace(/s$/, '(s)') : 'year(s)',
+                    offsetDirection: 'before',
+                  },
+                  end: {
+                    anchor: 'Measurement Period Start',
+                    offsetValue: 0,
+                    offsetUnit: 'day(s)',
+                    offsetDirection: 'before',
+                  },
+                };
+              } else {
+                // Advanced/other: use operator-based approach
+                timingWindow = {
+                  start: {
+                    anchor: newTiming.reference === 'Measurement Period Start' ? 'Measurement Period Start' : 'Measurement Period End',
+                    offsetValue: newTiming.quantity || 0,
+                    offsetUnit: newTiming.unit ? newTiming.unit.replace(/s$/, '(s)') : 'day(s)',
+                    offsetDirection: newTiming.position?.includes('before') ? 'before' : 'after',
+                  },
+                  end: {
+                    anchor: 'Measurement Period End',
+                    offsetValue: 0,
+                    offsetUnit: 'day(s)',
+                    offsetDirection: 'before',
+                  },
+                };
+              }
 
-          return (
-            <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
-              <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-2">Timing Requirements</h4>
-
-              {editingTimingWindow && effectiveOverride ? (
-                <TimingWindowEditor
-                  window={effectiveOverride}
-                  mpStart={mpStart}
-                  mpEnd={mpEnd}
-                  onSave={(modified) => {
-                    onSaveTimingWindow(node.id, modified);
-                    setEditingTimingWindow(false);
-                  }}
-                  onCancel={() => setEditingTimingWindow(false)}
-                  onReset={() => {
-                    onResetTimingWindow(node.id);
-                    setEditingTimingWindow(false);
-                  }}
-                />
-              ) : effectiveOverride ? (
-                <div className="p-2 bg-[var(--bg-secondary)] rounded">
-                  <TimingWindowLabel
-                    window={effectiveOverride}
-                    mpStart={mpStart}
-                    mpEnd={mpEnd}
-                    onClick={() => setEditingTimingWindow(true)}
-                  />
-                </div>
-              ) : timingText ? (
-                <div className="p-2 bg-[var(--bg-secondary)] rounded">
-                  <span className="text-sm text-[var(--text-muted)] italic">
-                    {timingText}
-                  </span>
-                  <div className="text-xs text-[var(--text-dim)] mt-1">
-                    Unable to parse timing - showing original text
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          );
-        })()}
+              // Save via the timing window handler (handles shared component warnings)
+              if (timingWindow) {
+                onSaveTimingWindow(node.id, timingWindow);
+              } else {
+                // For "Anytime", reset/clear the timing window
+                onResetTimingWindow(node.id);
+              }
+            }}
+            dueDateDays={node.dueDateDays ?? deriveDueDateDays(nodeTimingAsLibraryFormat(node), node.type)}
+            onDueDateChange={(days) => {
+              updateDataElement(measureId, node.id, {
+                dueDateDays: days,
+                dueDateDaysOverridden: true,
+              });
+            }}
+            dueDateOverridden={node.dueDateDaysOverridden ?? false}
+            mpStart={mpStart}
+            mpEnd={mpEnd}
+            compact={true}
+            componentCategory={node.type}
+            componentData={{
+              name: node.description,
+              description: node.description,
+              genderValue: node.genderValue,
+              resourceType: node.resourceType,
+              type: node.type, // 'demographic', 'encounter', etc.
+              thresholds: node.thresholds,
+            }}
+            ageEvaluatedAt={node.ageEvaluatedAt}
+            onAgeEvaluatedAtChange={(refValue) => {
+              updateDataElement(measureId, node.id, { ageEvaluatedAt: refValue });
+            }}
+          />
+        </div>
 
         {/* Editable Additional Requirements */}
         {(node.additionalRequirements && node.additionalRequirements.length > 0) && (

@@ -16,23 +16,28 @@
 // ============================================================================
 
 export const sampleAtomics                                        = [
-  // Demographics - Low complexity
+  // Demographics - Age component (Low complexity)
   {
     type: 'atomic',
     id: 'age-45-75-at-start-mp',
     name: 'Age 45-75 at Start of MP',
     description: 'Patient age between 45 and 75 years at the start of the measurement period',
+    // Age component detection fields
+    thresholds: { ageMin: 45, ageMax: 75 },
+    ageEvaluatedAt: 'start-of-mp',
     valueSet: {
       oid: 'N/A',
       version: 'N/A',
       name: 'Demographic Constraint',
     },
     timing: {
-      operator: 'during',
-      reference: 'Measurement Period',
-      displayExpression: 'at start of Measurement Period',
+      operator: 'as of',
+      reference: 'Measurement Period Start',
+      displayExpression: 'as of start of Measurement Period',
     },
     negation: false,
+    dueDateDays: null, // Demographics - not applicable
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -63,12 +68,13 @@ export const sampleAtomics                                        = [
     },
   },
 
-  // Patient Sex: Female - Demographics
+  // Patient Sex: Female - Demographics (Sex/Gender component)
   {
     type: 'atomic',
     id: 'patient-sex-female',
     name: 'Patient Sex: Female',
     description: 'Patient administrative gender is female (FHIR Patient.gender = "female"). Used for sex-specific measures like Breast Cancer Screening and Cervical Cancer Screening.',
+    // Sex/Gender component detection fields
     resourceType: 'Patient',
     genderValue: 'female',
     valueSet: {
@@ -76,12 +82,11 @@ export const sampleAtomics                                        = [
       version: 'FHIR R4',
       name: 'Administrative Gender',
     },
-    timing: {
-      operator: 'during',
-      reference: 'Measurement Period',
-      displayExpression: 'N/A - Patient demographic',
-    },
+    // Sex is immutable - no timing constraint
+    timing: null,
     negation: false,
+    dueDateDays: null, // Demographics - not applicable
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -112,12 +117,13 @@ export const sampleAtomics                                        = [
     },
   },
 
-  // Patient Sex: Male - Demographics
+  // Patient Sex: Male - Demographics (Sex/Gender component)
   {
     type: 'atomic',
     id: 'patient-sex-male',
     name: 'Patient Sex: Male',
     description: 'Patient administrative gender is male (FHIR Patient.gender = "male"). Used for sex-specific measures like Prostate Cancer Screening.',
+    // Sex/Gender component detection fields
     resourceType: 'Patient',
     genderValue: 'male',
     valueSet: {
@@ -125,12 +131,11 @@ export const sampleAtomics                                        = [
       version: 'FHIR R4',
       name: 'Administrative Gender',
     },
-    timing: {
-      operator: 'during',
-      reference: 'Measurement Period',
-      displayExpression: 'N/A - Patient demographic',
-    },
+    // Sex is immutable - no timing constraint
+    timing: null,
     negation: false,
+    dueDateDays: null, // Demographics - not applicable
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -178,6 +183,8 @@ export const sampleAtomics                                        = [
       displayExpression: 'during Measurement Period',
     },
     negation: false,
+    dueDateDays: 365, // During MP → Annual
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -207,7 +214,7 @@ export const sampleAtomics                                        = [
       source: { origin: 'ecqi' },
     },
   },
-  
+
   {
     type: 'atomic',
     id: 'home-healthcare-during-mp',
@@ -224,6 +231,8 @@ export const sampleAtomics                                        = [
       displayExpression: 'during Measurement Period',
     },
     negation: false,
+    dueDateDays: 365, // During MP → Annual
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -253,7 +262,7 @@ export const sampleAtomics                                        = [
       source: { origin: 'ecqi' },
     },
   },
-  
+
   {
     type: 'atomic',
     id: 'preventive-care-during-mp',
@@ -270,6 +279,8 @@ export const sampleAtomics                                        = [
       displayExpression: 'during Measurement Period',
     },
     negation: false,
+    dueDateDays: 365, // During MP → Annual
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -299,7 +310,7 @@ export const sampleAtomics                                        = [
       source: { origin: 'ecqi' },
     },
   },
-  
+
   {
     type: 'atomic',
     id: 'annual-wellness-during-mp',
@@ -316,6 +327,8 @@ export const sampleAtomics                                        = [
       displayExpression: 'during Measurement Period',
     },
     negation: false,
+    dueDateDays: 365, // During MP → Annual
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -345,7 +358,7 @@ export const sampleAtomics                                        = [
       source: { origin: 'ecqi' },
     },
   },
-  
+
   {
     type: 'atomic',
     id: 'online-assessment-during-mp',
@@ -362,6 +375,8 @@ export const sampleAtomics                                        = [
       displayExpression: 'during Measurement Period',
     },
     negation: false,
+    dueDateDays: 365, // During MP → Annual
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -391,7 +406,7 @@ export const sampleAtomics                                        = [
       source: { origin: 'ecqi' },
     },
   },
-  
+
   // Procedures - Medium complexity (longer lookback)
   {
     type: 'atomic',
@@ -412,6 +427,8 @@ export const sampleAtomics                                        = [
       displayExpression: 'within 10 years before end of Measurement Period',
     },
     negation: false,
+    dueDateDays: 3650, // 10 years × 365
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -441,7 +458,7 @@ export const sampleAtomics                                        = [
       source: { origin: 'ecqi', originalMeasureId: 'CMS130' },
     },
   },
-  
+
   // Exclusions - Medium complexity
   {
     type: 'atomic',
@@ -459,6 +476,8 @@ export const sampleAtomics                                        = [
       displayExpression: 'during Measurement Period',
     },
     negation: false,
+    dueDateDays: 365, // During MP → Annual
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -488,7 +507,7 @@ export const sampleAtomics                                        = [
       source: { origin: 'ecqi' },
     },
   },
-  
+
   {
     type: 'atomic',
     id: 'hospice-intervention-during-mp',
@@ -505,6 +524,8 @@ export const sampleAtomics                                        = [
       displayExpression: 'during Measurement Period',
     },
     negation: false,
+    dueDateDays: 365, // During MP → Annual
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -534,7 +555,7 @@ export const sampleAtomics                                        = [
       source: { origin: 'ecqi' },
     },
   },
-  
+
   // Conditions with negation - Higher complexity
   {
     type: 'atomic',
@@ -553,6 +574,8 @@ export const sampleAtomics                                        = [
       displayExpression: 'starts before end of Measurement Period',
     },
     negation: true, // This is used as an exclusion - "absence of" concept
+    dueDateDays: null, // Negation - not applicable
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -602,6 +625,8 @@ export const sampleComposites                                           = [
       { componentId: 'annual-wellness-during-mp', versionId: '1.0', displayName: 'Annual Wellness Visit during MP' },
       { componentId: 'online-assessment-during-mp', versionId: '1.0', displayName: 'Online Assessment during MP' },
     ],
+    dueDateDays: 365, // Composite default - Annual
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [
@@ -631,7 +656,7 @@ export const sampleComposites                                           = [
       source: { origin: 'ecqi' },
     },
   },
-  
+
   {
     type: 'composite',
     id: 'hospice-exclusion',
@@ -642,6 +667,8 @@ export const sampleComposites                                           = [
       { componentId: 'hospice-encounter-during-mp', versionId: '1.0', displayName: 'Hospice Encounter during MP' },
       { componentId: 'hospice-intervention-during-mp', versionId: '1.0', displayName: 'Hospice Intervention during MP' },
     ],
+    dueDateDays: 365, // Composite default - Annual
+    dueDateDaysOverridden: false,
     versionInfo: {
       versionId: '1.0',
       versionHistory: [

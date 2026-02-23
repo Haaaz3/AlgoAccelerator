@@ -713,6 +713,39 @@ function AtomicDetails({ component }                                ) {
         </dl>
       </div>
 
+      {/* Due Date (T-Days) */}
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-3 space-y-2">
+        <h3 className="text-sm font-medium text-[var(--text)] flex items-center gap-2">
+          <Clock size={14} className="text-amber-400" />
+          Due Date (T-Days)
+        </h3>
+        {component.dueDateDays != null ? (
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-bold text-[var(--text)]">
+              T-{component.dueDateDays}
+            </span>
+            <span className="text-sm text-[var(--text-muted)]">
+              {component.dueDateDays === 365
+                ? 'Annual'
+                : component.dueDateDays % 365 === 0
+                  ? `${component.dueDateDays / 365} year${component.dueDateDays / 365 > 1 ? 's' : ''}`
+                  : component.dueDateDays % 30 === 0 && component.dueDateDays < 365
+                    ? `${component.dueDateDays / 30} month${component.dueDateDays / 30 > 1 ? 's' : ''}`
+                    : `${component.dueDateDays} days`}
+            </span>
+            {component.dueDateDaysOverridden && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">
+                Override
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--text-dim)] italic">
+            Not applicable (negation or demographics)
+          </p>
+        )}
+      </div>
+
       {/* Negation */}
       {component.negation && (
         <div className="flex items-center gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-4 py-2.5">
