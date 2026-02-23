@@ -6,7 +6,6 @@ import {
   Layers,
   ChevronRight,
   Package,
-  Atom,
   GitBranch,
   Tag,
   CheckCircle,
@@ -666,20 +665,12 @@ function ComponentCard({
             <h3 className="text-sm font-semibold text-[var(--text)] truncate group-hover:text-purple-400 transition-colors">
               {component.name}
             </h3>
-            <span
-              className={`flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
-                isComposite
-                  ? 'bg-purple-500/10 text-purple-400'
-                  : 'bg-sky-500/10 text-sky-400'
-              }`}
-            >
-              {isComposite ? (
+            {isComposite && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-purple-500/10 text-purple-400">
                 <GitBranch className="w-3 h-3" />
-              ) : (
-                <Atom className="w-3 h-3" />
-              )}
-              {isComposite ? 'Composite' : 'Atomic'}
-            </span>
+                Composite
+              </span>
+            )}
           </div>
 
           {/* Description */}
@@ -733,20 +724,12 @@ function ComponentCard({
         <h3 className="text-sm font-semibold text-[var(--text)] truncate group-hover:text-[var(--accent)] transition-colors">
           {component.name}
         </h3>
-        <span
-          className={`flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
-            isComposite
-              ? 'bg-purple-500/10 text-purple-400'
-              : 'bg-sky-500/10 text-sky-400'
-          }`}
-        >
-          {isComposite ? (
+        {isComposite && (
+          <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-purple-500/10 text-purple-400">
             <GitBranch className="w-3 h-3" />
-          ) : (
-            <Atom className="w-3 h-3" />
-          )}
-          {isComposite ? 'Composite' : 'Atomic'}
-        </span>
+            Composite
+          </span>
+        )}
       </div>
 
       {/* Description */}

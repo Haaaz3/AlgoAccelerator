@@ -446,7 +446,7 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
                 >
                   {type === 'atomic' ? (
                     <span className="flex items-center justify-center gap-2">
-                      <Zap size={14} /> Atomic
+                      <Zap size={14} /> Single
                     </span>
                   ) : (
                     <span className="flex items-center justify-center gap-2">
@@ -892,8 +892,8 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
                               {child.name}
                             </div>
                             <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                              {child.type === 'atomic' ? 'Atomic' : 'Composite'} &middot;{' '}
-                              {child.metadata.category} &middot; v{child.versionInfo.versionId}
+                              {child.type === 'composite' ? 'Composite · ' : ''}
+                              {child.metadata.category} · v{child.versionInfo.versionId}
                             </div>
                           </div>
                           <span

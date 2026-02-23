@@ -322,16 +322,12 @@ export function ComponentDetail({ componentId, onClose, onEdit }                
         {/* Type & Status Badges                                          */}
         {/* -------------------------------------------------------------- */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-              isAtomic
-                ? 'bg-purple-500/15 text-purple-400'
-                : 'bg-teal-500/15 text-teal-400'
-            }`}
-          >
-            {isAtomic ? <Atom size={12} /> : <Layers size={12} />}
-            {isAtomic ? 'Atomic' : 'Composite'}
-          </span>
+          {!isAtomic && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-teal-500/15 text-teal-400">
+              <Layers size={12} />
+              Composite
+            </span>
+          )}
 
           <span
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.bg} ${statusConfig.text}`}

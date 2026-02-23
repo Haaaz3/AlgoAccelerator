@@ -397,7 +397,7 @@ export default function AddComponentModal({
                     Type
                   </div>
                   <div className="text-xs font-medium" style={{ color: 'var(--text)' }}>
-                    {comp.type === 'composite' ? 'Composite' : 'Atomic'}
+                    {comp.type === 'composite' ? 'Composite' : 'Single'}
                   </div>
                 </div>
                 <div className="flex-1">
