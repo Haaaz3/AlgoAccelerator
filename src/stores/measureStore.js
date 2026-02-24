@@ -1425,6 +1425,46 @@ export const useMeasureStore = create              ()(
     })
 );
 
+// ─── Auto-save: persist measure changes to localStorage + backend ───
+// The store's loadFromApi already reads from localStorage as an overlay,
+// so saving here ensures edits survive page refresh.
+let _prevMeasureIds = '';
+let _backendSaveTimer = null;
+
+useMeasureStore.subscribe((state) => {
+  // Quick fingerprint to detect actual measure changes
+  const fingerprint = state.measures.map(m => m.id + ':' + (m.updatedAt || '')).join('|');
+  if (fingerprint === _prevMeasureIds) return;
+  _prevMeasureIds = fingerprint;
+
+  // Save each measure to localStorage immediately
+  for (const measure of state.measures) {
+    const key = measure.metadata?.measureId || measure.id;
+    if (!key) continue;
+    try {
+      localStorage.setItem(`measure-local-${key}`, JSON.stringify(measure));
+    } catch (e) {
+      // localStorage full or unavailable — skip silently
+    }
+  }
+
+  // Debounced backend save (3s after last edit)
+  if (_backendSaveTimer) clearTimeout(_backendSaveTimer);
+  _backendSaveTimer = setTimeout(async () => {
+    for (const measure of useMeasureStore.getState().measures) {
+      try {
+        const converted = convertUmsToImportFormat(measure);
+        if (!converted) continue;
+        const { importMeasures } = await import('../api/measures');
+        await importMeasures({ measures: [converted], components: [] });
+      } catch (e) {
+        // Backend save failed — localStorage still has the data
+        console.warn('[auto-save] Backend save failed for', measure.id, e.message);
+      }
+    }
+  }, 3000);
+});
+
 /**
  * Convert UMS format to the import format expected by the backend.
  * Backend expects a specific structure for populations with rootClause instead of criteria.
