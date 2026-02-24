@@ -2349,6 +2349,54 @@ function SelectedComponentDetailPanel({
   );
 }
 
+// VSAC Fetch Button sub-component for inline value set fetching
+function VsacFetchButton({ oid, apiKey, onCodesReceived }) {
+  const [fetching, setFetching] = useState(false);
+  const [fetchStatus, setFetchStatus] = useState(null); // { type: 'success'|'error', message }
+
+  const handleFetch = async () => {
+    if (!apiKey) {
+      setFetchStatus({ type: 'error', message: 'Configure VSAC API key in Settings' });
+      return;
+    }
+    setFetching(true);
+    setFetchStatus(null);
+    try {
+      const result = await fetchValueSetExpansion(oid, apiKey);
+      if (result.codes?.length > 0) {
+        onCodesReceived(result.codes, result.valueSetName);
+        setFetchStatus({ type: 'success', message: `Fetched ${result.codes.length} codes` });
+      } else {
+        setFetchStatus({ type: 'error', message: 'No codes found for this OID' });
+      }
+    } catch (err) {
+      setFetchStatus({ type: 'error', message: err.message || 'VSAC fetch failed' });
+    }
+    setFetching(false);
+  };
+
+  return (
+    <div className="space-y-1">
+      <button
+        onClick={handleFetch}
+        disabled={fetching}
+        className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[var(--accent)]/30 text-[var(--accent)] bg-[var(--accent-light)] hover:bg-[var(--accent)]/20 transition-colors disabled:opacity-50"
+      >
+        {fetching ? (
+          <><Loader2 className="w-3 h-3 animate-spin" /> Fetching...</>
+        ) : (
+          <><Download className="w-3 h-3" /> Fetch from VSAC</>
+        )}
+      </button>
+      {fetchStatus && (
+        <div className={`text-[10px] ${fetchStatus.type === 'success' ? 'text-[var(--success)]' : 'text-amber-400'}`}>
+          {fetchStatus.message}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NodeDetailPanel({
   measureId,
   nodeId,
@@ -2373,7 +2421,8 @@ function NodeDetailPanel({
                                                      
  ) {
   const { updateDataElement, measures, syncAgeRange } = useMeasureStore();
-  const { getComponent } = useComponentLibraryStore();
+  const { getComponent, updateComponent } = useComponentLibraryStore();
+  const vsacApiKey = useSettingsStore(s => s.vsacApiKey);
 
   // Editing states
   const [editingField, setEditingField] = useState               (null);
@@ -2381,6 +2430,14 @@ function NodeDetailPanel({
   const [editTimingIdx, setEditTimingIdx] = useState               (null);
   const [editReqIdx, setEditReqIdx] = useState               (null);
   const [editingTimingWindow, setEditingTimingWindow] = useState(false);
+
+  // Value set editing states
+  const [editingValueSet, setEditingValueSet] = useState(false);
+  const [vsOid, setVsOid] = useState('');
+  const [vsName, setVsName] = useState('');
+  const [localCodes, setLocalCodes] = useState([]);
+  const [showAddCodeForm, setShowAddCodeForm] = useState(false);
+  const [newCode, setNewCode] = useState({ code: '', display: '', system: 'CPT' });
 
   // Find the node in the tree (re-fetch from measures to get live updates)
   const findNode = (obj     )                     => {
@@ -2523,6 +2580,37 @@ function NodeDetailPanel({
 
   // Keep single value set for backward compatibility
   const fullValueSet = fullValueSets.length > 0 ? fullValueSets[0] : undefined;
+
+  // Sync value set editing state when node changes
+  useEffect(() => {
+    if (node) {
+      const vs = fullValueSets[0]; // Primary value set
+      setVsOid(vs?.oid || '');
+      setVsName(vs?.name || node.description || '');
+      setLocalCodes(vs?.codes ? [...vs.codes] : []);
+      setEditingValueSet(false);
+      setShowAddCodeForm(false);
+    }
+  }, [nodeId]); // Only re-sync when selecting a different node
+
+  // Save value set changes back to the data element AND the linked library component
+  const saveValueSetChanges = (updates) => {
+    const currentVs = node.valueSet || {};
+    const updatedVs = { ...currentVs, ...updates };
+
+    // Save to measure's data element
+    updateDataElement(measureId, node.id, { valueSet: updatedVs });
+
+    // Also sync to linked library component if it exists
+    if (node.libraryComponentId) {
+      const libComp = getComponent(node.libraryComponentId);
+      if (libComp?.type === 'atomic') {
+        updateComponent(node.libraryComponentId, {
+          valueSet: { ...libComp.valueSet, ...updates },
+        });
+      }
+    }
+  };
 
   // Helper to detect "X or older" pattern in text — returns true if open-ended upper bound
   const isOpenEndedAge = (text        )          => {
@@ -2865,94 +2953,236 @@ function NodeDetailPanel({
           </div>
         )}
 
-        {/* Value Set & Clinical Codes */}
+        {/* ═══ VALUE SET & CLINICAL CODES ═══ */}
         {(() => {
-          // Skip demographics (age/gender components don't have value sets)
-          if (node.genderValue || node.thresholds?.ageMin != null) return null;
+          // Skip demographics — they don't have value sets
+          const isDemographic = node.genderValue != null || node.thresholds?.ageMin != null
+            || node.type === 'demographic' || node.metadata?.category === 'demographics';
+          if (isDemographic) return null;
+
+          const hasValueSet = node.valueSet || fullValueSets.length > 0;
 
           return (
             <div className="space-y-3">
-              {fullValueSets.length > 0 ? (
-                fullValueSets.map((vs, vsIdx) => (
-                  <div key={vs.id || vs.oid || vsIdx} className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
-                        <Database className="w-3.5 h-3.5" />
-                        Value Set
-                      </h4>
-                      <button
-                        onClick={() => onSelectValueSet(vs)}
-                        className="text-xs text-[var(--accent)] hover:underline flex items-center gap-1"
-                      >
-                        Edit in modal <ExternalLink className="w-3 h-3" />
-                      </button>
-                    </div>
+              {/* If no value set exists, show Create button */}
+              {!hasValueSet ? (
+                <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    <span className="text-sm font-medium text-amber-400">No value set defined</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      // Create an empty value set on this element
+                      const newVs = { oid: '', name: node.description || '', codes: [] };
+                      updateDataElement(measureId, node.id, { valueSet: newVs });
+                      setVsOid('');
+                      setVsName(node.description || '');
+                      setLocalCodes([]);
+                      setEditingValueSet(true);
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition-opacity flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3 h-3" /> Add Value Set
+                  </button>
+                </div>
+              ) : (
+                /* Value Set Editor */
+                <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)] space-y-3">
+                  {/* Header */}
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                      <Database className="w-3.5 h-3.5" />
+                      Value Set
+                    </h4>
+                    <button
+                      onClick={() => setEditingValueSet(!editingValueSet)}
+                      className="text-xs text-[var(--accent)] hover:underline"
+                    >
+                      {editingValueSet ? 'Done' : 'Edit'}
+                    </button>
+                  </div>
 
-                    {/* VS Name + OID */}
-                    <div className="space-y-1 mb-3">
-                      <div className="text-sm font-medium text-[var(--text)]">{vs.name || 'Unnamed value set'}</div>
-                      {vs.oid && (
-                        <code className="text-xs text-[var(--text-dim)] block font-mono">{vs.oid}</code>
+                  {/* OID + Name — always visible, editable when editing */}
+                  {editingValueSet ? (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-[10px] font-medium text-[var(--text-dim)] uppercase mb-1">OID</label>
+                        <input
+                          type="text"
+                          value={vsOid}
+                          onChange={(e) => setVsOid(e.target.value)}
+                          onBlur={() => saveValueSetChanges({ oid: vsOid })}
+                          placeholder="2.16.840.1.113883.3.464.1003.101.12.1001"
+                          className="w-full px-2 py-1.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-xs font-mono text-[var(--text)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-medium text-[var(--text-dim)] uppercase mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={vsName}
+                          onChange={(e) => setVsName(e.target.value)}
+                          onBlur={() => saveValueSetChanges({ name: vsName })}
+                          placeholder="Value set name"
+                          className="w-full px-2 py-1.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-xs text-[var(--text)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]/50"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="text-sm font-medium text-[var(--text)]">{vsName || 'Unnamed value set'}</div>
+                      {vsOid && <code className="text-xs text-[var(--text-dim)] block font-mono">{vsOid}</code>}
+                    </div>
+                  )}
+
+                  {/* VSAC Fetch Button — show when OID exists */}
+                  {vsOid && /^\d+\.\d+/.test(vsOid) && (
+                    <VsacFetchButton
+                      oid={vsOid}
+                      apiKey={vsacApiKey}
+                      onCodesReceived={(fetchedCodes, fetchedName) => {
+                        // Merge fetched codes with existing, avoiding duplicates
+                        const existingCodeSet = new Set(localCodes.map(c => `${c.system}|${c.code}`));
+                        const newCodes = fetchedCodes.filter(c => !existingCodeSet.has(`${c.system}|${c.code}`));
+                        const merged = [...localCodes, ...newCodes];
+                        setLocalCodes(merged);
+                        // Update name if we got one and current is empty
+                        if (fetchedName && !vsName) setVsName(fetchedName);
+                        // Persist
+                        saveValueSetChanges({
+                          codes: merged,
+                          ...(fetchedName && !vsName ? { name: fetchedName } : {}),
+                        });
+                      }}
+                    />
+                  )}
+
+                  {/* Codes Table */}
+                  {localCodes.length > 0 ? (
+                    <div className="border border-[var(--border)] rounded overflow-hidden">
+                      <div className="grid grid-cols-[auto_1fr_auto_auto] gap-px bg-[var(--border)] text-xs">
+                        <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">Code</div>
+                        <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">Display</div>
+                        <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">System</div>
+                        <div className="bg-[var(--bg-secondary)] px-2 py-1.5"></div>
+                        {(localCodes.length <= 15 ? localCodes : localCodes.slice(0, 15)).map((code, cIdx) => (
+                          <Fragment key={`${code.code}-${cIdx}`}>
+                            <div className="bg-[var(--bg)] px-2 py-1.5 font-mono text-[var(--text)] text-[11px]">{code.code}</div>
+                            <div className="bg-[var(--bg)] px-2 py-1.5 text-[var(--text)] truncate text-[11px]">{code.display}</div>
+                            <div className="bg-[var(--bg)] px-2 py-1.5 text-[var(--text-dim)] text-[11px]">{code.system}</div>
+                            <div className="bg-[var(--bg)] px-1 py-1 flex items-center">
+                              {editingValueSet && (
+                                <button
+                                  onClick={() => {
+                                    const updated = localCodes.filter((_, i) => i !== cIdx);
+                                    setLocalCodes(updated);
+                                    saveValueSetChanges({ codes: updated });
+                                  }}
+                                  className="p-0.5 rounded hover:bg-red-500/20 text-red-400 transition-colors"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </Fragment>
+                        ))}
+                      </div>
+                      {localCodes.length > 15 && (
+                        <button
+                          onClick={() => onSelectValueSet(fullValueSets[0])}
+                          className="w-full px-2 py-1.5 text-xs text-[var(--accent)] bg-[var(--bg)] hover:bg-[var(--bg-secondary)] transition-colors text-center"
+                        >
+                          +{localCodes.length - 15} more — open full editor
+                        </button>
                       )}
                     </div>
+                  ) : (
+                    <div className="p-2.5 rounded bg-amber-500/10 border border-amber-500/20 flex items-center gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                      <span className="text-xs text-amber-400">No codes defined</span>
+                    </div>
+                  )}
 
-                    {/* Codes Table */}
-                    {vs.codes?.length > 0 ? (
-                      <div className="border border-[var(--border)] rounded overflow-hidden">
-                        <div className="grid grid-cols-[1fr_2fr_auto] gap-px bg-[var(--border)] text-xs">
-                          <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">Code</div>
-                          <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">Display</div>
-                          <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">System</div>
-                          {(vs.codes.length <= 10 ? vs.codes : vs.codes.slice(0, 10)).map((code, cIdx) => (
-                            <Fragment key={(code.code || cIdx) + '-' + cIdx}>
-                              <div className="bg-[var(--bg)] px-2 py-1.5 font-mono text-[var(--text)]">{code.code || '—'}</div>
-                              <div className="bg-[var(--bg)] px-2 py-1.5 text-[var(--text)] truncate">{code.display || '—'}</div>
-                              <div className="bg-[var(--bg)] px-2 py-1.5 text-[var(--text-dim)]">{code.system || '—'}</div>
-                            </Fragment>
-                          ))}
-                        </div>
-                        {vs.codes.length > 10 && (
-                          <button
-                            onClick={() => onSelectValueSet(vs)}
-                            className="w-full px-2 py-1.5 text-xs text-[var(--accent)] bg-[var(--bg)] hover:bg-[var(--bg-secondary)] transition-colors text-center"
-                          >
-                            +{vs.codes.length - 10} more codes — click to view all
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      /* Missing codes — show VSAC fetch button if OID exists */
-                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <AlertTriangle className="w-4 h-4 text-amber-500" />
-                          <span className="text-xs font-medium text-amber-400">
-                            Missing codes{!vs.oid ? ' — no OID available' : ''}
-                          </span>
-                          {vs.oid && (
-                            <button
-                              onClick={() => onSelectValueSet(vs)}
-                              className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors font-medium"
+                  {/* Codes count summary */}
+                  {localCodes.length > 0 && (
+                    <div className="text-xs text-[var(--text-dim)] flex items-center justify-between">
+                      <span>{localCodes.length} codes • {[...new Set(localCodes.map(c => c.system))].join(', ')}</span>
+                      <button
+                        onClick={() => onSelectValueSet(fullValueSets[0])}
+                        className="text-[var(--accent)] hover:underline"
+                      >
+                        Open full editor
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Add Code Form */}
+                  {editingValueSet && (
+                    <div className="pt-2 border-t border-[var(--border)]/50 space-y-2">
+                      {showAddCodeForm ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={newCode.code}
+                              onChange={(e) => setNewCode({ ...newCode, code: e.target.value })}
+                              placeholder="Code"
+                              className="w-24 px-2 py-1.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-xs font-mono text-[var(--text)] focus:outline-none focus:border-[var(--accent)]/50"
+                            />
+                            <input
+                              type="text"
+                              value={newCode.display}
+                              onChange={(e) => setNewCode({ ...newCode, display: e.target.value })}
+                              placeholder="Display name"
+                              className="flex-1 px-2 py-1.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-xs text-[var(--text)] focus:outline-none focus:border-[var(--accent)]/50"
+                            />
+                            <select
+                              value={newCode.system}
+                              onChange={(e) => setNewCode({ ...newCode, system: e.target.value })}
+                              className="w-20 px-1 py-1.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded text-xs text-[var(--text)] focus:outline-none"
                             >
-                              Open & Fetch from VSAC →
+                              <option value="CPT">CPT</option>
+                              <option value="ICD10">ICD10</option>
+                              <option value="SNOMED">SNOMED</option>
+                              <option value="HCPCS">HCPCS</option>
+                              <option value="LOINC">LOINC</option>
+                              <option value="RxNorm">RxNorm</option>
+                              <option value="CVX">CVX</option>
+                            </select>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                if (newCode.code.trim()) {
+                                  const updated = [...localCodes, { ...newCode }];
+                                  setLocalCodes(updated);
+                                  saveValueSetChanges({ codes: updated });
+                                  setNewCode({ code: '', display: '', system: newCode.system });
+                                }
+                              }}
+                              className="px-3 py-1 text-xs font-medium bg-[var(--accent)] text-white rounded hover:opacity-90"
+                            >
+                              Add
                             </button>
-                          )}
+                            <button
+                              onClick={() => { setShowAddCodeForm(false); setNewCode({ code: '', display: '', system: 'CPT' }); }}
+                              className="px-3 py-1 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Codes count summary */}
-                    {vs.codes?.length > 0 && (
-                      <div className="mt-2 text-xs text-[var(--text-dim)] flex items-center justify-between">
-                        <span>{vs.codes.length} codes • {[...new Set(vs.codes.map(c => c.system).filter(Boolean))].join(', ') || 'Unknown system'}</span>
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                /* No value set at all */
-                <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  <span className="text-xs font-medium text-amber-400">No value set defined for this component</span>
+                      ) : (
+                        <button
+                          onClick={() => setShowAddCodeForm(true)}
+                          className="flex items-center gap-1.5 text-xs font-medium text-[var(--accent)] hover:underline"
+                        >
+                          <Plus className="w-3 h-3" /> Add Code
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
