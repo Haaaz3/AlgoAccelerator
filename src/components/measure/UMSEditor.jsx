@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Fragment, useCallback } from 'react';
+import { useState, useRef, useEffect, Fragment, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine, Square, CheckSquare, Database } from 'lucide-react';
 import { InlineErrorBanner, InlineSuccessBanner } from '../shared/ErrorBoundary';
