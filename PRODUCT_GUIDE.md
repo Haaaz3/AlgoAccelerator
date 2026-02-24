@@ -105,28 +105,43 @@ Click on any data element to view its details:
 
 #### Modifying Value Sets
 
-1. Click the value set link on a data element
-2. The Value Set panel opens showing:
-   - Value set name and OID
-   - All codes with display names
-   - Code system (ICD-10, SNOMED, CPT, etc.)
-3. **Add codes**: Click "+" and enter code details
-4. **Remove codes**: Click "×" on any code row
-5. Changes are tracked for audit purposes
+Value sets can be edited directly inline in the Edit Component panel:
+
+1. Click on any data element to open the Edit Component panel
+2. The Value Set section shows:
+   - Value set name and OID (both editable)
+   - Codes table with code, display, and system columns
+   - Code count and system summary
+3. Click **Edit** to enter edit mode:
+   - **Edit OID**: Enter or modify the value set OID
+   - **Edit Name**: Update the value set name
+   - **Fetch from VSAC**: If OID is valid, fetch codes from VSAC directly
+   - **Add Code**: Click "+ Add Code" to add codes manually (code, display, system)
+   - **Delete Code**: Click the × button on any code row to remove it
+4. Click **Done** to exit edit mode
+5. Changes automatically sync to the linked library component
+6. For bulk editing, click **Open full editor** to access the Value Set modal
 
 #### Adjusting Timing Requirements
 
-1. Click the timing badge on a data element
-2. The Timing Editor opens with:
-   - Visual timeline showing the measurement period
-   - Start/end date constraints
-   - Relative timing options
-3. Configure timing:
-   - **During** - Must occur within measurement period
-   - **Before** - Must occur before a reference point
-   - **After** - Must occur after a reference point
-   - **Within X days/months/years** - Time window constraints
-4. Preview shows the actual date range based on your measurement period
+The timing section uses smart presets with real-time date preview:
+
+1. Click the timing section on any data element
+2. Select from timing presets:
+   - **During Measurement Period** - Must occur within MP dates
+   - **Lookback from MP End** - X years/months/days before MP end (e.g., colonoscopy within 10 years)
+   - **Lookback from MP Start** - X years/months/days before MP start
+   - **Anytime (No Constraint)** - No timing restriction
+   - **Advanced** - Custom operator, quantity, unit, and reference point
+3. The resolved date range updates in real-time based on your measurement period
+4. **Due Date (T-Days)** shows patient outreach timing:
+   - Auto-calculated based on timing preset and component category
+   - Shows days before MP end when care is "due"
+   - Can be manually overridden for specific components
+5. For demographic components (age criteria), configure **Age Evaluated At**:
+   - Start of Measurement Period
+   - End of Measurement Period
+   - During Measurement Period (turns age during)
 
 ### 3. Deep Edit Mode
 
@@ -167,18 +182,34 @@ Fine-tune logic between specific elements:
 2. Toggle between AND and OR for just that pair
 3. Visual indentation shows grouped logic
 
+#### Adding Components from Library
+
+Add existing library components to your measure:
+
+1. Click the **+** button on any population clause
+2. The **Add Component** modal opens with two tabs:
+   - **Library**: Browse and search existing components
+   - **Create New**: Quick-create a new component
+3. From the Library tab:
+   - Filter by category using the dropdown
+   - Search by name, description, or OID
+   - Click a component to select it
+   - Click **Add to Measure** to insert it
+4. The component is added to the population and automatically linked to the library
+
 ### 4. Component Library
 
 The Component Library stores reusable measure logic blocks.
 
 #### Browsing Components
 
-1. Navigate to **Components** tab
-2. Use filters to narrow results:
-   - **Category**: Demographics, Encounters, Conditions, etc.
+1. Navigate to **Components** tab via the sidebar
+2. Category sub-navigation appears directly under Components:
+   - Demographics, Encounters, Conditions, Procedures, Observations, Medications, Immunizations, Allergies
+3. Use additional filters to narrow results:
    - **Status**: Draft, Pending Review, Approved, Archived
    - **Complexity**: Low, Medium, High
-3. Search by name, description, tags, or OID
+4. Search by name, description, tags, or OID
 
 #### Component Types
 
@@ -192,20 +223,22 @@ The Component Library stores reusable measure logic blocks.
 
 #### Creating Components
 
-1. Click **New Component**
-2. Choose type: Atomic or Composite
-3. For Atomic:
-   - Enter name and description
-   - Configure value set (OID, version, name)
-   - Set timing expression
-   - Toggle negation if needed
-   - Select category and add tags
-4. For Composite:
-   - Enter name and description
-   - Choose operator (AND/OR)
-   - Select child components
-   - Select category and add tags
-5. Click **Save**
+Use the **Create Component Wizard** for guided component creation:
+
+1. Click **New Component** to open the wizard
+2. **Step 1 - Category**: Select the clinical category (Demographics, Encounters, Conditions, etc.) and subcategory
+3. **Step 2 - Details**: Enter component information:
+   - Name and description
+   - Value set OID (for atomic components)
+   - Timing configuration using smart presets
+   - Patient sex restriction (if applicable)
+4. **Step 3 - Codes**: Configure clinical codes:
+   - Fetch codes from VSAC using the OID
+   - Or manually add codes with code, display, and system
+5. **Step 4 - Review**: Preview the component and generated code
+6. Click **Create Component** to save
+
+**Note**: Components are created as atomic by default. To create a composite (AND/OR collection), use the **Merge Components** feature in the UMS Editor.
 
 #### Component Workflow
 
@@ -490,3 +523,7 @@ For self-hosted models (Ollama, LM Studio, vLLM, etc.):
 | 1.2 | Feb 2026 | Multiple value sets support, per-sibling operators |
 | 1.3 | Feb 2026 | AI Co-pilot with proposal system, intuitive code editor with visual diffs and edit history |
 | 1.4 | Feb 2026 | Documentation accuracy review: removed unimplemented features (theme, FHIR export, patient config) |
+| 1.5 | Feb 2026 | Timing redesign with smart presets, Due Date (T-Days), VSAC code cache for offline hydration |
+| 1.6 | Feb 2026 | Create Component Wizard with 4-step guided flow, library-first Add Component modal |
+| 1.7 | Feb 2026 | Component Library sidebar navigation, category submenu, removed legacy AI chat panel |
+| 1.8 | Feb 2026 | UMS Editor parity: full value set editing (OID, name, add/delete codes, inline VSAC fetch) |

@@ -355,6 +355,26 @@ CRUD operations for library components.
 - `approveComponent(component, approvedBy)` - Approval workflow
 - `searchComponents(components, filters)` - Query library
 
+### vsacService.ts
+VSAC API integration for value set fetching.
+
+**Functions:**
+- `fetchValueSetExpansion(oid, apiKey)` - Fetch codes from VSAC by OID
+- Returns `{ codes, valueSetName, version }`
+
+### vsacCodeCache.ts
+Local cache of VSAC value set codes for offline hydration.
+
+**Features:**
+- Pre-populated with codes from public FHIR packages (eCQI, THO)
+- Supports offline code lookup without VSAC API key
+- Used to hydrate sample data and component library
+- Cache keyed by OID with codes array
+
+**Functions:**
+- `getCodesForOid(oid)` - Get cached codes for an OID
+- `hasCodesForOid(oid)` - Check if OID is in cache
+
 ### complexityCalculator.ts
 Calculates complexity scores for components and measures.
 
@@ -373,15 +393,21 @@ Main measure editing interface with:
 - Drag-and-drop reordering
 - Deep edit mode for component management
 - Component merge functionality
-- Value set editing
-- Timing overrides
+- Full value set editing (OID, name, codes)
+- Shared TimingSection with smart presets
 - Review workflow (approve/flag)
 
 **Key Features:**
 - **Deep Edit Mode**: Advanced editing with component merging
 - **Component Merge**: Select 2+ components, merge with OR logic, preserve separate value sets
 - **Per-Sibling Operators**: Individual AND/OR control between siblings
-- **Timing Editor**: Visual timing constraint editor with calendar preview
+- **TimingSection Integration**: Shared timing component with presets (During MP, Lookback, Anytime)
+- **NodeDetailPanel**: Full value set editing parity with ComponentEditor:
+  - Editable OID and VS Name fields
+  - Inline codes table with add/delete buttons
+  - VsacFetchButton for direct VSAC fetching
+  - Bidirectional sync to linked library component
+- **Add Component Modal**: Library-first component selection with search and category filters
 
 ### LibraryBrowser.tsx
 Component library management interface.
@@ -398,18 +424,43 @@ Component library management interface.
 ### ComponentEditor.tsx
 Form for creating/editing library components.
 
-**Atomic Component Fields:**
+**Component Fields:**
 - Name, description
-- Value set (OID, version, name)
-- Timing expression
-- Negation flag
+- Value set (OID, version, name) with inline code editing
+- Timing configuration via shared TimingSection
+- Patient sex restriction (male/female/any)
 - Category and tags
+- Due Date (T-Days) for outreach timing
 
-**Composite Component Fields:**
-- Name, description
-- Operator (AND/OR)
-- Child component selection
-- Category and tags
+**Note**: The atomic/composite toggle has been removed. Components are created as atomic by default; composites are created via the merge flow.
+
+### CreateComponentWizard.jsx
+4-step guided wizard for creating new components.
+
+**Steps:**
+1. **Category Selection**: Choose clinical category and subcategory
+2. **Component Details**: Name, description, OID, timing, patient sex
+3. **Code Configuration**: VSAC fetch or manual code entry
+4. **Review**: Preview component and generated code
+
+### TimingSection.jsx
+Shared timing configuration component used in both ComponentEditor and NodeDetailPanel.
+
+**Features:**
+- Smart presets: During MP, Lookback from MP End/Start, Anytime, Advanced
+- Real-time resolved date preview based on measurement period
+- Due Date (T-Days) calculation with manual override
+- Age Evaluation Reference for demographic components
+- Compact mode for inline editing
+
+### AddComponentModal.jsx
+Library-first modal for adding components to measures.
+
+**Features:**
+- Two tabs: Library (browse existing) and Create New
+- Category filter dropdown
+- Search by name, description, OID
+- Preview selected component before adding
 
 ### ComponentDetail.tsx
 Detailed view of a library component showing:
@@ -566,12 +617,22 @@ CSS variables support light/dark themes:
 - CORS considerations for external API calls
 - Input sanitization for AI-generated content
 
+### Sidebar.jsx
+Application navigation with nested category support.
+
+**Features:**
+- Main navigation tabs (Measures, Editor, Components, Value Sets, etc.)
+- Component Library category submenu nested under Components tab
+- Active tab highlighting
+- Measure selection indicator
+
 ## Future Enhancements
 
 1. **Server-side persistence** - Database storage for measures and components
 2. **Collaboration** - Multi-user editing with conflict resolution
-3. **VSAC direct integration** - Real-time value set lookup
+3. ~~**VSAC direct integration**~~ - ✅ Implemented: Real-time value set lookup via VSAC API
 4. **CQL execution engine** - In-browser CQL evaluation
 5. **FHIR Measure import** - Parse existing FHIR measures
 6. **Audit logging** - Track changes and approvals
 7. **Export formats** - MAT XML, HQMF, additional SQL dialects
+8. ~~**Due Date tracking**~~ - ✅ Implemented: T-Days calculation for patient outreach

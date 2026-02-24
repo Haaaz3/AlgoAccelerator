@@ -34,12 +34,17 @@ A comprehensive map of how components, stores, and services connect and communic
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
-| measureStore | `measures`, `selectedMeasureId`, `activeTab`, `corrections` | `updateMeasure`, `setActiveTab`, `addCodeToValueSet`, `removeCodeFromValueSet`, `saveTimingOverride`, `toggleLogicalOperator`, `setOperatorBetweenSiblings`, `approveElement`, `flagElement`, `clearReviewStatus`, `addCorrection`, `clearCorrections` |
+| measureStore | `measures`, `selectedMeasureId`, `activeTab`, `corrections` | `updateMeasure`, `setActiveTab`, `addCodeToValueSet`, `removeCodeFromValueSet`, `saveTimingOverride`, `toggleLogicalOperator`, `setOperatorBetweenSiblings`, `approveElement`, `flagElement`, `clearReviewStatus`, `addCorrection`, `clearCorrections`, `updateDataElement`, `syncAgeRange`, `updateTimingWindow` |
 | componentLibraryStore | `components`, `selectedComponentId` | `getComponent`, `linkMeasureComponents`, `mergeComponents`, `syncComponentToMeasures`, `recalculateUsage`, `addComponent`, `updateComponent` |
 | componentCodeStore | `codeStates` | `getCodeState`, `setCodeFormat`, `addOverride`, `addEditNote` |
-| settingsStore | `apiKeys`, `aiProvider` | - |
+| settingsStore | `apiKeys`, `aiProvider`, `vsacApiKey` | - |
 
-**Total Actions:** 22
+**Total Actions:** 25
+
+**NodeDetailPanel Sub-component:**
+- Uses `updateComponent` for bidirectional library sync
+- Uses `vsacApiKey` from settingsStore for inline VSAC fetching
+- VsacFetchButton calls `fetchValueSetExpansion` from vsacService
 
 ---
 
@@ -184,15 +189,20 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### Sidebar.tsx
-**File:** `src/components/layout/Sidebar.tsx`
+#### Sidebar.jsx
+**File:** `src/components/layout/Sidebar.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
 | measureStore | `activeTab`, `selectedMeasureId` | `setActiveTab` |
+| componentLibraryStore | `selectedCategory` | `setSelectedCategory` |
 | settingsStore | `theme` | - |
 
-**Total Actions:** 1
+**Total Actions:** 2
+
+**Features:**
+- Component Library category submenu nested under Components tab
+- Categories: Demographics, Encounters, Conditions, Procedures, etc.
 
 ---
 
@@ -237,6 +247,8 @@ A comprehensive map of how components, stores, and services connect and communic
 | `complexityCalculator.ts` | Complexity scoring | `calculateDataElementComplexity`, `calculateCompositeComplexity` |
 | `copilotService.ts` | AI co-pilot context & messaging | `buildCopilotContext`, `buildCopilotSystemPrompt`, `sendCopilotMessage` |
 | `copilotProviders.ts` | Modular LLM provider architecture | `AnthropicProvider`, `OpenAIProvider`, `getProvider` |
+| `vsacService.ts` | VSAC API integration | `fetchValueSetExpansion` |
+| `vsacCodeCache.ts` | Local VSAC code cache | `getCodesForOid`, `hasCodesForOid` |
 | `api.ts` | External API calls | `fetchVSACValueSet`, `callLLM` |
 
 ---
@@ -882,6 +894,143 @@ UI: Code reverts to generated, "Custom Override" badge removed
 
 ---
 
+### Flow 15: Edit Value Set in UMS Editor NodeDetailPanel
+
+```
+User Action: Click "Edit" on value set section in NodeDetailPanel
+    │
+    ▼
+NodeDetailPanel (UMSEditor.tsx)
+    │ setEditingValueSet(true)
+    ▼
+User modifies OID or VS Name
+    │
+    ▼
+onBlur triggers saveValueSetChanges({ oid/name })
+    │
+    ├──▶ measureStore.updateDataElement(measureId, nodeId, { valueSet: updated })
+    │
+    └──▶ componentLibraryStore.updateComponent(libraryComponentId, { valueSet: updated })
+              │ (bidirectional sync if linked)
+    │
+    ▼
+State Changes:
+    • node.valueSet.oid/name: updated
+    • linkedComponent.valueSet.oid/name: synced
+    │
+    ▼
+UI: Value set fields show new values, library component updated
+```
+
+---
+
+### Flow 16: Fetch Codes from VSAC in NodeDetailPanel
+
+```
+User Action: Click "Fetch from VSAC" button (VsacFetchButton)
+    │
+    ▼
+VsacFetchButton::handleFetch()
+    │
+    ├──▶ Check vsacApiKey from settingsStore
+    │
+    └──▶ vsacService.ts::fetchValueSetExpansion(oid, apiKey)
+              │
+              └──▶ VSAC API → returns { codes, valueSetName, version }
+    │
+    ▼
+onCodesReceived callback:
+    │
+    ├──▶ Merge with existing codes (deduplicate by system|code)
+    ├──▶ setLocalCodes(merged)
+    └──▶ saveValueSetChanges({ codes: merged, name?: fetchedName })
+              │
+              ├──▶ measureStore.updateDataElement()
+              └──▶ componentLibraryStore.updateComponent()
+    │
+    ▼
+State Changes:
+    • localCodes: merged codes array
+    • node.valueSet.codes: updated
+    • linkedComponent.valueSet.codes: synced
+    │
+    ▼
+UI: Codes table populates, "Fetched X codes" success message
+```
+
+---
+
+### Flow 17: Add Code Manually in NodeDetailPanel
+
+```
+User Action: Click "+ Add Code" → Fill form → Click "Add"
+    │
+    ▼
+NodeDetailPanel (UMSEditor.tsx)
+    │ showAddCodeForm = true
+    ▼
+User enters: code, display, system (dropdown)
+    │
+    ▼
+Click "Add" button:
+    │
+    ├──▶ const updated = [...localCodes, { code, display, system }]
+    ├──▶ setLocalCodes(updated)
+    └──▶ saveValueSetChanges({ codes: updated })
+              │
+              ├──▶ measureStore.updateDataElement()
+              └──▶ componentLibraryStore.updateComponent()
+    │
+    ▼
+State Changes:
+    • localCodes: [..., newCode]
+    • node.valueSet.codes: updated
+    • linkedComponent.valueSet.codes: synced
+    │
+    ▼
+UI: New code appears in table, form resets
+```
+
+---
+
+### Flow 18: Add Component from Library Modal
+
+```
+User Action: Click "+" on population clause → Select from Library tab
+    │
+    ▼
+AddComponentModal.jsx opens
+    │
+    ├──▶ Load componentLibraryStore.components
+    ├──▶ Filter by category (dropdown)
+    └──▶ Search by name/description/OID
+    │
+    ▼
+User clicks component → clicks "Add to Measure"
+    │
+    ▼
+measureStore.addComponentToPopulation(measureId, populationId, component)
+    │
+    ├──▶ Create new DataElement from component
+    ├──▶ Set libraryComponentId link
+    ├──▶ Copy valueSet, timing from component
+    └──▶ Insert into population criteria
+    │
+    ▼
+componentLibraryStore.addUsageReference(componentId, measureId)
+    │
+    ▼
+State Changes:
+    • population.criteria.children: [..., newElement]
+    • component.usage.measureIds: [..., measureId]
+    • component.usage.usageCount: incremented
+    │
+    ▼
+UI: Component appears in population tree, linked to library
+```
+
+---
+
 ## 4. Orphan Report
 
 ### Summary
@@ -1135,3 +1284,4 @@ CodeGeneration.tsx
 |---------|------|--------|---------|
 | 1.0 | Feb 2026 | AI-assisted | Initial manifest creation |
 | 1.1 | Feb 2026 | AI-assisted | Added AI Co-pilot pipeline, MeasureCodeEditor, code customization flows |
+| 1.2 | Feb 2026 | AI-assisted | Added vsacService, vsacCodeCache to services; Sidebar category submenu; NodeDetailPanel value set editing flows (15-17); AddComponentModal flow (18) |
