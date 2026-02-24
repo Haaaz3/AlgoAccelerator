@@ -389,67 +389,109 @@ export const useComponentLibraryStore = create                       ()(
         }
       },
 
-      updateComponent: (id, updates) =>
-        set((state) => {
-          const existing = state.components.find((c) => c.id === id);
-          if (!existing) return state;
+      updateComponent: (id, updates) => {
+        // Get the existing component for merging
+        const state = get();
+        const existing = state.components.find((c) => c.id === id);
+        if (!existing) return;
 
-          // If category is explicitly changed, clear auto flag
-          if (
-            updates.metadata?.category &&
-            updates.metadata.category !== existing.metadata.category
-          ) {
-            updates = {
-              ...updates,
-              metadata: {
-                ...updates.metadata,
-                categoryAutoAssigned: false,
-              },
-            };
-          }
-
-          // If component is auto-assigned and relevant fields changed, re-infer
-          // Only applicable for atomic components which have valueSet, resourceType, genderValue
-          if (
-            existing.metadata.categoryAutoAssigned &&
-            existing.type === 'atomic' &&
-            ('valueSet' in updates || 'resourceType' in updates || 'genderValue' in updates)
-          ) {
-            const merged = { ...existing, ...updates }                    ;
-            const newCategory = inferCategory(merged);
-            updates = {
-              ...updates,
-              metadata: {
-                ...existing.metadata,
-                ...updates.metadata,
-                category: newCategory,
-              },
-            };
-          }
-
-          // CRITICAL FIX: Regenerate code when code-affecting fields change
-          // Fields that affect generated code: valueSet, timing, negation, resourceType, name
-          const codeAffectingFields = ['valueSet', 'timing', 'negation', 'resourceType', 'name', 'childComponents'];
-          const needsCodeRegen = codeAffectingFields.some(field => field in updates);
-
-          let finalUpdates = updates;
-          if (needsCodeRegen && !updates.generatedCode && !updates.codeOverrides) {
-            try {
-              const merged = { ...existing, ...updates }                    ;
-              const generatedCode = generateAndPackageCode(merged, state.components);
-              finalUpdates = { ...updates, generatedCode };
-              console.log(`[ComponentLibrary] Regenerated code for updated component ${id}`);
-            } catch (err) {
-              console.warn(`[ComponentLibrary] Failed to regenerate code for ${id}:`, err);
-            }
-          }
-
-          return {
-            components: state.components.map((c) =>
-              c.id === id ? ({ ...c, ...finalUpdates }                    ) : c
-            ),
+        // If category is explicitly changed, clear auto flag
+        if (
+          updates.metadata?.category &&
+          updates.metadata.category !== existing.metadata.category
+        ) {
+          updates = {
+            ...updates,
+            metadata: {
+              ...updates.metadata,
+              categoryAutoAssigned: false,
+            },
           };
-        }),
+        }
+
+        // If component is auto-assigned and relevant fields changed, re-infer
+        // Only applicable for atomic components which have valueSet, resourceType, genderValue
+        if (
+          existing.metadata.categoryAutoAssigned &&
+          existing.type === 'atomic' &&
+          ('valueSet' in updates || 'resourceType' in updates || 'genderValue' in updates)
+        ) {
+          const merged = { ...existing, ...updates }                    ;
+          const newCategory = inferCategory(merged);
+          updates = {
+            ...updates,
+            metadata: {
+              ...existing.metadata,
+              ...updates.metadata,
+              category: newCategory,
+            },
+          };
+        }
+
+        // CRITICAL FIX: Regenerate code when code-affecting fields change
+        // Fields that affect generated code: valueSet, timing, negation, resourceType, name
+        const codeAffectingFields = ['valueSet', 'timing', 'negation', 'resourceType', 'name', 'childComponents'];
+        const needsCodeRegen = codeAffectingFields.some(field => field in updates);
+
+        let finalUpdates = updates;
+        if (needsCodeRegen && !updates.generatedCode && !updates.codeOverrides) {
+          try {
+            const merged = { ...existing, ...updates }                    ;
+            const generatedCode = generateAndPackageCode(merged, state.components);
+            finalUpdates = { ...updates, generatedCode };
+            console.log(`[ComponentLibrary] Regenerated code for updated component ${id}`);
+          } catch (err) {
+            console.warn(`[ComponentLibrary] Failed to regenerate code for ${id}:`, err);
+          }
+        }
+
+        // Update local state
+        set((s) => ({
+          components: s.components.map((c) =>
+            c.id === id ? ({ ...c, ...finalUpdates }                    ) : c
+          ),
+        }));
+
+        // Persist to backend (async, non-blocking)
+        const updatedComponent = { ...existing, ...finalUpdates };
+        if (updatedComponent.type === 'atomic') {
+          import('../api/components').then(async ({ updateComponent: updateComponentApi }) => {
+            const atomicComp = updatedComponent                   ;
+            const requestBody = {
+              id: atomicComp.id,
+              name: atomicComp.name,
+              description: atomicComp.description || '',
+              valueSetOid: atomicComp.valueSet?.oid || '',
+              valueSetName: atomicComp.valueSet?.name || '',
+              valueSetVersion: atomicComp.valueSet?.version || undefined,
+              codes: atomicComp.valueSet?.codes?.map(c => ({
+                code: c.code,
+                system: c.system,
+                display: c.display || undefined,
+              })),
+              timing: atomicComp.timing ? {
+                operator: atomicComp.timing.operator || 'during',
+                quantity: atomicComp.timing.quantity,
+                unit: atomicComp.timing.unit,
+                position: atomicComp.timing.position,
+                reference: atomicComp.timing.reference || 'Measurement Period',
+                displayExpression: atomicComp.timing.displayExpression,
+              } : undefined,
+              negation: atomicComp.negation || false,
+              category: atomicComp.metadata?.category || 'uncategorized',
+              tags: atomicComp.metadata?.tags || undefined,
+            };
+            try {
+              await updateComponentApi(id, requestBody);
+              console.log(`[updateComponent] Persisted component ${id} to backend`);
+            } catch (err) {
+              console.warn(`[updateComponent] Failed to persist component ${id} to backend:`, err);
+            }
+          }).catch(err => {
+            console.warn(`[updateComponent] Failed to load API module:`, err);
+          });
+        }
+      },
 
       deleteComponent: async (id) => {
         // Delete from backend first
