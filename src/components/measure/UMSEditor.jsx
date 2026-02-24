@@ -1891,11 +1891,14 @@ function CriteriaNode({
                                 
                                                         
  ) {
+  // ═══ ALL HOOKS MUST BE CALLED FIRST (React rules of hooks) ═══
+  const { vsacApiKey } = useSettingsStore();
+  const { getComponent } = useComponentLibraryStore();
+
   const isClause = 'operator' in node;
   const isSelected = selectedNode === node.id;
   const canMoveUp = index > 0;
   const canMoveDown = index < totalSiblings - 1;
-
 
   if (isClause) {
     const clause = node                 ;
@@ -2011,11 +2014,7 @@ function CriteriaNode({
 
   const element = node               ;
 
-  // Get VSAC API key for missing codes CTA
-  const { vsacApiKey } = useSettingsStore();
-
-  // Look up linked library component for status badge
-  const { getComponent } = useComponentLibraryStore();
+  // Look up linked library component for status badge (hooks already called at top)
   const linkedComponent = element.libraryComponentId ? getComponent(element.libraryComponentId) ?? undefined : undefined;
 
   // Find all value sets - support multiple value sets for merged components
