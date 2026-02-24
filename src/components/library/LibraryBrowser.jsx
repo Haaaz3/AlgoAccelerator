@@ -113,11 +113,12 @@ export function LibraryBrowser() {
     getFilteredComponents,
     initializeWithSampleData,
     rebuildUsageIndex,
+    linkMeasureComponents,
     updateComponent,
     selectedCategory,
     setSelectedCategory,
   } = useComponentLibraryStore();
-  const { measures } = useMeasureStore();
+  const { measures, updateMeasure } = useMeasureStore();
   const { vsacApiKey } = useSettingsStore();
 
   // Bulk VSAC fetch state
@@ -125,14 +126,77 @@ export function LibraryBrowser() {
   const [bulkFetchProgress, setBulkFetchProgress] = useState({ current: 0, total: 0, name: '' });
   const [bulkFetchResult, setBulkFetchResult] = useState                                                          (null);
 
-  // Seed sample data on mount if store is empty, then rebuild usage index from actual measures
+  // Seed sample data on mount if store is empty, then re-link and rebuild usage index
   useEffect(() => {
     if (components.length === 0) {
       initializeWithSampleData();
     }
-    // Always rebuild usage index from actual measures to keep counts accurate
-    rebuildUsageIndex(measures);
-  }, [measures.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Re-link measures whose data elements are missing libraryComponentIds
+    // This covers page refresh where backend doesn't return libraryComponentId
+    if (measures.length > 0 && components.length > 0) {
+      let anyLinked = false;
+
+      for (const measure of measures) {
+        // Check if this measure has any unlinked data elements
+        const hasUnlinked = measure.populations.some(pop => {
+          if (!pop.criteria) return false;
+          const checkNode = (node) => {
+            if (node.operator && node.children) {
+              return node.children.some(checkNode);
+            }
+            // Data element without libraryComponentId AND with a value set
+            return !node.libraryComponentId && (node.valueSet?.oid || node.valueSet?.name || node.valueSet?.codes?.length > 0);
+          };
+          return checkNode(pop.criteria);
+        });
+
+        if (hasUnlinked) {
+          const linkMap = linkMeasureComponents(
+            measure.metadata?.measureId || measure.id,
+            measure.populations,
+          );
+
+          if (Object.keys(linkMap).length > 0) {
+            anyLinked = true;
+            // Stamp the links onto the measure's populations
+            const stampLinks = (node) => {
+              if (!node) return node;
+              if (node.id && linkMap[node.id] && linkMap[node.id] !== '__ZERO_CODES__') {
+                node = { ...node, libraryComponentId: linkMap[node.id] };
+              }
+              if (node.children) {
+                node = { ...node, children: node.children.map(stampLinks) };
+              }
+              if (node.criteria) {
+                node = { ...node, criteria: stampLinks(node.criteria) };
+              }
+              return node;
+            };
+
+            const linkedPopulations = measure.populations.map(pop => ({
+              ...pop,
+              criteria: pop.criteria ? stampLinks(pop.criteria) : pop.criteria,
+            }));
+
+            // Update the measure with linked populations
+            updateMeasure(measure.id, { populations: linkedPopulations });
+          }
+        }
+      }
+
+      // Rebuild usage index with potentially updated measures
+      if (anyLinked) {
+        // Re-fetch measures after linking
+        setTimeout(() => {
+          const updatedMeasures = useMeasureStore.getState().measures;
+          rebuildUsageIndex(updatedMeasures);
+        }, 50);
+      } else {
+        rebuildUsageIndex(measures);
+      }
+    }
+  }, [measures.length, components.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync category selection into filters
   useEffect(() => {

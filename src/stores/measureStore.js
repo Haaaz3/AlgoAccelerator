@@ -19,6 +19,7 @@ import { calculateDataElementComplexity } from '../services/complexityCalculator
 import { migrateMeasure, needsMigration, backfillMissingOIDs } from '../utils/measureMigration';
 import { getMeasuresFull, importMeasures } from '../api/measures';
 import { transformMeasureDto } from '../api/transformers';
+import { getAllStandardValueSets } from '../constants/standardValueSets';
 
 ;                                                
 
@@ -211,6 +212,27 @@ export const useMeasureStore = create              ()(
           });
 
           console.log(`Loaded ${validMeasures.length} measures from API (with local overrides)`);
+
+          // After setting measures, re-enrich data elements that are missing value sets
+          // This covers the case where backend doesn't return value sets on DataElementDto
+          setTimeout(() => {
+            const currentMeasures = get().measures;
+            let anyUpdated = false;
+
+            const enrichedMeasures = currentMeasures.map(measure => {
+              const enrichedPopulations = reEnrichPopulations(measure);
+              if (enrichedPopulations !== measure.populations) {
+                anyUpdated = true;
+                return { ...measure, populations: enrichedPopulations };
+              }
+              return measure;
+            });
+
+            if (anyUpdated) {
+              set({ measures: enrichedMeasures });
+              console.log('[measureStore] Re-enriched data elements with standard value sets');
+            }
+          }, 100); // Defer to avoid blocking initial render
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to load measures';
           console.error('Failed to load measures from API:', error);
@@ -1523,4 +1545,104 @@ function convertUmsToImportFormat(ums                      )                    
     })),
     corrections: [],
   };
+}
+
+// ============================================================================
+// RE-ENRICHMENT: Populate missing value sets from standard catalog
+// ============================================================================
+
+/**
+ * Re-enrich data elements that are missing value sets.
+ * Matches element descriptions against the standard value set catalog
+ * to re-populate OIDs and codes.
+ */
+function reEnrichPopulations(measure) {
+  const allStandardVS = getAllStandardValueSets();
+  if (!allStandardVS || allStandardVS.length === 0) return measure.populations;
+
+  // Build a lookup: lowercase name → value set
+  const vsLookup = new Map();
+  for (const vs of allStandardVS) {
+    vsLookup.set(vs.name.toLowerCase(), vs);
+    // Also index by keywords
+    const words = vs.name.toLowerCase().split(/\s+/);
+    for (const word of words) {
+      if (word.length > 4 && !['during', 'within', 'before', 'after', 'period'].includes(word)) {
+        if (!vsLookup.has(word)) vsLookup.set(word, vs);
+      }
+    }
+  }
+
+  let changed = false;
+
+  const enrichNode = (node) => {
+    if (!node) return node;
+
+    // If it's a clause with children, recurse
+    if (node.operator && node.children) {
+      const newChildren = node.children.map(enrichNode);
+      const childChanged = newChildren.some((c, i) => c !== node.children[i]);
+      return childChanged ? { ...node, children: newChildren } : node;
+    }
+
+    // It's a data element
+    const element = node;
+
+    // Skip if it already has a value set with codes
+    if (element.valueSet?.codes?.length > 0) return element;
+    // Skip if it already has an OID that's not 'N/A'
+    if (element.valueSet?.oid && element.valueSet.oid !== 'N/A' && element.valueSet.oid !== '') return element;
+
+    // Try to match by description
+    const desc = (element.description || '').toLowerCase();
+    if (!desc) return element;
+
+    // Try exact name match
+    let matched = null;
+    for (const [key, vs] of vsLookup.entries()) {
+      if (desc.includes(key) || key.includes(desc.split(' during ')[0].split(' within ')[0].split(' before ')[0])) {
+        matched = vs;
+        break;
+      }
+    }
+
+    // Try keyword matching
+    if (!matched) {
+      const descWords = desc.split(/\s+/).filter(w => w.length > 3);
+      for (const vs of allStandardVS) {
+        const vsWords = vs.name.toLowerCase().split(/\s+/);
+        const overlap = descWords.filter(w => vsWords.includes(w));
+        if (overlap.length >= 2) {
+          matched = vs;
+          break;
+        }
+      }
+    }
+
+    if (matched) {
+      changed = true;
+      return {
+        ...element,
+        valueSet: {
+          id: matched.id,
+          name: matched.name,
+          oid: matched.oid,
+          codes: matched.codes.map(c => ({ code: c.code, display: c.display, system: c.system })),
+          confidence: 'high',
+          totalCodeCount: matched.codes.length,
+          source: 'Standard Value Set (re-enriched)',
+        },
+      };
+    }
+
+    return element;
+  };
+
+  const enrichedPopulations = measure.populations.map(pop => {
+    if (!pop.criteria) return pop;
+    const newCriteria = enrichNode(pop.criteria);
+    return newCriteria !== pop.criteria ? { ...pop, criteria: newCriteria } : pop;
+  });
+
+  return changed ? enrichedPopulations : measure.populations;
 }

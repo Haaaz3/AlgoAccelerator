@@ -47,6 +47,9 @@ export function getComplexityLevel(score        )                  {
  * - Both quantity and position: 2 clauses (capped at 2)
  */
 export function countTimingClauses(timing                  )         {
+  // Null guard: if timing is null/undefined, return default of 1 clause
+  if (!timing) return 1;
+
   let count = 1; // Every timing expression has at least 1 clause
 
   const hasQuantity = timing.quantity != null;
