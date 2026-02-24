@@ -1917,7 +1917,10 @@ function CriteriaNode({
 
   // Find all value sets - support multiple value sets for merged components
   // Prioritize element's own value sets (with codes) over looked-up versions
-  const elementValueSets = element.valueSets || (element.valueSet ? [element.valueSet] : []);
+  // Note: Check for non-empty array, not just truthy (empty array is truthy but useless)
+  const elementValueSets = (element.valueSets && element.valueSets.length > 0)
+    ? element.valueSets
+    : (element.valueSet ? [element.valueSet] : []);
   let fullValueSets = elementValueSets.map(vs => {
     // If the value set already has codes embedded, use it directly
     if (vs.codes && vs.codes.length > 0) {
@@ -1929,19 +1932,21 @@ function CriteriaNode({
     return vs;
   }).filter(Boolean);
 
-  // FALLBACK: If element has no codes but linked library component does, use those
-  if (fullValueSets.every(vs => !vs.codes || vs.codes.length === 0) && linkedComponent?.type === 'atomic') {
+  // FALLBACK: use linked library component's valueSet if element has none or no codes
+  if (linkedComponent?.type === 'atomic' && linkedComponent.valueSet) {
     const libVs = linkedComponent.valueSet;
-    if (libVs?.codes?.length > 0) {
-      // Merge library codes into the element's value set reference
+
+    // If element has no valueSet at all, use library's valueSet
+    if (fullValueSets.length === 0) {
+      fullValueSets = [{ ...libVs }];
+    }
+    // If element has valueSet but no codes, and library has codes, merge them
+    else if (fullValueSets.every(vs => !vs.codes || vs.codes.length === 0) && libVs?.codes?.length > 0) {
       fullValueSets = fullValueSets.map(vs => ({
         ...vs,
         codes: libVs.codes,
+        oid: vs.oid || libVs.oid,
       }));
-      // If element had NO value set at all, create one from the library component
-      if (fullValueSets.length === 0) {
-        fullValueSets = [{ ...libVs }];
-      }
     }
   }
 
@@ -2480,7 +2485,10 @@ function NodeDetailPanel({
 
   // Support multiple value sets for merged components
   // Prioritize the node's own value sets (which have accurate codes) over looked-up versions
-  const nodeValueSetRefs = node.valueSets || (node.valueSet ? [node.valueSet] : []);
+  // Note: Check for non-empty array, not just truthy (empty array is truthy but useless)
+  const nodeValueSetRefs = (node.valueSets && node.valueSets.length > 0)
+    ? node.valueSets
+    : (node.valueSet ? [node.valueSet] : []);
   let fullValueSets = nodeValueSetRefs.map(vsRef => {
     // If the reference already has codes embedded, use it directly
     if (vsRef.codes && vsRef.codes.length > 0) {
@@ -2493,18 +2501,23 @@ function NodeDetailPanel({
     return vsRef;
   }).filter(Boolean);
 
-  // FALLBACK: use linked library component's codes if element has none
+  // FALLBACK: use linked library component's valueSet if element has none or no codes
   const linkedComp = node.libraryComponentId ? getComponent(node.libraryComponentId) : null;
-  if (fullValueSets.every(vs => !vs.codes || vs.codes.length === 0) && linkedComp?.type === 'atomic') {
+  if (linkedComp?.type === 'atomic' && linkedComp.valueSet) {
     const libVs = linkedComp.valueSet;
-    if (libVs?.codes?.length > 0) {
+
+    // If element has no valueSet at all, use library's valueSet
+    if (fullValueSets.length === 0) {
+      fullValueSets = [{ ...libVs }];
+    }
+    // If element has valueSet but no codes, and library has codes, merge them
+    else if (fullValueSets.every(vs => !vs.codes || vs.codes.length === 0) && libVs?.codes?.length > 0) {
       fullValueSets = fullValueSets.map(vs => ({
         ...vs,
         codes: libVs.codes,
+        // Also inherit OID from library if element doesn't have one
+        oid: vs.oid || libVs.oid,
       }));
-      if (fullValueSets.length === 0) {
-        fullValueSets = [{ ...libVs }];
-      }
     }
   }
 
