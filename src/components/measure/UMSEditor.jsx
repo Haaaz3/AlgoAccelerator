@@ -2575,6 +2575,46 @@ function NodeDetailPanel({
     }
   }
 
+  // ═══ COMPUTE VALUES NEEDED FOR useEffect BEFORE EARLY RETURN (React hooks rules) ═══
+  // Must compute these before early return so useEffect can reference them
+  const linkedCompForEffect = node?.libraryComponentId ? getComponent(node.libraryComponentId) : null;
+  let fullValueSetsForEffect = [];
+  if (node) {
+    if (linkedCompForEffect?.type === 'atomic' && linkedCompForEffect.valueSet) {
+      fullValueSetsForEffect = [{
+        id: linkedCompForEffect.valueSet.oid || linkedCompForEffect.id,
+        oid: linkedCompForEffect.valueSet.oid || node.valueSet?.oid || '',
+        name: linkedCompForEffect.valueSet.name || linkedCompForEffect.name,
+        codes: linkedCompForEffect.valueSet.codes || [],
+      }];
+    } else {
+      const nodeValueSetRefs = (node.valueSets && node.valueSets.length > 0)
+        ? node.valueSets
+        : (node.valueSet ? [node.valueSet] : []);
+      fullValueSetsForEffect = nodeValueSetRefs.map(vsRef => {
+        if (vsRef.codes && vsRef.codes.length > 0) return vsRef;
+        const lookedUp = currentMeasure?.valueSets?.find(vs => vs.id === vsRef.id || vs.oid === vsRef.oid)
+          || allValueSets.find(vs => vs.id === vsRef.id || vs.oid === vsRef.oid);
+        if (lookedUp?.codes?.length > 0) return lookedUp;
+        return vsRef;
+      }).filter(Boolean);
+    }
+  }
+  const codesFingerprint = (fullValueSetsForEffect[0]?.codes || []).map(c => c.code).sort().join(',');
+
+  // ═══ useEffect MUST BE CALLED BEFORE EARLY RETURN (React hooks rules) ═══
+  // Sync value set editing state when node changes OR when authoritative codes change
+  useEffect(() => {
+    if (node) {
+      const vs = fullValueSetsForEffect[0]; // Primary value set
+      setVsOid(vs?.oid || '');
+      setVsName(vs?.name || node.description || '');
+      setLocalCodes(vs?.codes ? [...vs.codes] : []);
+      setEditingValueSet(false);
+      setShowAddCodeForm(false);
+    }
+  }, [nodeId, codesFingerprint]); // Re-sync when node changes OR when authoritative codes change
+
   if (!node) return null;
 
   // ========================================================================
@@ -2677,22 +2717,6 @@ function NodeDetailPanel({
 
   // Keep single value set for backward compatibility
   const fullValueSet = fullValueSets.length > 0 ? fullValueSets[0] : undefined;
-
-  // Compute a stable codes fingerprint from the authoritative source
-  const authoritativeCodes = fullValueSets[0]?.codes || [];
-  const codesFingerprint = authoritativeCodes.map(c => c.code).sort().join(',');
-
-  // Sync value set editing state when node changes OR when authoritative codes change
-  useEffect(() => {
-    if (node) {
-      const vs = fullValueSets[0]; // Primary value set
-      setVsOid(vs?.oid || '');
-      setVsName(vs?.name || node.description || '');
-      setLocalCodes(vs?.codes ? [...vs.codes] : []);
-      setEditingValueSet(false);
-      setShowAddCodeForm(false);
-    }
-  }, [nodeId, codesFingerprint]); // Re-sync when node changes OR when authoritative codes change
 
   // Save value set changes - routes through library for linked elements
   const saveValueSetChanges = (updates) => {
