@@ -166,15 +166,24 @@ function LibraryCodeViewer({ component }                        ) {
 export function ComponentDetail({ componentId, onClose, onEdit }                      ) {
   const { getComponent, approve, archiveComponentVersion, addComponent } =
     useComponentLibraryStore();
-  const { measures, setActiveMeasure } = useMeasureStore();
+  const { measures, setActiveMeasure, setActiveTab } = useMeasureStore();
 
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
 
   const component = getComponent(componentId);
 
-  // Create a lookup map for measure names
-  const measureLookup = new Map(measures.map(m => [m.id, m]));
+  // Create a lookup map for measure names (supports both UUID and CMS ID)
+  const measureLookup = useMemo(() => {
+    const lookup = new Map();
+    for (const m of measures) {
+      lookup.set(m.id, m); // UUID
+      if (m.metadata?.measureId) {
+        lookup.set(m.metadata.measureId, m); // CMS ID (e.g., CMS122v12)
+      }
+    }
+    return lookup;
+  }, [measures]);
 
   // Helper to find a DataElement in the criteria tree that links to a library component
   const findElementByLibraryComponentId = (
@@ -202,7 +211,10 @@ export function ComponentDetail({ componentId, onClose, onEdit }                
   // Navigate to a measure in the UMS Editor and select the specific component
   const handleNavigateToMeasure = (measureId        ) => {
     const measure = measureLookup.get(measureId);
-    if (!measure) return;
+    if (!measure) {
+      console.warn(`[ComponentDetail] Measure not found for ID: ${measureId}`);
+      return;
+    }
 
     // Find the DataElement in this measure that links to the current library component
     let targetElementId                = null;
@@ -221,8 +233,9 @@ export function ComponentDetail({ componentId, onClose, onEdit }                
       useComponentCodeStore.getState().setInspectingComponent(targetElementId);
     }
 
-    // Navigate to the measure
-    setActiveMeasure(measureId);
+    // Navigate to the measure using its internal UUID (not CMS ID)
+    // setActiveMeasure already switches to editor tab
+    setActiveMeasure(measure.id);
   };
 
   // ------------------------------------------------------------------

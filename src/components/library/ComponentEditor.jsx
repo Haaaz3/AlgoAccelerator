@@ -985,7 +985,7 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
             if (pendingChanges) {
               try {
                 updateComponent(existingComponent.id, pendingChanges);
-                // Propagate changes to all linked measures
+                // Propagate changes to all linked measures (including codes)
                 const changes = {
                   changeDescription: 'Component updated across all measures',
                   name: pendingChanges.name,
@@ -993,6 +993,7 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
                   negation: pendingChanges.negation,
                   operator: pendingChanges.operator,
                   children: pendingChanges.children,
+                  codes: pendingChanges.valueSet?.codes, // Include codes for atomic components
                 };
                 const result = syncComponentToMeasures(existingComponent.id, changes, measures, batchUpdateMeasures);
                 if (!result.success) {
