@@ -2891,10 +2891,10 @@ function NodeDetailPanel({
                           <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">Display</div>
                           <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">System</div>
                           {(vs.codes.length <= 10 ? vs.codes : vs.codes.slice(0, 10)).map((code, cIdx) => (
-                            <Fragment key={code.code + cIdx}>
-                              <div className="bg-[var(--bg)] px-2 py-1.5 font-mono text-[var(--text)]">{code.code}</div>
-                              <div className="bg-[var(--bg)] px-2 py-1.5 text-[var(--text)] truncate">{code.display}</div>
-                              <div className="bg-[var(--bg)] px-2 py-1.5 text-[var(--text-dim)]">{code.system}</div>
+                            <Fragment key={(code.code || cIdx) + '-' + cIdx}>
+                              <div className="bg-[var(--bg)] px-2 py-1.5 font-mono text-[var(--text)]">{code.code || '—'}</div>
+                              <div className="bg-[var(--bg)] px-2 py-1.5 text-[var(--text)] truncate">{code.display || '—'}</div>
+                              <div className="bg-[var(--bg)] px-2 py-1.5 text-[var(--text-dim)]">{code.system || '—'}</div>
                             </Fragment>
                           ))}
                         </div>
@@ -2930,7 +2930,7 @@ function NodeDetailPanel({
                     {/* Codes count summary */}
                     {vs.codes?.length > 0 && (
                       <div className="mt-2 text-xs text-[var(--text-dim)] flex items-center justify-between">
-                        <span>{vs.codes.length} codes • {[...new Set(vs.codes.map(c => c.system))].join(', ')}</span>
+                        <span>{vs.codes.length} codes • {[...new Set(vs.codes.map(c => c.system).filter(Boolean))].join(', ') || 'Unknown system'}</span>
                       </div>
                     )}
                   </div>
