@@ -305,6 +305,43 @@ export function UMSEditor() {
         break;
     }
 
+    // Also update the library component itself so it stays in sync
+    if (pendingEdit.type === 'timing' || pendingEdit.type === 'timingWindow') {
+      // Read the updated timing from the element we just modified
+      const updatedElement = findElementById(pendingEdit.elementId);
+      if (updatedElement) {
+        const libTimingUpdate = {};
+        if (updatedElement.timingRequirements?.[0]) {
+          const req = updatedElement.timingRequirements[0];
+          libTimingUpdate.timing = {
+            operator: req.window?.direction?.includes('before') ? 'before' : 'during',
+            quantity: req.window?.value || null,
+            unit: req.window?.unit || null,
+            reference: 'Measurement Period',
+            displayExpression: req.description,
+          };
+        }
+        if (updatedElement.timingWindow) {
+          // TimingWindow format — convert effective window to library timing
+          const effective = updatedElement.timingWindow.modified || updatedElement.timingWindow.original;
+          if (effective) {
+            libTimingUpdate.timing = {
+              operator: effective.operator || 'during',
+              quantity: effective.value || null,
+              unit: effective.unit || null,
+              reference: effective.anchor || 'Measurement Period',
+              displayExpression: updatedElement.timingWindow.modified
+                ? `${effective.operator || 'during'} ${effective.value || ''} ${effective.unit || ''} ${effective.anchor || 'Measurement Period'}`
+                : updatedElement.timingWindow.sourceText,
+            };
+          }
+        }
+        if (libTimingUpdate.timing) {
+          updateComponent(pendingEdit.componentId, libTimingUpdate);
+        }
+      }
+    }
+
     // Sync the change to all measures using this library component
     // Build the ACTUAL changes to propagate (not just a description)
     const libComp = getComponent(pendingEdit.componentId);
@@ -404,6 +441,41 @@ export function UMSEditor() {
           updateDataElement(measure.id, pendingEdit.elementId, pendingEdit.value                        , 'description_changed', 'Forked for measure-specific edit');
         }
         break;
+    }
+
+    // Also update the forked library component with the new timing
+    if (pendingEdit.type === 'timing' || pendingEdit.type === 'timingWindow') {
+      const updatedElement = findElementById(pendingEdit.elementId);
+      if (updatedElement) {
+        const libTimingUpdate = {};
+        if (updatedElement.timingRequirements?.[0]) {
+          const req = updatedElement.timingRequirements[0];
+          libTimingUpdate.timing = {
+            operator: req.window?.direction?.includes('before') ? 'before' : 'during',
+            quantity: req.window?.value || null,
+            unit: req.window?.unit || null,
+            reference: 'Measurement Period',
+            displayExpression: req.description,
+          };
+        }
+        if (updatedElement.timingWindow) {
+          const effective = updatedElement.timingWindow.modified || updatedElement.timingWindow.original;
+          if (effective) {
+            libTimingUpdate.timing = {
+              operator: effective.operator || 'during',
+              quantity: effective.value || null,
+              unit: effective.unit || null,
+              reference: effective.anchor || 'Measurement Period',
+              displayExpression: updatedElement.timingWindow.modified
+                ? `${effective.operator || 'during'} ${effective.value || ''} ${effective.unit || ''} ${effective.anchor || 'Measurement Period'}`
+                : updatedElement.timingWindow.sourceText,
+            };
+          }
+        }
+        if (libTimingUpdate.timing) {
+          updateComponent(newComponentId, libTimingUpdate);
+        }
+      }
     }
 
     // 4. Update the DataElement to link to the NEW component
@@ -3601,18 +3673,8 @@ function ValueSetModal({ valueSet, measureId, elementId, onClose }              
 
     updateMeasure(measureId, { populations: updatedPopulations });
 
-    // Also sync to linked library component
-    if (targetElement?.libraryComponentId) {
-      const libComp = getComponent(targetElement.libraryComponentId);
-      if (libComp?.type === 'atomic') {
-        updateComponent(targetElement.libraryComponentId, {
-          valueSet: {
-            ...libComp.valueSet,
-            codes: updatedCodes,
-          },
-        });
-      }
-    }
+    // Note: Library sync is handled by the apply* functions for linked elements.
+    // This function is only called for unlinked elements (else branches).
 
     return targetElement;
   }, [elementId, measure, measureId, updateMeasure, getComponent, updateComponent]);
