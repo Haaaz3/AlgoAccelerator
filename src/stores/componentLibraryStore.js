@@ -714,6 +714,16 @@ export const useComponentLibraryStore = create                       ()(
               libraryRecord[effectiveMatch.id] = componentToUpdate;
             }
 
+            // REVERSE SYNC: if library component has codes but element doesn't, copy codes to element
+            if (matchCodes.length > 0 && elementCodes.length === 0 && element.valueSet) {
+              element.valueSet.codes = [...matchCodes];
+              // Also ensure element has the OID from the library component if missing
+              if (!element.valueSet.oid && effectiveMatch.type === 'atomic' && (effectiveMatch                   ).valueSet.oid) {
+                element.valueSet.oid = (effectiveMatch                   ).valueSet.oid;
+              }
+              console.log(`[linkMeasureComponents] REVERSE SYNC: copied ${matchCodes.length} codes from library to element "${element.description}"`);
+            }
+
             // Add usage if not already tracked
             if (!componentToUpdate.usage.measureIds.includes(measureId)) {
               const updated = addUsageReference(componentToUpdate, measureId);

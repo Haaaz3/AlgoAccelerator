@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, Fragment, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine, Square, CheckSquare } from 'lucide-react';
+import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine, Square, CheckSquare, Database } from 'lucide-react';
 import { InlineErrorBanner, InlineSuccessBanner } from '../shared/ErrorBoundary';
 import { validateReferentialIntegrity, formatMismatches } from '../../utils/integrityCheck';
 import { useMeasureStore } from '../../stores/measureStore';
@@ -1918,14 +1918,33 @@ function CriteriaNode({
   // Find all value sets - support multiple value sets for merged components
   // Prioritize element's own value sets (with codes) over looked-up versions
   const elementValueSets = element.valueSets || (element.valueSet ? [element.valueSet] : []);
-  const fullValueSets = elementValueSets.map(vs => {
+  let fullValueSets = elementValueSets.map(vs => {
     // If the value set already has codes embedded, use it directly
     if (vs.codes && vs.codes.length > 0) {
       return vs;
     }
-    // Otherwise look up from allValueSets
-    return allValueSets.find(avs => avs.id === vs.id || avs.oid === vs.oid) || vs;
+    // Try measure-level value sets
+    const fromMeasure = allValueSets.find(avs => avs.id === vs.id || avs.oid === vs.oid);
+    if (fromMeasure?.codes?.length > 0) return fromMeasure;
+    return vs;
   }).filter(Boolean);
+
+  // FALLBACK: If element has no codes but linked library component does, use those
+  if (fullValueSets.every(vs => !vs.codes || vs.codes.length === 0) && linkedComponent?.type === 'atomic') {
+    const libVs = linkedComponent.valueSet;
+    if (libVs?.codes?.length > 0) {
+      // Merge library codes into the element's value set reference
+      fullValueSets = fullValueSets.map(vs => ({
+        ...vs,
+        codes: libVs.codes,
+      }));
+      // If element had NO value set at all, create one from the library component
+      if (fullValueSets.length === 0) {
+        fullValueSets = [{ ...libVs }];
+      }
+    }
+  }
+
   // Keep legacy single value set for backwards compatibility
   const fullValueSet = fullValueSets.length > 0 ? fullValueSets[0] : undefined;
 
@@ -2462,7 +2481,7 @@ function NodeDetailPanel({
   // Support multiple value sets for merged components
   // Prioritize the node's own value sets (which have accurate codes) over looked-up versions
   const nodeValueSetRefs = node.valueSets || (node.valueSet ? [node.valueSet] : []);
-  const fullValueSets = nodeValueSetRefs.map(vsRef => {
+  let fullValueSets = nodeValueSetRefs.map(vsRef => {
     // If the reference already has codes embedded, use it directly
     if (vsRef.codes && vsRef.codes.length > 0) {
       return vsRef;
@@ -2470,8 +2489,25 @@ function NodeDetailPanel({
     // Otherwise try to look up from measure or global value sets
     const lookedUp = currentMeasure?.valueSets.find(vs => vs.id === vsRef.id || vs.oid === vsRef.oid)
       || allValueSets.find(vs => vs.id === vsRef.id || vs.oid === vsRef.oid);
-    return lookedUp || vsRef;
+    if (lookedUp?.codes?.length > 0) return lookedUp;
+    return vsRef;
   }).filter(Boolean);
+
+  // FALLBACK: use linked library component's codes if element has none
+  const linkedComp = node.libraryComponentId ? getComponent(node.libraryComponentId) : null;
+  if (fullValueSets.every(vs => !vs.codes || vs.codes.length === 0) && linkedComp?.type === 'atomic') {
+    const libVs = linkedComp.valueSet;
+    if (libVs?.codes?.length > 0) {
+      fullValueSets = fullValueSets.map(vs => ({
+        ...vs,
+        codes: libVs.codes,
+      }));
+      if (fullValueSets.length === 0) {
+        fullValueSets = [{ ...libVs }];
+      }
+    }
+  }
+
   // Keep single value set for backward compatibility
   const fullValueSet = fullValueSets.length > 0 ? fullValueSets[0] : undefined;
 
@@ -2816,43 +2852,99 @@ function NodeDetailPanel({
           </div>
         )}
 
-        {/* Value Sets - clickable, supports multiple */}
-        {fullValueSets.length > 0 && (
-          <div>
-            <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-2">
-              {fullValueSets.length > 1 ? `Value Sets (${fullValueSets.length})` : 'Value Set'}
-            </h4>
-            <div className="space-y-2">
-              {fullValueSets.map((vs, idx) => (
-                <button
-                  key={vs.id || vs.oid || idx}
-                  onClick={() => onSelectValueSet(vs)}
-                  className="w-full p-3 bg-[var(--bg-tertiary)] rounded-lg hover:border-[var(--accent)]/50 border border-[var(--border)] text-left transition-colors"
-                >
-                  <div className="font-medium text-[var(--text)] flex items-center gap-2">
-                    {vs.name}
-                    <ExternalLink className="w-3 h-3 text-[var(--accent)]" />
+        {/* Value Set & Clinical Codes */}
+        {(() => {
+          // Skip demographics (age/gender components don't have value sets)
+          if (node.genderValue || node.thresholds?.ageMin != null) return null;
+
+          return (
+            <div className="space-y-3">
+              {fullValueSets.length > 0 ? (
+                fullValueSets.map((vs, vsIdx) => (
+                  <div key={vs.id || vs.oid || vsIdx} className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                        <Database className="w-3.5 h-3.5" />
+                        Value Set
+                      </h4>
+                      <button
+                        onClick={() => onSelectValueSet(vs)}
+                        className="text-xs text-[var(--accent)] hover:underline flex items-center gap-1"
+                      >
+                        Edit in modal <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    {/* VS Name + OID */}
+                    <div className="space-y-1 mb-3">
+                      <div className="text-sm font-medium text-[var(--text)]">{vs.name || 'Unnamed value set'}</div>
+                      {vs.oid && (
+                        <code className="text-xs text-[var(--text-dim)] block font-mono">{vs.oid}</code>
+                      )}
+                    </div>
+
+                    {/* Codes Table */}
+                    {vs.codes?.length > 0 ? (
+                      <div className="border border-[var(--border)] rounded overflow-hidden">
+                        <div className="grid grid-cols-[1fr_2fr_auto] gap-px bg-[var(--border)] text-xs">
+                          <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">Code</div>
+                          <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">Display</div>
+                          <div className="bg-[var(--bg-secondary)] px-2 py-1.5 font-semibold text-[var(--text-muted)]">System</div>
+                          {(vs.codes.length <= 10 ? vs.codes : vs.codes.slice(0, 10)).map((code, cIdx) => (
+                            <Fragment key={code.code + cIdx}>
+                              <div className="bg-[var(--bg)] px-2 py-1.5 font-mono text-[var(--text)]">{code.code}</div>
+                              <div className="bg-[var(--bg)] px-2 py-1.5 text-[var(--text)] truncate">{code.display}</div>
+                              <div className="bg-[var(--bg)] px-2 py-1.5 text-[var(--text-dim)]">{code.system}</div>
+                            </Fragment>
+                          ))}
+                        </div>
+                        {vs.codes.length > 10 && (
+                          <button
+                            onClick={() => onSelectValueSet(vs)}
+                            className="w-full px-2 py-1.5 text-xs text-[var(--accent)] bg-[var(--bg)] hover:bg-[var(--bg-secondary)] transition-colors text-center"
+                          >
+                            +{vs.codes.length - 10} more codes — click to view all
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      /* Missing codes — show VSAC fetch button if OID exists */
+                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <AlertTriangle className="w-4 h-4 text-amber-500" />
+                          <span className="text-xs font-medium text-amber-400">
+                            Missing codes{!vs.oid ? ' — no OID available' : ''}
+                          </span>
+                          {vs.oid && (
+                            <button
+                              onClick={() => onSelectValueSet(vs)}
+                              className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors font-medium"
+                            >
+                              Open & Fetch from VSAC →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Codes count summary */}
+                    {vs.codes?.length > 0 && (
+                      <div className="mt-2 text-xs text-[var(--text-dim)] flex items-center justify-between">
+                        <span>{vs.codes.length} codes • {[...new Set(vs.codes.map(c => c.system))].join(', ')}</span>
+                      </div>
+                    )}
                   </div>
-                  {vs.oid && (
-                    <code className="text-xs text-[var(--text-dim)] block mt-1">{vs.oid}</code>
-                  )}
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-xs text-[var(--accent)]">{vs.codes?.length || 0} codes</span>
-                    <span className="text-xs text-[var(--text-dim)]">• Click to edit codes</span>
-                  </div>
-                </button>
-              ))}
+                ))
+              ) : (
+                /* No value set at all */
+                <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs font-medium text-amber-400">No value set defined for this component</span>
+                </div>
+              )}
             </div>
-            {fullValueSets.length > 1 && (
-              <div className="mt-2 pt-2 border-t border-[var(--border)]/50 flex justify-between text-xs text-[var(--text-dim)]">
-                <span>Total across all value sets</span>
-                <span className="text-[var(--accent)]">
-                  {fullValueSets.reduce((sum, vs) => sum + (vs.codes?.length || 0), 0)} codes
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {/* Timing — shared component */}
         <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">

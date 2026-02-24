@@ -29,7 +29,7 @@ function resetReviewStatus(obj     )      {
 export function MeasureLibrary() {
   const navigate = useNavigate();
   const { measures, addMeasure, importMeasure, deleteMeasure, setActiveMeasure, getReviewProgress, lockMeasure, unlockMeasure, setMeasureStatus, updateMeasure } = useMeasureStore();
-  const { linkMeasureComponents, rebuildUsageIndex } = useComponentLibraryStore();
+  const { linkMeasureComponents, rebuildUsageIndex, getComponent } = useComponentLibraryStore();
   const {
     selectedProvider,
     selectedModel,
@@ -165,7 +165,27 @@ export function MeasureLibrary() {
                 // Zero codes — set warning instead of linking
                 node = { ...node, ingestionWarning: 'No codes found for this logic block. Add codes in the component library or re-upload with terminology.' };
               } else {
-                node = { ...node, libraryComponentId: linkMap[node.id] };
+                const componentId = linkMap[node.id];
+                const libraryComp = getComponent(componentId);
+                let updatedNode = { ...node, libraryComponentId: componentId };
+
+                // Sync codes from library component if element has none
+                if (libraryComp?.type === 'atomic' && libraryComp.valueSet?.codes?.length > 0) {
+                  const elementCodes = updatedNode.valueSet?.codes || [];
+                  if (elementCodes.length === 0 && updatedNode.valueSet) {
+                    updatedNode = {
+                      ...updatedNode,
+                      valueSet: {
+                        ...updatedNode.valueSet,
+                        codes: [...libraryComp.valueSet.codes],
+                        oid: updatedNode.valueSet.oid || libraryComp.valueSet.oid,
+                      },
+                    };
+                    console.log(`[stampLinks] Synced ${libraryComp.valueSet.codes.length} codes from library to element "${updatedNode.description || updatedNode.id}"`);
+                  }
+                }
+
+                node = updatedNode;
               }
             }
             if (node.children) {
@@ -199,7 +219,7 @@ export function MeasureLibrary() {
 
     // Brief pause then process next
     setTimeout(() => processNext(), 1500);
-  }, [getActiveApiKey, importMeasure, updateMeasure, selectedProvider, selectedModel, getCustomLlmConfig, linkMeasureComponents, rebuildUsageIndex, measures, navigate]);
+  }, [getActiveApiKey, importMeasure, updateMeasure, selectedProvider, selectedModel, getCustomLlmConfig, linkMeasureComponents, rebuildUsageIndex, measures, navigate, getComponent]);
 
   // Handle files: either start processing or add to queue
   const handleFiles = useCallback(async (files        ) => {
