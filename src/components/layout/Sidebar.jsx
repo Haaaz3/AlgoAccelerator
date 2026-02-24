@@ -81,68 +81,68 @@ export function Sidebar() {
           const isActive = activeTab === item.id;
 
           return (
-            <button
-              key={item.id}
-              onClick={() => navigate(TAB_TO_ROUTE[item.id])}
-              className={`
-                w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all
-                ${isActive
-                  ? 'bg-[var(--primary-light)] text-[var(--primary)] font-semibold'
-                  : 'text-[var(--sidebar-text-muted)] hover:bg-[var(--sidebar-bg-hover)] hover:text-[var(--sidebar-text)]'
-                }
-              `}
-              style={isActive ? { borderLeft: '3px solid var(--primary)' } : {}}
-            >
-              <item.icon className="w-4 h-4" />
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.badge && (
-                <span className="px-2 py-0.5 text-[10px] font-semibold bg-[var(--accent)] text-white rounded-full">
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Component Library Category Sub-Nav */}
-      {activeTab === 'components' && (
-        <nav className="px-3 pb-3 space-y-0.5">
-          {COMPONENT_CATEGORIES.map(({ key, label }) => {
-            const count = key === 'all'
-              ? components.filter(c => c.versionInfo.status !== 'archived').length
-              : components.filter(c =>
-                  c.versionInfo.status !== 'archived' &&
-                  c.metadata?.category === key
-                ).length;
-            const isActive = selectedCategory === key;
-
-            return (
+            <div key={item.id}>
               <button
-                key={key}
-                onClick={() => setSelectedCategory(key)}
+                onClick={() => navigate(TAB_TO_ROUTE[item.id])}
                 className={`
-                  w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium transition-all
+                  w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all
                   ${isActive
-                    ? 'bg-[var(--primary-light)] text-[var(--primary)]'
+                    ? 'bg-[var(--primary-light)] text-[var(--primary)] font-semibold'
                     : 'text-[var(--sidebar-text-muted)] hover:bg-[var(--sidebar-bg-hover)] hover:text-[var(--sidebar-text)]'
                   }
                 `}
-                style={{ paddingLeft: '18px' }}
+                style={isActive ? { borderLeft: '3px solid var(--primary)' } : {}}
               >
-                <span className="truncate">{label}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                  isActive
-                    ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
-                    : 'bg-[var(--sidebar-bg-hover)] text-[var(--sidebar-text-muted)]'
-                }`}>
-                  {count}
-                </span>
+                <item.icon className="w-4 h-4" />
+                <span className="flex-1 text-left">{item.label}</span>
+                {item.badge && (
+                  <span className="px-2 py-0.5 text-[10px] font-semibold bg-[var(--accent)] text-white rounded-full">
+                    {item.badge}
+                  </span>
+                )}
               </button>
-            );
-          })}
-        </nav>
-      )}
+
+              {/* Component Library Category Sub-Nav - nested directly under Component Library */}
+              {item.id === 'components' && activeTab === 'components' && (
+                <div className="mt-1 mb-3 ml-3 space-y-0.5 pb-2 border-b border-[var(--sidebar-border)]">
+                  {COMPONENT_CATEGORIES.map(({ key, label }) => {
+                    const count = key === 'all'
+                      ? components.filter(c => c.versionInfo.status !== 'archived').length
+                      : components.filter(c =>
+                          c.versionInfo.status !== 'archived' &&
+                          c.metadata?.category === key
+                        ).length;
+                    const isCategoryActive = selectedCategory === key;
+
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedCategory(key)}
+                        className={`
+                          w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium transition-all
+                          ${isCategoryActive
+                            ? 'bg-[var(--primary-light)] text-[var(--primary)]'
+                            : 'text-[var(--sidebar-text-muted)] hover:bg-[var(--sidebar-bg-hover)] hover:text-[var(--sidebar-text)]'
+                          }
+                        `}
+                      >
+                        <span className="truncate">{label}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                          isCategoryActive
+                            ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
+                            : 'bg-[var(--sidebar-bg-hover)] text-[var(--sidebar-text-muted)]'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </nav>
 
       {/* Active Measure Context */}
       {activeMeasure && (
