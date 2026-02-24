@@ -65,6 +65,7 @@ export function UMSEditor() {
   const [expandedSections, setExpandedSections] = useState             (new Set(['ip', 'den', 'ex', 'num']));
   const [selectedNode, setSelectedNode] = useState               (null);
   const [activeValueSet, setActiveValueSet] = useState                          (null);
+  const [activeValueSetElementId, setActiveValueSetElementId] = useState               (null);
   const [builderTarget, setBuilderTarget] = useState                                                         (null);
   const [addComponentTarget, setAddComponentTarget] = useState                                                         (null);
   const [deepMode, setDeepMode] = useState(false);
@@ -971,7 +972,10 @@ export function UMSEditor() {
                 onToggle={() => toggleSection(population.type === 'initial_population' ? 'denominator' : population.type.split('_')[0])}
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
-                onSelectValueSet={setActiveValueSet}
+                onSelectValueSet={(vs, elemId) => {
+                  setActiveValueSet(vs);
+                  setActiveValueSetElementId(elemId || null);
+                }}
                 onAddComponent={() => setAddComponentTarget({ populationId: population.id, populationType: population.type })}
                 icon={getPopulationIcon(population.type)}
                 label={getPopulationLabel(population.type)}
@@ -1036,7 +1040,10 @@ export function UMSEditor() {
                   {measure.valueSets.map((vs) => (
                     <button
                       key={vs.id}
-                      onClick={() => setActiveValueSet(vs)}
+                      onClick={() => {
+                        setActiveValueSet(vs);
+                        setActiveValueSetElementId(null); // Measure-level VS, not element-specific
+                      }}
                       className="w-full p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)] hover:border-[var(--accent)]/50 transition-colors text-left"
                     >
                       <div className="flex items-start justify-between">
@@ -1148,7 +1155,11 @@ export function UMSEditor() {
         <ValueSetModal
           valueSet={activeValueSet}
           measureId={measure.id}
-          onClose={() => setActiveValueSet(null)}
+          elementId={activeValueSetElementId}
+          onClose={() => {
+            setActiveValueSet(null);
+            setActiveValueSetElementId(null);
+          }}
         />
       )}
 
@@ -2072,7 +2083,7 @@ function CriteriaNode({
                     onClick={(e) => {
                       e.stopPropagation();
                       // Open the value set modal, which has the "Fetch from VSAC" button
-                      onSelectValueSet(element.valueSet);
+                      onSelectValueSet(element.valueSet, element.id);
                     }}
                     className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors font-medium"
                   >
@@ -2124,7 +2135,7 @@ function CriteriaNode({
                     key={vs.id || vsIdx}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onSelectValueSet(vs);
+                      onSelectValueSet(vs, element.id);
                     }}
                     className={`text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] flex items-center gap-1 group ${
                       fullValueSets.length > 1
@@ -3090,7 +3101,7 @@ function NodeDetailPanel({
                       </div>
                       {localCodes.length > 15 && (
                         <button
-                          onClick={() => onSelectValueSet(fullValueSets[0])}
+                          onClick={() => onSelectValueSet(fullValueSets[0], nodeId)}
                           className="w-full px-2 py-1.5 text-xs text-[var(--accent)] bg-[var(--bg)] hover:bg-[var(--bg-secondary)] transition-colors text-center"
                         >
                           +{localCodes.length - 15} more — open full editor
@@ -3109,7 +3120,7 @@ function NodeDetailPanel({
                     <div className="text-xs text-[var(--text-dim)] flex items-center justify-between">
                       <span>{localCodes.length} codes • {[...new Set(localCodes.map(c => c.system))].join(', ')}</span>
                       <button
-                        onClick={() => onSelectValueSet(fullValueSets[0])}
+                        onClick={() => onSelectValueSet(fullValueSets[0], nodeId)}
                         className="text-[var(--accent)] hover:underline"
                       >
                         Open full editor
@@ -3395,8 +3406,9 @@ function NodeDetailPanel({
   );
 }
 
-function ValueSetModal({ valueSet, measureId, onClose }                                                                         ) {
+function ValueSetModal({ valueSet, measureId, elementId, onClose }                                                                                       ) {
   const { addCodeToValueSet, removeCodeFromValueSet, getCorrections, updateMeasure, measures } = useMeasureStore();
+  const { getComponent, updateComponent } = useComponentLibraryStore();
   const { vsacApiKey } = useSettingsStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newCode, setNewCode] = useState({ code: '', display: '', system: 'ICD10'               });
@@ -3411,18 +3423,104 @@ function ValueSetModal({ valueSet, measureId, onClose }                         
   // Get corrections related to this value set
   const corrections = getCorrections(measureId).filter(c => c.componentId === valueSet.id);
 
-  // Re-fetch the value set from the store to get updated codes
   const measure = measures.find(m => m.id === measureId);
-  const currentValueSet = measure?.valueSets.find(vs => vs.id === valueSet.id) || valueSet;
+
+  // Helper to find element in population tree
+  const findElementInTree = useCallback((node, targetId) => {
+    if (!node) return null;
+    if (node.id === targetId) return node;
+    if (node.children) {
+      for (const child of node.children) {
+        const found = findElementInTree(child, targetId);
+        if (found) return found;
+      }
+    }
+    if (node.criteria) return findElementInTree(node.criteria, targetId);
+    return null;
+  }, []);
+
+  // Read current value set from element (primary) or measure.valueSets (fallback)
+  const currentValueSet = useMemo(() => {
+    if (elementId && measure) {
+      for (const pop of measure.populations) {
+        const element = findElementInTree(pop.criteria, elementId);
+        if (element?.valueSet) return element.valueSet;
+      }
+    }
+    // Fallback to measure-level or prop
+    return measure?.valueSets?.find(vs => vs.id === valueSet.id) || valueSet;
+  }, [elementId, measure, valueSet, findElementInTree]);
+
+  // Helper to update element's valueSet in the population tree
+  const updateElementValueSet = useCallback((updatedCodes) => {
+    if (!elementId || !measure) return null;
+
+    let targetElement = null;
+    const findAndUpdateElement = (node) => {
+      if (!node) return node;
+      if (node.id === elementId) {
+        targetElement = node;
+        return {
+          ...node,
+          valueSet: {
+            ...node.valueSet,
+            codes: updatedCodes,
+            totalCodeCount: updatedCodes.length,
+          },
+        };
+      }
+      if (node.children) {
+        const updatedChildren = node.children.map(findAndUpdateElement);
+        const changed = updatedChildren.some((c, i) => c !== node.children[i]);
+        return changed ? { ...node, children: updatedChildren } : node;
+      }
+      if (node.criteria) {
+        const updatedCriteria = findAndUpdateElement(node.criteria);
+        return updatedCriteria !== node.criteria ? { ...node, criteria: updatedCriteria } : node;
+      }
+      return node;
+    };
+
+    const updatedPopulations = measure.populations.map(pop => ({
+      ...pop,
+      criteria: pop.criteria ? findAndUpdateElement(pop.criteria) : pop.criteria,
+    }));
+
+    updateMeasure(measureId, { populations: updatedPopulations });
+
+    // Also sync to linked library component
+    if (targetElement?.libraryComponentId) {
+      const libComp = getComponent(targetElement.libraryComponentId);
+      if (libComp?.type === 'atomic') {
+        updateComponent(targetElement.libraryComponentId, {
+          valueSet: {
+            ...libComp.valueSet,
+            codes: updatedCodes,
+          },
+        });
+      }
+    }
+
+    return targetElement;
+  }, [elementId, measure, measureId, updateMeasure, getComponent, updateComponent]);
 
   const handleAddCode = () => {
     if (!newCode.code.trim() || !newCode.display.trim()) return;
 
-    addCodeToValueSet(measureId, valueSet.id, {
+    const codeToAdd = {
       code: newCode.code.trim(),
       display: newCode.display.trim(),
       system: newCode.system,
-    }, 'User added code manually');
+    };
+
+    // Write to measure.valueSets[] (legacy path for correction tracking)
+    addCodeToValueSet(measureId, valueSet.id, codeToAdd, 'User added code manually');
+
+    // ALSO write to the data element's valueSet.codes (primary path)
+    if (elementId) {
+      const existingCodes = currentValueSet.codes || [];
+      updateElementValueSet([...existingCodes, codeToAdd]);
+    }
 
     setNewCode({ code: '', display: '', system: 'ICD10' });
     setShowAddForm(false);
@@ -3430,7 +3528,14 @@ function ValueSetModal({ valueSet, measureId, onClose }                         
 
   const handleRemoveCode = (codeValue        ) => {
     if (confirm(`Remove code "${codeValue}" from this value set?`)) {
+      // Write to measure.valueSets[] (legacy path for correction tracking)
       removeCodeFromValueSet(measureId, valueSet.id, codeValue, 'User removed code manually');
+
+      // ALSO remove from the data element's valueSet.codes (primary path)
+      if (elementId) {
+        const updatedCodes = (currentValueSet.codes || []).filter(c => c.code !== codeValue);
+        updateElementValueSet(updatedCodes);
+      }
     }
   };
 
@@ -3452,12 +3557,17 @@ function ValueSetModal({ valueSet, measureId, onClose }                         
       system: editCode.system,
     };
 
-    // Update the value set in the measure
-    const updatedValueSets = measure.valueSets.map(vs =>
+    // Update the value set in the measure.valueSets (legacy path)
+    const updatedValueSets = (measure.valueSets || []).map(vs =>
       vs.id === valueSet.id ? { ...vs, codes: updatedCodes } : vs
     );
-
     updateMeasure(measureId, { valueSets: updatedValueSets });
+
+    // ALSO update the data element's valueSet.codes (primary path)
+    if (elementId) {
+      updateElementValueSet(updatedCodes);
+    }
+
     setEditingCodeIdx(null);
     setEditCode({ code: '', display: '', system: 'ICD10' });
   };
@@ -3485,22 +3595,17 @@ function ValueSetModal({ valueSet, measureId, onClose }                         
       const newCodes = result.codes.filter(c => !existingCodes.has(c.code));
 
       if (newCodes.length > 0) {
-        if (newCodes.length > 50) {
-          // Batch update for large sets
-          const mergedCodes = [...(currentValueSet.codes || []), ...newCodes];
-          const updatedValueSets = measure?.valueSets.map(vs =>
-            vs.id === valueSet.id ? { ...vs, codes: mergedCodes } : vs
-          ) || [];
-          updateMeasure(measureId, { valueSets: updatedValueSets });
-        } else {
-          // Add codes individually for proper tracking
-          for (const code of newCodes) {
-            addCodeToValueSet(measureId, valueSet.id, {
-              code: code.code,
-              display: code.display,
-              system: code.system,
-            }, 'Imported from VSAC');
-          }
+        const mergedCodes = [...(currentValueSet.codes || []), ...newCodes];
+
+        // Update measure.valueSets (legacy path)
+        const updatedValueSets = (measure?.valueSets || []).map(vs =>
+          vs.id === valueSet.id ? { ...vs, codes: mergedCodes } : vs
+        );
+        updateMeasure(measureId, { valueSets: updatedValueSets });
+
+        // ALSO update element's valueSet.codes (primary path)
+        if (elementId) {
+          updateElementValueSet(mergedCodes);
         }
       }
 
