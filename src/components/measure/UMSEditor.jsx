@@ -306,11 +306,31 @@ export function UMSEditor() {
     }
 
     // Sync the change to all measures using this library component
-    // Note: Changes are applied locally via the above handlers
-    // The syncComponentToMeasures updates the library component metadata
+    // Build the ACTUAL changes to propagate (not just a description)
+    const libComp = getComponent(pendingEdit.componentId);
     const changes = {
       changeDescription: `${pendingEdit.type} updated across all measures`,
     };
+
+    // Populate actual field values so syncComponentToMeasures can propagate them
+    if (libComp?.type === 'atomic') {
+      if (pendingEdit.type === 'timing' || pendingEdit.type === 'timingWindow') {
+        changes.timing = libComp.timing;
+      }
+      if (pendingEdit.type === 'description') {
+        changes.name = libComp.name;
+      }
+      if (pendingEdit.type === 'negation') {
+        changes.negation = libComp.negation;
+      }
+      if (pendingEdit.type === 'valueSet') {
+        changes.codes = libComp.valueSet?.codes;
+      }
+      // Always include codes to keep elements in sync
+      if (libComp.valueSet?.codes) {
+        changes.codes = libComp.valueSet.codes;
+      }
+    }
 
     const syncResult = syncComponentToMeasures(pendingEdit.componentId, changes, measures, batchUpdateMeasures);
     if (!syncResult.success) {
@@ -2431,8 +2451,8 @@ function NodeDetailPanel({
                                                                             
                                                      
  ) {
-  const { updateDataElement, measures, syncAgeRange } = useMeasureStore();
-  const { getComponent, updateComponent } = useComponentLibraryStore();
+  const { updateDataElement, measures, syncAgeRange, batchUpdateMeasures } = useMeasureStore();
+  const { getComponent, updateComponent, syncComponentToMeasures } = useComponentLibraryStore();
   const vsacApiKey = useSettingsStore(s => s.vsacApiKey);
 
   // Editing states
@@ -2449,6 +2469,10 @@ function NodeDetailPanel({
   const [localCodes, setLocalCodes] = useState([]);
   const [showAddCodeForm, setShowAddCodeForm] = useState(false);
   const [newCode, setNewCode] = useState({ code: '', display: '', system: 'CPT' });
+
+  // Shared edit warning states
+  const [showSharedCodeWarning, setShowSharedCodeWarning] = useState(false);
+  const [pendingCodeEdit, setPendingCodeEdit] = useState(null);
 
   // Find the node in the tree (re-fetch from measures to get live updates)
   const findNode = (obj     )                     => {
@@ -2551,48 +2575,43 @@ function NodeDetailPanel({
     };
   };
 
-  // Support multiple value sets for merged components
-  // Prioritize the node's own value sets (which have accurate codes) over looked-up versions
-  // Note: Check for non-empty array, not just truthy (empty array is truthy but useless)
-  const nodeValueSetRefs = (node.valueSets && node.valueSets.length > 0)
-    ? node.valueSets
-    : (node.valueSet ? [node.valueSet] : []);
-  let fullValueSets = nodeValueSetRefs.map(vsRef => {
-    // If the reference already has codes embedded, use it directly
-    if (vsRef.codes && vsRef.codes.length > 0) {
-      return vsRef;
-    }
-    // Otherwise try to look up from measure or global value sets
-    const lookedUp = currentMeasure?.valueSets.find(vs => vs.id === vsRef.id || vs.oid === vsRef.oid)
-      || allValueSets.find(vs => vs.id === vsRef.id || vs.oid === vsRef.oid);
-    if (lookedUp?.codes?.length > 0) return lookedUp;
-    return vsRef;
-  }).filter(Boolean);
-
-  // FALLBACK: use linked library component's valueSet if element has none or no codes
+  // ═══ SINGLE SOURCE OF TRUTH: Library component owns codes for linked elements ═══
   const linkedComp = node.libraryComponentId ? getComponent(node.libraryComponentId) : null;
-  if (linkedComp?.type === 'atomic' && linkedComp.valueSet) {
-    const libVs = linkedComp.valueSet;
 
-    // If element has no valueSet at all, use library's valueSet
-    if (fullValueSets.length === 0) {
-      fullValueSets = [{ ...libVs }];
-    }
-    // If element has valueSet but no codes, and library has codes, merge them
-    else if (fullValueSets.every(vs => !vs.codes || vs.codes.length === 0) && libVs?.codes?.length > 0) {
-      fullValueSets = fullValueSets.map(vs => ({
-        ...vs,
-        codes: libVs.codes,
-        // Also inherit OID from library if element doesn't have one
-        oid: vs.oid || libVs.oid,
-      }));
-    }
+  let fullValueSets;
+  if (linkedComp?.type === 'atomic' && linkedComp.valueSet) {
+    // LINKED: Library component is THE authority for codes
+    fullValueSets = [{
+      id: linkedComp.valueSet.oid || linkedComp.id,
+      oid: linkedComp.valueSet.oid || node.valueSet?.oid || '',
+      name: linkedComp.valueSet.name || linkedComp.name,
+      version: linkedComp.valueSet.version || '',
+      codes: linkedComp.valueSet.codes || [],
+      source: linkedComp.valueSet.source || 'Library Component',
+      totalCodeCount: linkedComp.valueSet.codes?.length || 0,
+    }];
+  } else {
+    // UNLINKED: Fall back to element's own data
+    const nodeValueSetRefs = (node.valueSets && node.valueSets.length > 0)
+      ? node.valueSets
+      : (node.valueSet ? [node.valueSet] : []);
+    fullValueSets = nodeValueSetRefs.map(vsRef => {
+      if (vsRef.codes && vsRef.codes.length > 0) return vsRef;
+      const lookedUp = currentMeasure?.valueSets.find(vs => vs.id === vsRef.id || vs.oid === vsRef.oid)
+        || allValueSets.find(vs => vs.id === vsRef.id || vs.oid === vsRef.oid);
+      if (lookedUp?.codes?.length > 0) return lookedUp;
+      return vsRef;
+    }).filter(Boolean);
   }
 
   // Keep single value set for backward compatibility
   const fullValueSet = fullValueSets.length > 0 ? fullValueSets[0] : undefined;
 
-  // Sync value set editing state when node changes
+  // Compute a stable codes fingerprint from the authoritative source
+  const authoritativeCodes = fullValueSets[0]?.codes || [];
+  const codesFingerprint = authoritativeCodes.map(c => c.code).sort().join(',');
+
+  // Sync value set editing state when node changes OR when authoritative codes change
   useEffect(() => {
     if (node) {
       const vs = fullValueSets[0]; // Primary value set
@@ -2602,24 +2621,47 @@ function NodeDetailPanel({
       setEditingValueSet(false);
       setShowAddCodeForm(false);
     }
-  }, [nodeId]); // Only re-sync when selecting a different node
+  }, [nodeId, codesFingerprint]); // Re-sync when node changes OR when authoritative codes change
 
-  // Save value set changes back to the data element AND the linked library component
+  // Save value set changes - routes through library for linked elements
   const saveValueSetChanges = (updates) => {
-    const currentVs = node.valueSet || {};
-    const updatedVs = { ...currentVs, ...updates };
-
-    // Save to measure's data element
-    updateDataElement(measureId, node.id, { valueSet: updatedVs });
-
-    // Also sync to linked library component if it exists
     if (node.libraryComponentId) {
+      // ═══ LINKED: Write to library component + sync to ALL measures ═══
       const libComp = getComponent(node.libraryComponentId);
       if (libComp?.type === 'atomic') {
-        updateComponent(node.libraryComponentId, {
-          valueSet: { ...libComp.valueSet, ...updates },
-        });
+        const mergedVs = { ...libComp.valueSet, ...updates };
+
+        // Check if shared and codes are being changed
+        if (updates.codes && libComp.usage?.usageCount > 1) {
+          // Trigger shared edit warning
+          setPendingCodeEdit({
+            componentId: node.libraryComponentId,
+            elementId: node.id,
+            libraryComponent: libComp,
+            updates: mergedVs,
+          });
+          setShowSharedCodeWarning(true);
+          return; // Don't apply yet — wait for user confirmation
+        }
+
+        // Single-use or non-code change: apply immediately
+        updateComponent(node.libraryComponentId, { valueSet: mergedVs });
+
+        // Sync codes to ALL measures that use this component
+        if (updates.codes) {
+          syncComponentToMeasures(
+            node.libraryComponentId,
+            { changeDescription: 'Codes updated via UMS Editor', codes: updates.codes },
+            measures,
+            batchUpdateMeasures,
+          );
+        }
       }
+    } else {
+      // ═══ UNLINKED: Write to data element only ═══
+      const currentVs = node.valueSet || {};
+      const updatedVs = { ...currentVs, ...updates };
+      updateDataElement(measureId, node.id, { valueSet: updatedVs });
     }
   };
 
@@ -3402,13 +3444,56 @@ function NodeDetailPanel({
         </div>
       </div>
 
+      {/* Shared code edit confirmation */}
+      {showSharedCodeWarning && pendingCodeEdit && (() => {
+        const comp = pendingCodeEdit.libraryComponent;
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-[var(--bg-secondary)] border border-amber-500/30 rounded-lg p-5 max-w-md mx-4 shadow-xl">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+                <h3 className="font-medium text-[var(--text)]">Shared Component</h3>
+              </div>
+              <p className="text-sm text-[var(--text-muted)] mb-4">
+                <strong>"{comp.name}"</strong> is used in <strong>{comp.usage?.usageCount || 1} measures</strong>.
+                Changes will update all linked measures.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => { setShowSharedCodeWarning(false); setPendingCodeEdit(null); }}
+                  className="px-3 py-1.5 text-xs bg-[var(--bg-tertiary)] text-[var(--text-muted)] rounded hover:text-[var(--text)] border border-[var(--border)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    // Apply the pending code edit
+                    updateComponent(pendingCodeEdit.componentId, { valueSet: pendingCodeEdit.updates });
+                    syncComponentToMeasures(
+                      pendingCodeEdit.componentId,
+                      { changeDescription: 'Codes updated via UMS Editor', codes: pendingCodeEdit.updates.codes },
+                      measures,
+                      batchUpdateMeasures,
+                    );
+                    setShowSharedCodeWarning(false);
+                    setPendingCodeEdit(null);
+                  }}
+                  className="px-4 py-1.5 text-xs bg-amber-500 text-white rounded hover:bg-amber-600 font-medium"
+                >
+                  Update All {comp.usage?.usageCount || 1} Measures
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
 function ValueSetModal({ valueSet, measureId, elementId, onClose }                                                                                       ) {
-  const { addCodeToValueSet, removeCodeFromValueSet, getCorrections, updateMeasure, measures } = useMeasureStore();
-  const { getComponent, updateComponent } = useComponentLibraryStore();
+  const { addCodeToValueSet, removeCodeFromValueSet, getCorrections, updateMeasure, measures, batchUpdateMeasures } = useMeasureStore();
+  const { getComponent, updateComponent, syncComponentToMeasures } = useComponentLibraryStore();
   const { vsacApiKey } = useSettingsStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newCode, setNewCode] = useState({ code: '', display: '', system: 'ICD10'               });
@@ -3419,6 +3504,10 @@ function ValueSetModal({ valueSet, measureId, elementId, onClose }              
   // VSAC fetch state
   const [vsacLoading, setVsacLoading] = useState(false);
   const [vsacStatus, setVsacStatus] = useState                                                    (null);
+
+  // Shared edit warning state
+  const [showSharedWarning, setShowSharedWarning] = useState(false);
+  const [pendingCodeAction, setPendingCodeAction] = useState(null);
 
   // Get corrections related to this value set
   const corrections = getCorrections(measureId).filter(c => c.componentId === valueSet.id);
@@ -3439,17 +3528,41 @@ function ValueSetModal({ valueSet, measureId, elementId, onClose }              
     return null;
   }, []);
 
-  // Read current value set from element (primary) or measure.valueSets (fallback)
+  // Detect if this element is linked to a library component
+  const linkedElement = useMemo(() => {
+    if (!elementId || !measure) return null;
+    for (const pop of measure.populations) {
+      const el = findElementInTree(pop.criteria, elementId);
+      if (el) return el;
+    }
+    return null;
+  }, [elementId, measure, findElementInTree]);
+
+  const libraryComponentId = linkedElement?.libraryComponentId;
+  const libraryComponent = libraryComponentId ? getComponent(libraryComponentId) : null;
+  const isLinkedToLibrary = !!libraryComponent;
+  const usageCount = libraryComponent?.usage?.usageCount || 0;
+
+  // Read current value set - LINKED: from library (single source of truth), UNLINKED: from element
   const currentValueSet = useMemo(() => {
+    // LINKED: Read from library component (single source of truth)
+    if (libraryComponent?.type === 'atomic' && libraryComponent.valueSet) {
+      return {
+        ...libraryComponent.valueSet,
+        id: libraryComponent.valueSet.oid || libraryComponent.id,
+        source: 'Library Component',
+      };
+    }
+
+    // UNLINKED: Read from element in population tree
     if (elementId && measure) {
       for (const pop of measure.populations) {
         const element = findElementInTree(pop.criteria, elementId);
         if (element?.valueSet) return element.valueSet;
       }
     }
-    // Fallback to measure-level or prop
     return measure?.valueSets?.find(vs => vs.id === valueSet.id) || valueSet;
-  }, [elementId, measure, valueSet, findElementInTree]);
+  }, [libraryComponent, elementId, measure, valueSet, findElementInTree]);
 
   // Helper to update element's valueSet in the population tree
   const updateElementValueSet = useCallback((updatedCodes) => {
@@ -3504,39 +3617,117 @@ function ValueSetModal({ valueSet, measureId, elementId, onClose }              
     return targetElement;
   }, [elementId, measure, measureId, updateMeasure, getComponent, updateComponent]);
 
-  const handleAddCode = () => {
-    if (!newCode.code.trim() || !newCode.display.trim()) return;
-
-    const codeToAdd = {
-      code: newCode.code.trim(),
-      display: newCode.display.trim(),
-      system: newCode.system,
-    };
-
-    // Write to measure.valueSets[] (legacy path for correction tracking)
-    addCodeToValueSet(measureId, valueSet.id, codeToAdd, 'User added code manually');
-
-    // ALSO write to the data element's valueSet.codes (primary path)
-    if (elementId) {
-      const existingCodes = currentValueSet.codes || [];
-      updateElementValueSet([...existingCodes, codeToAdd]);
+  // ═══ APPLY FUNCTIONS: Actually execute code changes ═══
+  const applyAddCode = (codeToAdd) => {
+    if (isLinkedToLibrary && libraryComponent?.type === 'atomic') {
+      // LINKED: Update library → sync ALL measures
+      const existingCodes = libraryComponent.valueSet?.codes || [];
+      const newCodes = [...existingCodes, codeToAdd];
+      updateComponent(libraryComponentId, {
+        valueSet: { ...libraryComponent.valueSet, codes: newCodes },
+      });
+      syncComponentToMeasures(
+        libraryComponentId,
+        { changeDescription: 'Code added via UMS Editor', codes: newCodes },
+        measures,
+        batchUpdateMeasures,
+      );
+    } else {
+      // UNLINKED: Update this element only
+      addCodeToValueSet(measureId, valueSet.id, codeToAdd, 'User added code manually');
+      if (elementId) {
+        const existingCodes = currentValueSet.codes || [];
+        updateElementValueSet([...existingCodes, codeToAdd]);
+      }
     }
-
     setNewCode({ code: '', display: '', system: 'ICD10' });
     setShowAddForm(false);
   };
 
-  const handleRemoveCode = (codeValue        ) => {
-    if (confirm(`Remove code "${codeValue}" from this value set?`)) {
-      // Write to measure.valueSets[] (legacy path for correction tracking)
+  const applyRemoveCode = (codeValue) => {
+    if (isLinkedToLibrary && libraryComponent?.type === 'atomic') {
+      const updatedCodes = (libraryComponent.valueSet?.codes || []).filter(c => c.code !== codeValue);
+      updateComponent(libraryComponentId, {
+        valueSet: { ...libraryComponent.valueSet, codes: updatedCodes },
+      });
+      syncComponentToMeasures(
+        libraryComponentId,
+        { changeDescription: 'Code removed via UMS Editor', codes: updatedCodes },
+        measures,
+        batchUpdateMeasures,
+      );
+    } else {
       removeCodeFromValueSet(measureId, valueSet.id, codeValue, 'User removed code manually');
-
-      // ALSO remove from the data element's valueSet.codes (primary path)
       if (elementId) {
         const updatedCodes = (currentValueSet.codes || []).filter(c => c.code !== codeValue);
         updateElementValueSet(updatedCodes);
       }
     }
+  };
+
+  const applyEditCode = (updatedCodes) => {
+    if (isLinkedToLibrary && libraryComponent?.type === 'atomic') {
+      updateComponent(libraryComponentId, {
+        valueSet: { ...libraryComponent.valueSet, codes: updatedCodes },
+      });
+      syncComponentToMeasures(
+        libraryComponentId,
+        { changeDescription: 'Code edited via UMS Editor', codes: updatedCodes },
+        measures,
+        batchUpdateMeasures,
+      );
+    } else {
+      const updatedValueSets = (measure?.valueSets || []).map(vs =>
+        vs.id === valueSet.id ? { ...vs, codes: updatedCodes } : vs
+      );
+      updateMeasure(measureId, { valueSets: updatedValueSets });
+      if (elementId) updateElementValueSet(updatedCodes);
+    }
+    setEditingCodeIdx(null);
+    setEditCode({ code: '', display: '', system: 'ICD10' });
+  };
+
+  const applyVsacCodes = (mergedCodes) => {
+    if (isLinkedToLibrary && libraryComponent?.type === 'atomic') {
+      updateComponent(libraryComponentId, {
+        valueSet: { ...libraryComponent.valueSet, codes: mergedCodes },
+      });
+      syncComponentToMeasures(
+        libraryComponentId,
+        { changeDescription: 'Codes fetched from VSAC', codes: mergedCodes },
+        measures,
+        batchUpdateMeasures,
+      );
+    } else {
+      const updatedValueSets = (measure?.valueSets || []).map(vs =>
+        vs.id === valueSet.id ? { ...vs, codes: mergedCodes } : vs
+      );
+      updateMeasure(measureId, { valueSets: updatedValueSets });
+      if (elementId) updateElementValueSet(mergedCodes);
+    }
+  };
+
+  // ═══ HANDLER FUNCTIONS: Check for shared warning, then apply ═══
+  const handleAddCode = () => {
+    if (!newCode.code.trim() || !newCode.display.trim()) return;
+    const codeToAdd = { code: newCode.code.trim(), display: newCode.display.trim(), system: newCode.system };
+
+    if (isLinkedToLibrary && usageCount > 1) {
+      setPendingCodeAction({ type: 'add', payload: codeToAdd });
+      setShowSharedWarning(true);
+      return;
+    }
+    applyAddCode(codeToAdd);
+  };
+
+  const handleRemoveCode = (codeValue        ) => {
+    if (!confirm(`Remove code "${codeValue}" from this value set?`)) return;
+    if (isLinkedToLibrary && usageCount > 1) {
+      setPendingCodeAction({ type: 'remove', payload: codeValue });
+      setShowSharedWarning(true);
+      return;
+    }
+    applyRemoveCode(codeValue);
   };
 
   const handleEditCode = (idx        ) => {
@@ -3548,28 +3739,17 @@ function ValueSetModal({ valueSet, measureId, elementId, onClose }              
   };
 
   const handleSaveEditCode = () => {
-    if (editingCodeIdx === null || !measure) return;
-
+    if (editingCodeIdx === null) return;
     const updatedCodes = [...(currentValueSet.codes || [])];
     updatedCodes[editingCodeIdx] = {
-      code: editCode.code.trim(),
-      display: editCode.display.trim(),
-      system: editCode.system,
+      code: editCode.code.trim(), display: editCode.display.trim(), system: editCode.system,
     };
-
-    // Update the value set in the measure.valueSets (legacy path)
-    const updatedValueSets = (measure.valueSets || []).map(vs =>
-      vs.id === valueSet.id ? { ...vs, codes: updatedCodes } : vs
-    );
-    updateMeasure(measureId, { valueSets: updatedValueSets });
-
-    // ALSO update the data element's valueSet.codes (primary path)
-    if (elementId) {
-      updateElementValueSet(updatedCodes);
+    if (isLinkedToLibrary && usageCount > 1) {
+      setPendingCodeAction({ type: 'edit', payload: updatedCodes });
+      setShowSharedWarning(true);
+      return;
     }
-
-    setEditingCodeIdx(null);
-    setEditCode({ code: '', display: '', system: 'ICD10' });
+    applyEditCode(updatedCodes);
   };
 
   const handleFetchFromVSAC = async () => {
@@ -3588,24 +3768,17 @@ function ValueSetModal({ valueSet, measureId, elementId, onClose }              
 
     try {
       const result = await fetchValueSetExpansion(oid, vsacApiKey);
-
-      // For large value sets (50+ codes), update all at once via updateMeasure
-      // instead of calling addCodeToValueSet per code
       const existingCodes = new Set((currentValueSet.codes || []).map(c => c.code));
       const newCodes = result.codes.filter(c => !existingCodes.has(c.code));
 
       if (newCodes.length > 0) {
         const mergedCodes = [...(currentValueSet.codes || []), ...newCodes];
 
-        // Update measure.valueSets (legacy path)
-        const updatedValueSets = (measure?.valueSets || []).map(vs =>
-          vs.id === valueSet.id ? { ...vs, codes: mergedCodes } : vs
-        );
-        updateMeasure(measureId, { valueSets: updatedValueSets });
-
-        // ALSO update element's valueSet.codes (primary path)
-        if (elementId) {
-          updateElementValueSet(mergedCodes);
+        if (isLinkedToLibrary && usageCount > 1) {
+          setPendingCodeAction({ type: 'vsac', payload: mergedCodes });
+          setShowSharedWarning(true);
+        } else {
+          applyVsacCodes(mergedCodes);
         }
       }
 
@@ -3683,6 +3856,16 @@ function ValueSetModal({ valueSet, measureId, elementId, onClose }              
             </button>
           </div>
         </div>
+
+        {/* Shared component banner */}
+        {isLinkedToLibrary && usageCount > 1 && (
+          <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <span className="text-xs text-amber-400">
+              Shared component — code changes will update <strong>{usageCount} measures</strong>
+            </span>
+          </div>
+        )}
 
         {/* VSAC Status */}
         {vsacStatus && (
@@ -3920,6 +4103,49 @@ function ValueSetModal({ valueSet, measureId, elementId, onClose }              
             </button>
           )}
         </div>
+
+        {/* Shared edit confirmation dialog */}
+        {showSharedWarning && pendingCodeAction && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 rounded-xl">
+            <div className="bg-[var(--bg-secondary)] border border-amber-500/30 rounded-lg p-5 max-w-md mx-4 shadow-xl">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+                <h3 className="font-medium text-[var(--text)]">Shared Component</h3>
+              </div>
+              <p className="text-sm text-[var(--text-muted)] mb-1">
+                <strong>"{currentValueSet.name}"</strong> is used in <strong>{usageCount} measures</strong>.
+              </p>
+              <p className="text-sm text-[var(--text-muted)] mb-4">
+                {pendingCodeAction.type === 'add' && 'Adding this code will update all linked measures.'}
+                {pendingCodeAction.type === 'remove' && 'Removing this code will update all linked measures.'}
+                {pendingCodeAction.type === 'edit' && 'Editing this code will update all linked measures.'}
+                {pendingCodeAction.type === 'vsac' && 'Fetched codes will be applied to all linked measures.'}
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => { setShowSharedWarning(false); setPendingCodeAction(null); }}
+                  className="px-3 py-1.5 text-xs bg-[var(--bg-tertiary)] text-[var(--text-muted)] rounded hover:text-[var(--text)] border border-[var(--border)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSharedWarning(false);
+                    const action = pendingCodeAction;
+                    setPendingCodeAction(null);
+                    if (action.type === 'add') applyAddCode(action.payload);
+                    else if (action.type === 'remove') applyRemoveCode(action.payload);
+                    else if (action.type === 'edit') applyEditCode(action.payload);
+                    else if (action.type === 'vsac') applyVsacCodes(action.payload);
+                  }}
+                  className="px-4 py-1.5 text-xs bg-amber-500 text-white rounded hover:bg-amber-600 font-medium"
+                >
+                  Update All {usageCount} Measures
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

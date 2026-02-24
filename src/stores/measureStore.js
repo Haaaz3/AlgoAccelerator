@@ -1588,6 +1588,9 @@ function reEnrichPopulations(measure) {
     // It's a data element
     const element = node;
 
+    // NEVER overwrite a linked element — the library component is the source of truth
+    if (element.libraryComponentId) return element;
+
     // Skip if it already has a value set with codes
     if (element.valueSet?.codes?.length > 0) return element;
     // Skip if it already has an OID that's not 'N/A'
