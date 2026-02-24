@@ -2,10 +2,95 @@
  * Sample Component Library Test Data
  *
  * Use this to seed the library for testing and development.
+ *
+ * Codes are sourced from the public FHIR VSAC package:
+ * https://github.com/FHIR/packages/tree/master/packages/us.nlm.vsac
  */
 
+// Real VSAC codes for Office Visit (OID: 2.16.840.1.113883.3.464.1003.101.12.1001)
+const OFFICE_VISIT_CODES = [
+  { code: '185349003', display: 'Encounter for check up (procedure)', system: 'SNOMED' },
+  { code: '185463005', display: 'Visit out of hours (procedure)', system: 'SNOMED' },
+  { code: '185464004', display: 'Out of hours visit - not night visit (procedure)', system: 'SNOMED' },
+  { code: '185465003', display: 'Weekend visit (procedure)', system: 'SNOMED' },
+  { code: '3391000175108', display: 'Office visit for pediatric care and assessment (procedure)', system: 'SNOMED' },
+  { code: '439740005', display: 'Postoperative follow-up visit (procedure)', system: 'SNOMED' },
+  { code: '99202', display: 'Office or other outpatient visit for new patient evaluation (straightforward)', system: 'CPT' },
+  { code: '99203', display: 'Office or other outpatient visit for new patient evaluation (low complexity)', system: 'CPT' },
+  { code: '99204', display: 'Office or other outpatient visit for new patient evaluation (moderate complexity)', system: 'CPT' },
+  { code: '99205', display: 'Office or other outpatient visit for new patient evaluation (high complexity)', system: 'CPT' },
+  { code: '99212', display: 'Office or other outpatient visit for established patient (straightforward)', system: 'CPT' },
+  { code: '99213', display: 'Office or other outpatient visit for established patient (low complexity)', system: 'CPT' },
+  { code: '99214', display: 'Office or other outpatient visit for established patient (moderate complexity)', system: 'CPT' },
+  { code: '99215', display: 'Office or other outpatient visit for established patient (high complexity)', system: 'CPT' },
+];
 
+// Real VSAC codes for Home Healthcare Services (OID: 2.16.840.1.113883.3.464.1003.101.12.1016)
+const HOME_HEALTHCARE_CODES = [
+  { code: '185460008', display: 'Home visit request by patient (procedure)', system: 'SNOMED' },
+  { code: '185462000', display: 'Home visit request by relative (procedure)', system: 'SNOMED' },
+  { code: '185466002', display: 'Home visit for urgent condition (procedure)', system: 'SNOMED' },
+  { code: '185467006', display: 'Home visit for acute condition (procedure)', system: 'SNOMED' },
+  { code: '185468001', display: 'Home visit for chronic condition (procedure)', system: 'SNOMED' },
+  { code: '185470005', display: 'Home visit elderly assessment (procedure)', system: 'SNOMED' },
+  { code: '225929007', display: 'Joint home visit (procedure)', system: 'SNOMED' },
+  { code: '315205008', display: 'Bank holiday home visit (procedure)', system: 'SNOMED' },
+  { code: '439708006', display: 'Home visit (procedure)', system: 'SNOMED' },
+  { code: '698704008', display: 'Home visit for rheumatology service (procedure)', system: 'SNOMED' },
+  { code: '704126008', display: 'Home visit for anticoagulant drug monitoring (procedure)', system: 'SNOMED' },
+  { code: '99341', display: 'Home or residence visit for evaluation and management of new patient', system: 'CPT' },
+  { code: '99342', display: 'Home or residence visit for evaluation and management of new patient', system: 'CPT' },
+  { code: '99344', display: 'Home or residence visit for evaluation and management of new patient', system: 'CPT' },
+  { code: '99345', display: 'Home or residence visit for evaluation and management of new patient', system: 'CPT' },
+  { code: '99347', display: 'Home or residence visit for evaluation and management of established patient', system: 'CPT' },
+  { code: '99348', display: 'Home or residence visit for evaluation and management of established patient', system: 'CPT' },
+  { code: '99349', display: 'Home or residence visit for evaluation and management of established patient', system: 'CPT' },
+  { code: '99350', display: 'Home or residence visit for evaluation and management of established patient', system: 'CPT' },
+];
 
+// Real VSAC codes for Preventive Care Services (OID: 2.16.840.1.113883.3.464.1003.101.12.1027)
+const PREVENTIVE_CARE_CODES = [
+  { code: '99411', display: 'Preventive medicine counseling and/or risk factor reduction intervention(s) provided to individuals in a group setting (separate procedure); approximately 30 minutes', system: 'CPT' },
+  { code: '99412', display: 'Preventive medicine counseling and/or risk factor reduction intervention(s) provided to individuals in a group setting (separate procedure); approximately 60 minutes', system: 'CPT' },
+];
+
+// Real VSAC codes for Annual Wellness Visit (OID: 2.16.840.1.113883.3.526.3.1240)
+const ANNUAL_WELLNESS_CODES = [
+  { code: '444971000124105', display: 'Annual wellness visit (procedure)', system: 'SNOMED' },
+  { code: '456201000124103', display: 'Medicare annual wellness visit (procedure)', system: 'SNOMED' },
+  { code: '86013001', display: 'Periodic reevaluation and management of healthy individual (procedure)', system: 'SNOMED' },
+  { code: '866149003', display: 'Annual visit (procedure)', system: 'SNOMED' },
+  { code: '90526000', display: 'Initial evaluation and management of healthy individual (procedure)', system: 'SNOMED' },
+  { code: 'G0402', display: 'Initial preventive physical examination; face-to-face visit, services limited to new beneficiary during the first 12 months of medicare enrollment', system: 'HCPCS' },
+  { code: 'G0438', display: 'Annual wellness visit; includes a personalized prevention plan of service (pps), initial visit', system: 'HCPCS' },
+  { code: 'G0439', display: 'Annual wellness visit, includes a personalized prevention plan of service (pps), subsequent visit', system: 'HCPCS' },
+];
+
+// Real VSAC codes for Online Assessments (OID: 2.16.840.1.113883.3.464.1003.101.12.1089)
+const ONLINE_ASSESSMENT_CODES = [
+  { code: '98970', display: 'Nonphysician qualified health care professional online digital assessment and management, for an established patient, for up to 7 days, cumulative time during the 7 days; 5-10 minutes', system: 'CPT' },
+  { code: '98971', display: 'Nonphysician qualified health care professional online digital assessment and management, for an established patient, for up to 7 days, cumulative time during the 7 days; 11-20 minutes', system: 'CPT' },
+  { code: '98972', display: 'Nonphysician qualified health care professional online digital assessment and management, for an established patient, for up to 7 days, cumulative time during the 7 days; 21 or more minutes', system: 'CPT' },
+  { code: '98980', display: 'Remote therapeutic monitoring treatment management services, physician or other qualified health care professional time in a calendar month requiring at least one interactive communication with the patient or caregiver during the calendar month; first 20 minutes', system: 'CPT' },
+  { code: '98981', display: 'Remote therapeutic monitoring treatment management services, physician or other qualified health care professional time in a calendar month requiring at least one interactive communication with the patient or caregiver during the calendar month; each additional 20 minutes', system: 'CPT' },
+  { code: '99421', display: 'Online digital evaluation and management service, for an established patient, for up to 7 days, cumulative time during the 7 days; 5-10 minutes', system: 'CPT' },
+  { code: '99422', display: 'Online digital evaluation and management service, for an established patient, for up to 7 days, cumulative time during the 7 days; 11-20 minutes', system: 'CPT' },
+  { code: '99423', display: 'Online digital evaluation and management service, for an established patient, for up to 7 days, cumulative time during the 7 days; 21 or more minutes', system: 'CPT' },
+  { code: '99457', display: 'Remote physiologic monitoring treatment management services, clinical staff/physician/other qualified health care professional time in a calendar month requiring interactive communication with the patient/caregiver during the month; first 20 minutes', system: 'CPT' },
+  { code: '99458', display: 'Remote physiologic monitoring treatment management services, clinical staff/physician/other qualified health care professional time in a calendar month requiring interactive communication with the patient/caregiver during the month; each additional 20 minutes', system: 'CPT' },
+  { code: 'G0071', display: 'Payment for communication technology-based services for 5 minutes or more of a virtual (non-face-to-face) communication between an rural health clinic (rhc) or federally qualified health center (fqhc) practitioner and rhc or fqhc patient', system: 'HCPCS' },
+  { code: 'G2010', display: 'Remote evaluation of recorded video and/or images submitted by an established patient (e.g., store and forward), including interpretation with follow-up with the patient within 24 business hours', system: 'HCPCS' },
+  { code: 'G2250', display: 'Remote assessment of recorded video and/or images submitted by an established patient (e.g., store and forward), including interpretation with follow-up with the patient within 24 business hours', system: 'HCPCS' },
+  { code: 'G2251', display: 'Brief communication technology-based service, e.g. virtual check-in, by a qualified health care professional who cannot report evaluation and management services, provided to an established patient; 5-10 minutes of clinical discussion', system: 'HCPCS' },
+  { code: 'G2252', display: 'Brief communication technology-based service, e.g. virtual check-in, by a physician or other qualified health care professional who can report evaluation and management services, provided to an established patient; 11-20 minutes of medical discussion', system: 'HCPCS' },
+];
+
+// Real VSAC codes for Hospice Care Ambulatory (OID: 2.16.840.1.113762.1.4.1108.15)
+const HOSPICE_INTERVENTION_CODES = [
+  { code: '170935008', display: 'Full care by hospice (finding)', system: 'SNOMED' },
+  { code: '170936009', display: 'Shared care - hospice and general practitioner (finding)', system: 'SNOMED' },
+  { code: '385763009', display: 'Hospice care (regime/therapy)', system: 'SNOMED' },
+];
 
 
 
@@ -183,7 +268,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.464.1003.101.12.1001',
       version: '20240101',
       name: 'Office Visit',
-      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
+      codes: OFFICE_VISIT_CODES,
     },
     timing: {
       operator: 'during',
@@ -232,7 +317,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.464.1003.101.12.1016',
       version: '20240101',
       name: 'Home Healthcare Services',
-      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
+      codes: HOME_HEALTHCARE_CODES,
     },
     timing: {
       operator: 'during',
@@ -281,7 +366,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.464.1003.101.12.1027',
       version: '20240101',
       name: 'Preventive Care Services - Established Office Visit, 18 and Up',
-      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
+      codes: PREVENTIVE_CARE_CODES,
     },
     timing: {
       operator: 'during',
@@ -330,7 +415,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.526.3.1240',
       version: '20240101',
       name: 'Annual Wellness Visit',
-      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
+      codes: ANNUAL_WELLNESS_CODES,
     },
     timing: {
       operator: 'during',
@@ -379,7 +464,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.464.1003.101.12.1089',
       version: '20240101',
       name: 'Online Assessments',
-      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
+      codes: ONLINE_ASSESSMENT_CODES,
     },
     timing: {
       operator: 'during',
@@ -528,10 +613,10 @@ export const sampleAtomics                                        = [
     name: 'Hospice Intervention during MP',
     description: 'Hospice intervention during the measurement period',
     valueSet: {
-      oid: '2.16.840.1.113883.3.464.1003.1004',
+      oid: '2.16.840.1.113762.1.4.1108.15',
       version: '20240101',
-      name: 'Hospice Intervention',
-      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
+      name: 'Hospice Care Ambulatory',
+      codes: HOSPICE_INTERVENTION_CODES,
     },
     timing: {
       operator: 'during',
