@@ -765,7 +765,7 @@ export function UMSEditor() {
       {/* Main editor panel - split into sticky header and scrollable content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* ═══ STICKY HEADER - stays fixed while scrolling ═══ */}
-        <div className="flex-shrink-0 bg-[var(--bg)] border-b border-[var(--border)] px-6 pt-6 pb-4 z-10">
+        <div className="flex-shrink-0 bg-[var(--bg)] border-b border-[var(--border)] px-6 pt-4 pb-3 z-10">
           {/* Success/Error Banners */}
           {success && (
             <InlineSuccessBanner message={success} onDismiss={() => setSuccess(null)} />
@@ -1001,8 +1001,8 @@ export function UMSEditor() {
             )}
 
             {/* Progress bar */}
-            <div className="mt-4 p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border)]">
-              <div className="flex items-center justify-between mb-2">
+            <div className="mt-2 p-2 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border)]">
+              <div className="flex items-center justify-between mb-1.5">
                 <span className="text-sm text-[var(--text-muted)]">Review Progress</span>
                 <span className="text-sm font-medium text-[var(--text)]">
                   {reviewProgress.approved} / {reviewProgress.total} approved ({progressPercent}%)
@@ -1019,20 +1019,24 @@ export function UMSEditor() {
                 />
               </div>
               {reviewProgress.flagged > 0 && (
-                <p className="text-xs text-[var(--warning)] mt-2 flex items-center gap-1">
+                <p className="text-xs text-[var(--warning)] mt-1.5 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" />
                   {reviewProgress.flagged} component{reviewProgress.flagged !== 1 ? 's' : ''} need revision
                 </p>
               )}
               {progressPercent === 100 && (
-                <p className="text-xs text-[var(--success)] mt-2 flex items-center gap-1">
+                <p className="text-xs text-[var(--success)] mt-1.5 flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" />
                   All components approved — ready for code generation
                 </p>
               )}
             </div>
           </div>
+        </div>
+        {/* ═══ END STICKY HEADER ═══ */}
 
+        {/* ═══ SCROLLABLE CONTENT - measurement period, populations and value sets ═══ */}
+        <div className="flex-1 overflow-auto px-6 py-4">
           {/* Measurement Period Bar */}
           <MeasurePeriodBar
             mpStart={measure.metadata.measurementPeriod?.start || '2024-01-01'}
@@ -1040,11 +1044,7 @@ export function UMSEditor() {
             onStartChange={(date) => updateMeasurementPeriod(measure.id, date, measure.metadata.measurementPeriod?.end || '2024-12-31')}
             onEndChange={(date) => updateMeasurementPeriod(measure.id, measure.metadata.measurementPeriod?.start || '2024-01-01', date)}
           />
-        </div>
-        {/* ═══ END STICKY HEADER ═══ */}
 
-        {/* ═══ SCROLLABLE CONTENT - populations and value sets ═══ */}
-        <div className="flex-1 overflow-auto px-6 py-4">
           {/* Population sections - IP is merged into Denominator for cleaner display */}
           <div className="space-y-4">
             {measure.populations
