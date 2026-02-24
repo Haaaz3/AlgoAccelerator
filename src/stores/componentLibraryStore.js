@@ -197,6 +197,10 @@ export const useComponentLibraryStore = create                       ()(
       importMatcherState: null,
       mergeMode: false,
       selectedForMerge: new Set(),
+      selectedCategory: 'all',
+
+      // Category selection (shared between Sidebar and LibraryBrowser)
+      setSelectedCategory: (category) => set({ selectedCategory: category }),
 
       // Merge mode actions
       setMergeMode: (enabled) => {

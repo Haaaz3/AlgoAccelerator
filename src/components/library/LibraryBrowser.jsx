@@ -36,19 +36,6 @@ import CreateComponentWizard from './CreateComponentWizard';
 import MergeComponentsWizard from './MergeComponentsWizard';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
 
-const CATEGORIES                                                      = [
-  { key: 'all', label: 'All Components' },
-  { key: 'demographics', label: 'Demographics' },
-  { key: 'encounters', label: 'Encounters' },
-  { key: 'conditions', label: 'Conditions' },
-  { key: 'procedures', label: 'Procedures' },
-  { key: 'medications', label: 'Medications' },
-  { key: 'assessments', label: 'Assessments' },
-  { key: 'laboratory', label: 'Laboratory' },
-  { key: 'clinical-observations', label: 'Clinical Observations' },
-  { key: 'exclusions', label: 'Exclusions' },
-];
-
 const STATUS_OPTIONS                                             = [
   { value: 'draft', label: 'Draft' },
   { value: 'pending_review', label: 'Pending' },
@@ -123,16 +110,15 @@ export function LibraryBrowser() {
     setSelectedComponent,
     setEditingComponent,
     setFilters,
-    getCategoryCounts,
     getFilteredComponents,
     initializeWithSampleData,
     rebuildUsageIndex,
     updateComponent,
+    selectedCategory,
+    setSelectedCategory,
   } = useComponentLibraryStore();
   const { measures } = useMeasureStore();
   const { vsacApiKey } = useSettingsStore();
-
-  const [selectedCategory, setSelectedCategory] = useState                           ('all');
 
   // Bulk VSAC fetch state
   const [bulkFetchLoading, setBulkFetchLoading] = useState(false);
@@ -155,10 +141,7 @@ export function LibraryBrowser() {
     });
   }, [selectedCategory, setFilters]);
 
-  const categoryCounts = useMemo(() => getCategoryCounts(), [components, getCategoryCounts]);
   const filteredComponents = useMemo(() => getFilteredComponents(), [components, filters, getFilteredComponents]);
-
-  const totalCount = components.filter(c => c.versionInfo.status !== 'archived').length;
 
   const handleSearchChange = (e                                     ) => {
     setFilters({ searchQuery: e.target.value });
@@ -483,47 +466,6 @@ export function LibraryBrowser() {
 
       {/* Main Body */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Category Sidebar */}
-        <div className="w-56 flex-shrink-0 bg-[var(--bg-secondary)] border-r border-[var(--border)] overflow-y-auto">
-          <div className="p-3">
-            <p className="text-xs font-semibold text-[var(--text-dim)] uppercase tracking-wider px-3 py-2">
-              Categories
-            </p>
-            <nav className="space-y-0.5">
-              {CATEGORIES.map(({ key, label }) => {
-                const count =
-                  key === 'all'
-                    ? totalCount
-                    : categoryCounts[key                     ] ?? 0;
-                const isActive = selectedCategory === key;
-
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setSelectedCategory(key)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
-                      isActive
-                        ? 'bg-[var(--accent-light)] text-[var(--accent)] font-medium'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-tertiary)]'
-                    }`}
-                  >
-                    <span className="truncate">{label}</span>
-                    <span
-                      className={`ml-2 flex-shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                        isActive
-                          ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                          : 'bg-[var(--bg-tertiary)] text-[var(--text-dim)]'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
-
         {/* Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Filter Bar */}

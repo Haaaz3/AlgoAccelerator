@@ -3,6 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { useMeasureStore } from '../../stores/measureStore';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 
+// Component Library categories (shared with LibraryBrowser)
+const COMPONENT_CATEGORIES = [
+  { key: 'all', label: 'All Components' },
+  { key: 'demographics', label: 'Demographics' },
+  { key: 'encounters', label: 'Encounters' },
+  { key: 'conditions', label: 'Conditions' },
+  { key: 'procedures', label: 'Procedures' },
+  { key: 'medications', label: 'Medications' },
+  { key: 'assessments', label: 'Assessments' },
+  { key: 'laboratory', label: 'Laboratory' },
+  { key: 'clinical-observations', label: 'Clinical Observations' },
+  { key: 'exclusions', label: 'Exclusions' },
+];
+
 // Map tab IDs to routes
 const TAB_TO_ROUTE = {
   library: '/library',
@@ -17,7 +31,7 @@ const TAB_TO_ROUTE = {
 export function Sidebar() {
   const navigate = useNavigate();
   const { activeTab, activeMeasureId, setActiveMeasure, measures } = useMeasureStore();
-  const { components } = useComponentLibraryStore();
+  const { components, selectedCategory, setSelectedCategory } = useComponentLibraryStore();
   const activeMeasure = measures.find(m => m.id === activeMeasureId);
 
   // Count measures
@@ -91,6 +105,45 @@ export function Sidebar() {
         })}
       </nav>
 
+      {/* Component Library Category Sub-Nav */}
+      {activeTab === 'components' && (
+        <nav className="px-3 pb-3 space-y-0.5">
+          {COMPONENT_CATEGORIES.map(({ key, label }) => {
+            const count = key === 'all'
+              ? components.filter(c => c.versionInfo.status !== 'archived').length
+              : components.filter(c =>
+                  c.versionInfo.status !== 'archived' &&
+                  c.metadata?.category === key
+                ).length;
+            const isActive = selectedCategory === key;
+
+            return (
+              <button
+                key={key}
+                onClick={() => setSelectedCategory(key)}
+                className={`
+                  w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium transition-all
+                  ${isActive
+                    ? 'bg-[var(--primary-light)] text-[var(--primary)]'
+                    : 'text-[var(--sidebar-text-muted)] hover:bg-[var(--sidebar-bg-hover)] hover:text-[var(--sidebar-text)]'
+                  }
+                `}
+                style={{ paddingLeft: '18px' }}
+              >
+                <span className="truncate">{label}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                  isActive
+                    ? 'bg-[var(--primary)]/15 text-[var(--primary)]'
+                    : 'bg-[var(--sidebar-bg-hover)] text-[var(--sidebar-text-muted)]'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
       {/* Active Measure Context */}
       {activeMeasure && (
         <div className="flex-1 flex flex-col border-t border-[var(--sidebar-border)]">
@@ -148,17 +201,8 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* No Measure Selected Hint */}
-      {!activeMeasure && measures.length > 0 && (
-        <div className="flex-1 flex flex-col justify-center px-3">
-          <div className="p-4 rounded-lg border border-dashed border-[var(--sidebar-border)] text-center bg-[var(--sidebar-bg-hover)]/30">
-            <FileText className="w-8 h-8 mx-auto mb-2 text-[var(--sidebar-text-muted)]" />
-            <p className="text-xs text-[var(--sidebar-text-muted)]">
-              Select a measure from the library to edit, validate, or generate code
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Empty flex spacer when no measure is active */}
+      {!activeMeasure && <div className="flex-1" />}
 
       {/* Footer */}
       <div className="p-3 border-t border-[var(--sidebar-border)]">
