@@ -3,6 +3,7 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
+    { "source": "/vsac-api/:path*", "destination": "https://cts.nlm.nih.gov/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
