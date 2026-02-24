@@ -762,9 +762,10 @@ export function UMSEditor() {
 
   return (
     <div ref={containerRef} className="flex-1 flex overflow-hidden">
-      {/* Main editor panel */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="w-full">
+      {/* Main editor panel - split into sticky header and scrollable content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* ═══ STICKY HEADER - stays fixed while scrolling ═══ */}
+        <div className="flex-shrink-0 bg-[var(--bg)] border-b border-[var(--border)] px-6 pt-6 pb-4 z-10">
           {/* Success/Error Banners */}
           {success && (
             <InlineSuccessBanner message={success} onDismiss={() => setSuccess(null)} />
@@ -774,7 +775,7 @@ export function UMSEditor() {
           )}
 
           {/* Breadcrumb */}
-          <nav className="flex items-center gap-2 text-sm mb-4">
+          <nav className="flex items-center gap-2 text-sm mb-3">
             <button
               onClick={() => navigate('/library')}
               className="text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
@@ -1039,7 +1040,11 @@ export function UMSEditor() {
             onStartChange={(date) => updateMeasurementPeriod(measure.id, date, measure.metadata.measurementPeriod?.end || '2024-12-31')}
             onEndChange={(date) => updateMeasurementPeriod(measure.id, measure.metadata.measurementPeriod?.start || '2024-01-01', date)}
           />
+        </div>
+        {/* ═══ END STICKY HEADER ═══ */}
 
+        {/* ═══ SCROLLABLE CONTENT - populations and value sets ═══ */}
+        <div className="flex-1 overflow-auto px-6 py-4">
           {/* Population sections - IP is merged into Denominator for cleaner display */}
           <div className="space-y-4">
             {measure.populations
