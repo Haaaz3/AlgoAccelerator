@@ -588,6 +588,22 @@ function AtomicDetails({ component }                                ) {
 
   return (
     <div className="space-y-4">
+      {/* Missing codes warning */}
+      {component.metadata?.category !== 'demographics' &&
+        (!component.valueSet?.codes || component.valueSet.codes.length === 0) && (
+        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+          <div>
+            <div className="text-sm font-medium text-amber-400">Missing codes</div>
+            <div className="text-xs text-amber-400/70 mt-0.5">
+              {component.valueSet?.oid
+                ? 'Edit this component and use "Fetch from VSAC" to populate codes from the standard value set.'
+                : 'This component needs an OID and codes. Edit to add manually or re-import with HTML specification.'}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Value Sets Header */}
       <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-3 space-y-3">
         <h3 className="text-sm font-medium text-[var(--text)] flex items-center gap-2">

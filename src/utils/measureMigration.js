@@ -15,6 +15,7 @@
                       
 import { normalizePopulationType } from '../types/ums';
 import { DATA_ELEMENT_TO_QICORE, getCodeSystemUrl } from '../types/fhir-measure';
+import { findStandardValueSetByName } from '../constants/standardValueSets';
 
 /**
  * Migrate a measure to the latest FHIR-aligned schema
@@ -341,4 +342,86 @@ export function getMigrationReport(measure                      )           {
   });
 
   return issues;
+}
+
+/**
+ * Backfill missing OIDs on non-demographic DataElements.
+ * Tries to match the value set name against the standard catalog.
+ * Returns the updated measure (mutates in place for efficiency).
+ */
+export function backfillMissingOIDs(measure                      )                       {
+  let backfilledCount = 0;
+
+  /**
+   * Check if a node is a demographic (should not get OID backfill)
+   */
+  function isDemographic(node             )          {
+    if (node.type === 'demographic') return true;
+    if (node.category === 'demographics') return true;
+    if (node.genderValue) return true;
+    if (node.thresholds?.ageMin != null || node.thresholds?.ageMax != null) return true;
+    return false;
+  }
+
+  /**
+   * Check if an OID is valid (not N/A or empty)
+   */
+  function hasValidOID(oid                    )          {
+    if (!oid) return false;
+    if (oid === 'N/A' || oid === 'n/a') return false;
+    return /^\d+\.\d+/.test(oid);
+  }
+
+  /**
+   * Walk and backfill a node tree
+   */
+  function walkAndBackfill(node                            )       {
+    if (!node) return;
+
+    if ('operator' in node && 'children' in node) {
+      // Clause - recurse
+      for (const child of node.children || []) {
+        walkAndBackfill(child);
+      }
+    } else {
+      // DataElement
+      const element = node               ;
+
+      // Skip demographics
+      if (isDemographic(element)) return;
+
+      // Skip if already has valid OID
+      if (hasValidOID(element.valueSet?.oid)) return;
+
+      // Try to find matching OID from standard catalog
+      const vsName = element.valueSet?.name || element.description;
+      if (!vsName) return;
+
+      const match = findStandardValueSetByName(vsName);
+      if (match) {
+        if (!element.valueSet) {
+          element.valueSet = { oid: match.oid, name: match.name, codes: [] };
+        } else {
+          element.valueSet.oid = match.oid;
+          if (!element.valueSet.name) {
+            element.valueSet.name = match.name;
+          }
+        }
+        backfilledCount++;
+      }
+    }
+  }
+
+  // Walk all populations
+  for (const pop of measure.populations || []) {
+    if (pop.criteria) {
+      walkAndBackfill(pop.criteria);
+    }
+  }
+
+  if (backfilledCount > 0) {
+    console.log(`[backfillMissingOIDs] Backfilled ${backfilledCount} OIDs from standard catalog`);
+  }
+
+  return measure;
 }

@@ -1,15 +1,22 @@
 /**
  * Sample Component Library Test Data
- * 
+ *
  * Use this to seed the library for testing and development.
  */
 
-             
-                  
-                     
-                   
-                
-                                   
+
+
+
+
+
+
+
+// Import standard value sets for code backfilling
+import {
+  COLONOSCOPY_VALUE_SET,
+  HOSPICE_CARE_VALUE_SET,
+  HYSTERECTOMY_NO_CERVIX_VALUE_SET,
+} from '../constants/standardValueSets';
 
 // ============================================================================
 // Sample Atomic Components
@@ -176,6 +183,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.464.1003.101.12.1001',
       version: '20240101',
       name: 'Office Visit',
+      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
     },
     timing: {
       operator: 'during',
@@ -224,6 +232,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.464.1003.101.12.1016',
       version: '20240101',
       name: 'Home Healthcare Services',
+      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
     },
     timing: {
       operator: 'during',
@@ -272,6 +281,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.464.1003.101.12.1027',
       version: '20240101',
       name: 'Preventive Care Services - Established Office Visit, 18 and Up',
+      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
     },
     timing: {
       operator: 'during',
@@ -320,6 +330,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.526.3.1240',
       version: '20240101',
       name: 'Annual Wellness Visit',
+      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
     },
     timing: {
       operator: 'during',
@@ -368,6 +379,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.464.1003.101.12.1089',
       version: '20240101',
       name: 'Online Assessments',
+      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
     },
     timing: {
       operator: 'during',
@@ -414,9 +426,10 @@ export const sampleAtomics                                        = [
     name: 'Colonoscopy within 10 years before end of MP',
     description: 'Colonoscopy procedure performed within 10 years before the end of measurement period',
     valueSet: {
-      oid: '2.16.840.1.113883.3.464.1003.108.12.1020',
+      oid: COLONOSCOPY_VALUE_SET.oid,
       version: '20240101',
-      name: 'Colonoscopy',
+      name: COLONOSCOPY_VALUE_SET.name,
+      codes: COLONOSCOPY_VALUE_SET.codes,
     },
     timing: {
       operator: 'within',
@@ -466,9 +479,10 @@ export const sampleAtomics                                        = [
     name: 'Hospice Encounter during MP',
     description: 'Hospice care encounter during the measurement period',
     valueSet: {
-      oid: '2.16.840.1.113883.3.464.1003.1003',
+      oid: HOSPICE_CARE_VALUE_SET.oid,
       version: '20240101',
       name: 'Hospice Encounter',
+      codes: HOSPICE_CARE_VALUE_SET.codes,
     },
     timing: {
       operator: 'during',
@@ -517,6 +531,7 @@ export const sampleAtomics                                        = [
       oid: '2.16.840.1.113883.3.464.1003.1004',
       version: '20240101',
       name: 'Hospice Intervention',
+      codes: [], // Use "Fetch All Missing Codes" to populate from VSAC
     },
     timing: {
       operator: 'during',
@@ -563,9 +578,10 @@ export const sampleAtomics                                        = [
     name: 'Absence of Cervix',
     description: 'Patient has documented absence of cervix (congenital or surgical)',
     valueSet: {
-      oid: '2.16.840.1.113883.3.464.1003.198.12.1014',
+      oid: HYSTERECTOMY_NO_CERVIX_VALUE_SET.oid,
       version: '20240101',
       name: 'Absence of Cervix',
+      codes: HYSTERECTOMY_NO_CERVIX_VALUE_SET.codes,
     },
     timing: {
       operator: 'starts before',

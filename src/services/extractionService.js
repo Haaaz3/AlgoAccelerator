@@ -17,6 +17,7 @@ import { post } from '../api/client';
                   
                       
 import { parseHtmlSpec,                          } from './htmlSpecParser';
+import { findStandardValueSetByName } from '../constants/standardValueSets';
 ;                                                 
 
 // ============================================================================
@@ -1381,6 +1382,24 @@ export function enrichDataElementsFromParsedSources(
     for (const [vsNameLower, vsInfo] of knownValueSets) {
       if (descContainsValueSetName(desc, vsNameLower)) {
         applyMatch(node, vsInfo);
+        enrichedCount++;
+        return;
+      }
+    }
+
+    // Strategy 4: For non-demographics, try standard value set catalog matching by name
+    // This catches components that weren't matched by the above strategies
+    if (node.type !== 'demographic' && node.category !== 'demographics') {
+      // Skip if already has an OID
+      if (node.valueSet?.oid && /^\d+\.\d+/.test(node.valueSet.oid)) {
+        return;
+      }
+
+      // Try to find a matching standard value set by name
+      const vsName = node.valueSet?.name || node.description;
+      const match = findStandardValueSetByName(vsName);
+      if (match) {
+        applyMatch(node, match);
         enrichedCount++;
         return;
       }

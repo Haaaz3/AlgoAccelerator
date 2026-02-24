@@ -23,6 +23,7 @@ import {
   recordComponentFeedback,
   snapshotFromDataElement,
 } from '../../services/feedbackLoop';
+import { fetchValueSetExpansion } from '../../services/vsacService';
 
 // Program/catalogue options for measure metadata
 const MEASURE_PROGRAMS = [
@@ -1907,6 +1908,9 @@ function CriteriaNode({
 
   const element = node               ;
 
+  // Get VSAC API key for missing codes CTA
+  const { vsacApiKey } = useSettingsStore();
+
   // Look up linked library component for status badge
   const { getComponent } = useComponentLibraryStore();
   const linkedComponent = element.libraryComponentId ? getComponent(element.libraryComponentId) ?? undefined : undefined;
@@ -2019,15 +2023,46 @@ function CriteriaNode({
             <ComponentLibraryIndicator component={linkedComponent} />
           )}
 
-          {/* Zero-code ingestion warning */}
-          {element.ingestionWarning && (
-            <div className="mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-              <span className="text-xs font-medium text-red-400">
-                {element.ingestionWarning}
-              </span>
-            </div>
-          )}
+          {/* Missing codes warning */}
+          {(() => {
+            // Skip demographics
+            if (element.genderValue) return null;
+            if (element.thresholds?.ageMin != null) return null;
+            if (element.type === 'demographic') return null;
+            if (element.category === 'demographics') return null;
+
+            // ANY non-demographic with no codes gets flagged
+            const codes = element.valueSet?.codes || [];
+            if (codes.length > 0) return null;
+
+            const hasOid = element.valueSet?.oid && /^\d+\.\d+/.test(element.valueSet.oid);
+
+            return (
+              <div className="mt-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 flex-wrap">
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <span className="text-xs font-medium text-amber-400">
+                  Missing codes{!hasOid ? ' — no OID available' : ''}
+                </span>
+                {hasOid && vsacApiKey && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Open the value set modal, which has the "Fetch from VSAC" button
+                      onSelectValueSet(element.valueSet);
+                    }}
+                    className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors font-medium"
+                  >
+                    Fetch codes from VSAC →
+                  </button>
+                )}
+                {!vsacApiKey && hasOid && (
+                  <span className="text-xs text-amber-400/60">
+                    Add VSAC API key in Settings to auto-fetch
+                  </span>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Thresholds for demographics (age) and observations */}
           {element.thresholds && (element.thresholds.ageMin !== undefined || element.thresholds.valueMin !== undefined) && (
@@ -3312,11 +3347,16 @@ function NodeDetailPanel({
 
 function ValueSetModal({ valueSet, measureId, onClose }                                                                         ) {
   const { addCodeToValueSet, removeCodeFromValueSet, getCorrections, updateMeasure, measures } = useMeasureStore();
+  const { vsacApiKey } = useSettingsStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newCode, setNewCode] = useState({ code: '', display: '', system: 'ICD10'               });
   const [showHistory, setShowHistory] = useState(false);
   const [editingCodeIdx, setEditingCodeIdx] = useState               (null);
   const [editCode, setEditCode] = useState({ code: '', display: '', system: 'ICD10'               });
+
+  // VSAC fetch state
+  const [vsacLoading, setVsacLoading] = useState(false);
+  const [vsacStatus, setVsacStatus] = useState                                                    (null);
 
   // Get corrections related to this value set
   const corrections = getCorrections(measureId).filter(c => c.componentId === valueSet.id);
@@ -3372,6 +3412,59 @@ function ValueSetModal({ valueSet, measureId, onClose }                         
     setEditCode({ code: '', display: '', system: 'ICD10' });
   };
 
+  const handleFetchFromVSAC = async () => {
+    const oid = currentValueSet.oid;
+    if (!oid) {
+      setVsacStatus({ type: 'error', message: 'This value set has no OID' });
+      return;
+    }
+    if (!vsacApiKey) {
+      setVsacStatus({ type: 'error', message: 'Set your VSAC API key in Settings first' });
+      return;
+    }
+
+    setVsacLoading(true);
+    setVsacStatus(null);
+
+    try {
+      const result = await fetchValueSetExpansion(oid, vsacApiKey);
+
+      // For large value sets (50+ codes), update all at once via updateMeasure
+      // instead of calling addCodeToValueSet per code
+      const existingCodes = new Set((currentValueSet.codes || []).map(c => c.code));
+      const newCodes = result.codes.filter(c => !existingCodes.has(c.code));
+
+      if (newCodes.length > 0) {
+        if (newCodes.length > 50) {
+          // Batch update for large sets
+          const mergedCodes = [...(currentValueSet.codes || []), ...newCodes];
+          const updatedValueSets = measure?.valueSets.map(vs =>
+            vs.id === valueSet.id ? { ...vs, codes: mergedCodes } : vs
+          ) || [];
+          updateMeasure(measureId, { valueSets: updatedValueSets });
+        } else {
+          // Add codes individually for proper tracking
+          for (const code of newCodes) {
+            addCodeToValueSet(measureId, valueSet.id, {
+              code: code.code,
+              display: code.display,
+              system: code.system,
+            }, 'Imported from VSAC');
+          }
+        }
+      }
+
+      setVsacStatus({
+        type: 'success',
+        message: `Added ${newCodes.length} codes from VSAC (${result.total} total, ${result.codes.length - newCodes.length} already existed)`,
+      });
+    } catch (err) {
+      setVsacStatus({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setVsacLoading(false);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
@@ -3401,6 +3494,26 @@ function ValueSetModal({ valueSet, measureId, onClose }                         
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Fetch from VSAC button */}
+            {currentValueSet.oid && (
+              <button
+                onClick={handleFetchFromVSAC}
+                disabled={vsacLoading || !vsacApiKey}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                  vsacLoading
+                    ? 'border-[var(--accent)]/30 text-[var(--accent)]/60'
+                    : 'border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent-light)]'
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                title={!vsacApiKey ? 'Set VSAC API key in Settings' : `Fetch codes for ${currentValueSet.oid}`}
+              >
+                {vsacLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                {vsacLoading ? 'Fetching...' : 'Fetch from VSAC'}
+              </button>
+            )}
             {corrections.length > 0 && (
               <button
                 onClick={() => setShowHistory(!showHistory)}
@@ -3415,6 +3528,17 @@ function ValueSetModal({ valueSet, measureId, onClose }                         
             </button>
           </div>
         </div>
+
+        {/* VSAC Status */}
+        {vsacStatus && (
+          <div className={`px-4 py-2 text-xs border-b ${
+            vsacStatus.type === 'success'
+              ? 'bg-green-500/10 text-green-400 border-green-500/20'
+              : 'bg-red-500/10 text-red-400 border-red-500/20'
+          }`}>
+            {vsacStatus.message}
+          </div>
+        )}
 
         {/* Edit history panel */}
         {showHistory && corrections.length > 0 && (

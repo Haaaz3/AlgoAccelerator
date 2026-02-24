@@ -13,10 +13,14 @@ import {
   ToggleRight,
   Trash2,
   Code,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useMeasureStore } from '../../stores/measureStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { createAtomicComponent, createCompositeComponent } from '../../services/componentLibraryService';
+import { fetchValueSetExpansion } from '../../services/vsacService';
 import SharedEditWarning from './SharedEditWarning';
 import { InlineErrorBanner } from '../shared/ErrorBoundary';
 import { TimingSection, deriveDueDateDays } from '../shared/TimingSection';
@@ -131,6 +135,11 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
 
   // Error state for inline error display
   const [error, setError] = useState               (null);
+
+  // VSAC fetch state
+  const { vsacApiKey } = useSettingsStore();
+  const [vsacLoading, setVsacLoading] = useState(false);
+  const [vsacStatus, setVsacStatus] = useState                                                    (null);
 
   // --------------------------------------------------------------------------
   // Derived: Available children for composite
@@ -348,6 +357,48 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
     }
     return selectedChildIds.size > 0;
   }, [name, componentType, vsOid, vsName, selectedChildIds.size]);
+
+  // --------------------------------------------------------------------------
+  // VSAC Fetch Handler
+  // --------------------------------------------------------------------------
+  const handleFetchFromVSAC = useCallback(async () => {
+    if (!vsOid.trim()) {
+      setVsacStatus({ type: 'error', message: 'Enter an OID first' });
+      return;
+    }
+    if (!vsacApiKey) {
+      setVsacStatus({ type: 'error', message: 'Set your VSAC API key in Settings first' });
+      return;
+    }
+
+    setVsacLoading(true);
+    setVsacStatus(null);
+
+    try {
+      const result = await fetchValueSetExpansion(vsOid.trim(), vsacApiKey);
+
+      // Merge with existing codes, avoiding duplicates by code value
+      const existingCodeValues = new Set(codes.map(c => c.code));
+      const newCodes = result.codes.filter(c => !existingCodeValues.has(c.code));
+      const mergedCodes = [...codes, ...newCodes];
+
+      setCodes(mergedCodes);
+
+      // Update VS name if it was empty
+      if (!vsName.trim() && result.title) {
+        setVsName(result.title);
+      }
+
+      setVsacStatus({
+        type: 'success',
+        message: `Loaded ${newCodes.length} codes from VSAC (${result.total} total in value set${codes.length > 0 ? `, ${codes.length} already existed` : ''})`,
+      });
+    } catch (err) {
+      setVsacStatus({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setVsacLoading(false);
+    }
+  }, [vsOid, vsacApiKey, codes, vsName]);
 
   // --------------------------------------------------------------------------
   // Render
@@ -604,14 +655,44 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => setCodes([...codes, { code: '', display: '', system: 'CPT'                            }])}
-                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border transition-colors hover:bg-[var(--bg-tertiary)]"
-                  style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}
-                >
-                  <Plus size={12} /> Add Code
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setCodes([...codes, { code: '', display: '', system: 'CPT'                            }])}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border transition-colors hover:bg-[var(--bg-tertiary)]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}
+                  >
+                    <Plus size={12} /> Add Code
+                  </button>
+
+                  {/* Fetch from VSAC */}
+                  <button
+                    type="button"
+                    onClick={handleFetchFromVSAC}
+                    disabled={vsacLoading || !vsOid.trim()}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border transition-colors hover:bg-[var(--bg-tertiary)] disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+                    title={!vsacApiKey ? 'Set VSAC API key in Settings' : !vsOid.trim() ? 'Enter an OID first' : `Fetch codes for OID ${vsOid}`}
+                  >
+                    {vsacLoading ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Download size={12} />
+                    )}
+                    {vsacLoading ? 'Fetching...' : 'Fetch from VSAC'}
+                  </button>
+                </div>
+
+                {/* VSAC Status Message */}
+                {vsacStatus && (
+                  <div className={`text-xs px-3 py-2 rounded-md ${
+                    vsacStatus.type === 'success'
+                      ? 'bg-green-500/10 text-green-400'
+                      : 'bg-red-500/10 text-red-400'
+                  }`}>
+                    {vsacStatus.message}
+                  </div>
+                )}
               </fieldset>
 
               {/* Timing Section */}

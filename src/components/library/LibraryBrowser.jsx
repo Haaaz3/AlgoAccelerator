@@ -21,10 +21,15 @@ import {
   ArrowDown,
   Building2,
   GitMerge,
+  AlertTriangle,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useMeasureStore } from '../../stores/measureStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { getComplexityColor, getComplexityDots } from '../../services/complexityCalculator';
+import { fetchMultipleValueSets } from '../../services/vsacService';
 import { ComponentDetail } from './ComponentDetail';
 import ComponentEditor from './ComponentEditor';
 import CreateComponentWizard from './CreateComponentWizard';
@@ -122,10 +127,17 @@ export function LibraryBrowser() {
     getFilteredComponents,
     initializeWithSampleData,
     rebuildUsageIndex,
+    updateComponent,
   } = useComponentLibraryStore();
   const { measures } = useMeasureStore();
+  const { vsacApiKey } = useSettingsStore();
 
   const [selectedCategory, setSelectedCategory] = useState                           ('all');
+
+  // Bulk VSAC fetch state
+  const [bulkFetchLoading, setBulkFetchLoading] = useState(false);
+  const [bulkFetchProgress, setBulkFetchProgress] = useState({ current: 0, total: 0, name: '' });
+  const [bulkFetchResult, setBulkFetchResult] = useState                                                          (null);
 
   // Seed sample data on mount if store is empty, then rebuild usage index from actual measures
   useEffect(() => {
@@ -233,6 +245,81 @@ export function LibraryBrowser() {
     setEditingComponent(null);
   };
 
+  // Bulk fetch missing codes from VSAC
+  const handleBulkFetchCodes = async () => {
+    if (!vsacApiKey) {
+      setBulkFetchResult({ success: 0, failed: 0, message: 'Configure your VSAC API key in Settings first.' });
+      return;
+    }
+
+    // Find all atomic components with OID but no codes, excluding demographics
+    const needsFetch = components.filter(c => {
+      if (c.type !== 'atomic') return false;
+      if (c.metadata?.category === 'demographics') return false;
+      if (c.genderValue || c.thresholds?.ageMin != null) return false;
+      const oid = c.valueSet?.oid;
+      if (!oid || oid === 'N/A' || !/^\d+\.\d+/.test(oid)) return false;
+      const codes = c.valueSet?.codes || [];
+      return codes.length === 0;
+    });
+
+    if (needsFetch.length === 0) {
+      setBulkFetchResult({ success: 0, failed: 0, message: 'All components already have codes populated.' });
+      return;
+    }
+
+    setBulkFetchLoading(true);
+    setBulkFetchProgress({ current: 0, total: needsFetch.length, name: '' });
+    setBulkFetchResult(null);
+
+    try {
+      const valueSets = needsFetch.map(c => ({
+        oid: c.valueSet.oid,
+        name: c.valueSet.name || c.name,
+        componentId: c.id,
+      }));
+
+      const results = await fetchMultipleValueSets(
+        valueSets,
+        vsacApiKey,
+        (current, total, name) => setBulkFetchProgress({ current, total, name })
+      );
+
+      let successCount = 0;
+      let failedCount = 0;
+
+      for (const c of needsFetch) {
+        const result = results.get(c.valueSet.oid);
+        if (result && result.codes && result.codes.length > 0) {
+          // Update the component with fetched codes
+          updateComponent(c.id, {
+            valueSet: {
+              ...c.valueSet,
+              codes: result.codes,
+            },
+          });
+          successCount++;
+        } else {
+          failedCount++;
+        }
+      }
+
+      setBulkFetchResult({
+        success: successCount,
+        failed: failedCount,
+        message: `Populated codes for ${successCount} components${failedCount > 0 ? `, ${failedCount} failed` : ''}`,
+      });
+    } catch (err) {
+      setBulkFetchResult({
+        success: 0,
+        failed: needsFetch.length,
+        message: err instanceof Error ? err.message : 'Failed to fetch codes',
+      });
+    } finally {
+      setBulkFetchLoading(false);
+    }
+  };
+
   // Merge mode state
   const [mergeMode, setMergeMode] = useState(false);
   const [mergeSelectedIds, setMergeSelectedIds] = useState([]);
@@ -324,6 +411,21 @@ export function LibraryBrowser() {
             ) : (
               <>
                 <button
+                  onClick={handleBulkFetchCodes}
+                  disabled={bulkFetchLoading}
+                  className="h-10 px-4 bg-[var(--bg-tertiary)] text-[var(--text)] rounded-lg font-medium hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2 border border-[var(--border)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!vsacApiKey ? 'Configure VSAC API key in Settings' : 'Fetch codes for all components with OIDs'}
+                >
+                  {bulkFetchLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  {bulkFetchLoading
+                    ? `Fetching ${bulkFetchProgress.current} of ${bulkFetchProgress.total}...`
+                    : 'Fetch All Codes'}
+                </button>
+                <button
                   onClick={handleMergeComponents}
                   className="h-10 px-4 bg-[var(--bg-tertiary)] text-[var(--text)] rounded-lg font-medium hover:bg-[var(--bg-secondary)] transition-colors flex items-center gap-2 border border-[var(--border)]"
                 >
@@ -342,6 +444,42 @@ export function LibraryBrowser() {
           </div>
         </div>
       </div>
+
+      {/* Bulk Fetch Result Banner */}
+      {bulkFetchResult && (
+        <div className={`px-6 py-3 flex items-center justify-between ${
+          bulkFetchResult.failed > 0 && bulkFetchResult.success === 0
+            ? 'bg-red-500/10 border-b border-red-500/20'
+            : bulkFetchResult.failed > 0
+              ? 'bg-amber-500/10 border-b border-amber-500/20'
+              : 'bg-green-500/10 border-b border-green-500/20'
+        }`}>
+          <div className="flex items-center gap-2">
+            {bulkFetchResult.failed > 0 && bulkFetchResult.success === 0 ? (
+              <AlertTriangle className="w-4 h-4 text-red-400" />
+            ) : bulkFetchResult.failed > 0 ? (
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+            ) : (
+              <CheckCircle className="w-4 h-4 text-green-400" />
+            )}
+            <span className={`text-sm font-medium ${
+              bulkFetchResult.failed > 0 && bulkFetchResult.success === 0
+                ? 'text-red-400'
+                : bulkFetchResult.failed > 0
+                  ? 'text-amber-400'
+                  : 'text-green-400'
+            }`}>
+              {bulkFetchResult.message}
+            </span>
+          </div>
+          <button
+            onClick={() => setBulkFetchResult(null)}
+            className="p-1 hover:bg-[var(--bg-tertiary)] rounded transition-colors"
+          >
+            <X className="w-4 h-4 text-[var(--text-muted)]" />
+          </button>
+        </div>
+      )}
 
       {/* Main Body */}
       <div className="flex-1 flex overflow-hidden">
@@ -702,6 +840,16 @@ function ComponentCard({
             </div>
           )}
 
+          {/* Missing codes warning */}
+          {component.type === 'atomic' &&
+            component.metadata?.category !== 'demographics' &&
+            (!component.valueSet?.codes || component.valueSet.codes.length === 0) && (
+            <div className="flex items-center gap-1 text-xs text-amber-400 mb-3">
+              <AlertTriangle className="w-3 h-3" />
+              <span>Missing codes</span>
+            </div>
+          )}
+
           {/* Footer: Usage + Status */}
           <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
             <span className="text-xs text-[var(--text-dim)] flex items-center gap-1">
@@ -771,6 +919,16 @@ function ComponentCard({
               : component.dueDateDays % 365 === 0 ? `${component.dueDateDays / 365}yr`
               : `${component.dueDateDays}d`})
           </span>
+        </div>
+      )}
+
+      {/* Missing codes warning */}
+      {component.type === 'atomic' &&
+        component.metadata?.category !== 'demographics' &&
+        (!component.valueSet?.codes || component.valueSet.codes.length === 0) && (
+        <div className="flex items-center gap-1 text-xs text-amber-400 mb-3">
+          <AlertTriangle className="w-3 h-3" />
+          <span>Missing codes</span>
         </div>
       )}
 

@@ -16,7 +16,7 @@ import { setOperatorBetween } from '../types/ums';
 ;                                                   
 import { syncAgeConstraints } from '../utils/constraintSync';
 import { calculateDataElementComplexity } from '../services/complexityCalculator';
-import { migrateMeasure, needsMigration } from '../utils/measureMigration';
+import { migrateMeasure, needsMigration, backfillMissingOIDs } from '../utils/measureMigration';
 import { getMeasuresFull, importMeasures } from '../api/measures';
 import { transformMeasureDto } from '../api/transformers';
 
@@ -355,6 +355,9 @@ export const useMeasureStore = create              ()(
           : needsMigration(measure)
             ? migrateMeasure(measure)
             : { ...measure, resourceType: 'Measure'          };
+
+        // Backfill missing OIDs from standard catalog
+        fhirMeasure = backfillMissingOIDs(fhirMeasure);
 
         // Link data elements to component library (async, non-blocking for initial add)
         // Import the store dynamically to avoid circular dependency

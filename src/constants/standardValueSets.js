@@ -904,7 +904,7 @@ export function searchStandardValueSets(query        )                     {
 export function isCodeInValueSets(
   code        ,
   _system        ,
-  valueSets                    
+  valueSets
 )                                                                                              {
   const normalizedCode = code.toUpperCase().replace(/\./g, '');
 
@@ -918,4 +918,28 @@ export function isCodeInValueSets(
   }
 
   return { found: false };
+}
+
+/**
+ * Find a standard value set by approximate name match.
+ * Returns { oid, name } or null.
+ */
+export function findStandardValueSetByName(name        )                                            {
+  if (!name) return null;
+  const nameLower = name.toLowerCase().trim();
+
+  const allValueSets = getAllStandardValueSets();
+
+  // Exact match first
+  const exact = allValueSets.find(
+    vs => vs.name.toLowerCase() === nameLower
+  );
+  if (exact) return { oid: exact.oid, name: exact.name };
+
+  // Fuzzy: check if the name contains or is contained by a known VS name
+  const fuzzy = allValueSets.find(vs => {
+    const vsLower = vs.name.toLowerCase();
+    return vsLower.includes(nameLower) || nameLower.includes(vsLower);
+  });
+  return fuzzy ? { oid: fuzzy.oid, name: fuzzy.name } : null;
 }

@@ -9,11 +9,13 @@ export function SettingsPage() {
     apiKeys,
     customLlmBaseUrl,
     customLlmModelName,
+    vsacApiKey,
     setSelectedProvider,
     setSelectedModel,
     setApiKey,
     setCustomLlmBaseUrl,
     setCustomLlmModelName,
+    setVsacApiKey,
   } = useSettingsStore();
 
   const [apiKeyInput, setApiKeyInput] = useState(apiKeys[selectedProvider] || '');
@@ -234,6 +236,54 @@ export function SettingsPage() {
               )}
             </div>
           )}
+
+          {/* VSAC Integration */}
+          <div className="p-5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-xl shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <Key className="w-5 h-5 text-[var(--accent)]" />
+              <h3 className="font-semibold text-[var(--text)]">VSAC Integration</h3>
+            </div>
+            <p className="text-sm text-[var(--text-muted)] mb-4">
+              Connect to the Value Set Authority Center (VSAC) to fetch standardized code sets for your measure components.
+              Requires a free UMLS account.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-[var(--text)] mb-1">
+                  UMLS API Key
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="password"
+                    value={vsacApiKey}
+                    onChange={(e) => setVsacApiKey(e.target.value)}
+                    placeholder="Enter your UMLS API key"
+                    className="flex-1 px-4 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]"
+                  />
+                </div>
+                <p className="text-xs text-[var(--text-dim)] mt-1.5">
+                  Get a free API key at{' '}
+                  <a
+                    href="https://uts.nlm.nih.gov/uts/profile"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--accent)] hover:underline"
+                  >
+                    uts.nlm.nih.gov
+                  </a>
+                  {' '}&rarr; My Profile &rarr; API Key
+                </p>
+              </div>
+
+              {vsacApiKey && (
+                <div className="flex items-center gap-2 text-sm text-[var(--success)]">
+                  <CheckCircle className="w-4 h-4" />
+                  VSAC API key configured
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Info Card */}
           <div className="p-4 bg-[var(--accent-light)] border border-[var(--accent)]/30 rounded-xl">
