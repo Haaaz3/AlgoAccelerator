@@ -27,6 +27,7 @@
 import { calculateAtomicComplexity, calculateCompositeComplexity } from './complexityCalculator';
 import { validateOID,                          } from './oidValidator';
 import { deriveDueDateDays } from '../components/shared/TimingSection';
+import { hydrateCodesFromCache } from '../data/vsacCodeCache';
 
 // ============================================================================
 // ID Generation
@@ -132,6 +133,18 @@ export function createAtomicComponent(params                    )               
     usage: createInitialUsage(),
     metadata: createInitialMetadata(params.category, params.tags || [], params.createdBy || 'user', now),
   };
+
+  // Hydrate codes from cache if OID exists but no codes
+  if (base.valueSet?.oid && /^\d+\.\d+/.test(base.valueSet.oid)) {
+    const codes = base.valueSet.codes || [];
+    if (codes.length === 0) {
+      const cachedCodes = hydrateCodesFromCache(base.valueSet.oid);
+      if (cachedCodes && cachedCodes.length > 0) {
+        base.valueSet.codes = cachedCodes;
+        console.log(`[createAtomicComponent] Hydrated ${cachedCodes.length} codes from cache for OID ${base.valueSet.oid}`);
+      }
+    }
+  }
 
   const complexity = calculateAtomicComplexity(base);
 

@@ -18,6 +18,7 @@ import { post } from '../api/client';
                       
 import { parseHtmlSpec,                          } from './htmlSpecParser';
 import { findStandardValueSetByName } from '../constants/standardValueSets';
+import { hydrateCodesFromCache } from '../data/vsacCodeCache';
 ;                                                 
 
 // ============================================================================
@@ -1392,6 +1393,15 @@ export function enrichDataElementsFromParsedSources(
     if (node.type !== 'demographic' && node.category !== 'demographics') {
       // Skip if already has an OID
       if (node.valueSet?.oid && /^\d+\.\d+/.test(node.valueSet.oid)) {
+        // Strategy 5: Hydrate codes from VSAC cache if OID exists but no codes
+        const codes = node.valueSet?.codes || [];
+        if (codes.length === 0) {
+          const cachedCodes = hydrateCodesFromCache(node.valueSet.oid);
+          if (cachedCodes && cachedCodes.length > 0) {
+            node.valueSet.codes = cachedCodes;
+            console.log(`[enrichFromParsedSources] Hydrated ${cachedCodes.length} codes from cache for OID ${node.valueSet.oid}`);
+          }
+        }
         return;
       }
 
@@ -1401,6 +1411,16 @@ export function enrichDataElementsFromParsedSources(
       if (match) {
         applyMatch(node, match);
         enrichedCount++;
+
+        // Also try to hydrate codes from cache for the matched OID
+        const codes = node.valueSet?.codes || [];
+        if (codes.length === 0) {
+          const cachedCodes = hydrateCodesFromCache(match.oid);
+          if (cachedCodes && cachedCodes.length > 0) {
+            node.valueSet.codes = cachedCodes;
+            console.log(`[enrichFromParsedSources] Hydrated ${cachedCodes.length} codes from cache for matched OID ${match.oid}`);
+          }
+        }
         return;
       }
     }
