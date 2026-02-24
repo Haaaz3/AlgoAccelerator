@@ -715,7 +715,7 @@ export default function ComponentEditor({ componentId, onSave, onClose }        
                 negation={negation}
                 componentData={{
                   name,
-                  description,
+                  description: existingComponent?.description || name,
                   genderValue: existingComponent?.genderValue,
                   resourceType: existingComponent?.resourceType,
                   thresholds: existingComponent?.thresholds,
