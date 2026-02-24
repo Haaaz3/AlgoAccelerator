@@ -138,6 +138,21 @@ public class MeasureMapper {
             return null;
         }
 
+        // Map value sets with their codes
+        List<DataElementDto.ValueSetRefDto> valueSetRefs = entity.getValueSets().stream()
+            .map(vs -> new DataElementDto.ValueSetRefDto(
+                vs.getId(),
+                vs.getOid(),
+                vs.getName(),
+                vs.getVersion(),
+                vs.getSource(),
+                vs.getVerified() != null && vs.getVerified(),
+                vs.getCodes().stream()
+                    .map(this::toValueSetCodeDto)
+                    .collect(Collectors.toList())
+            ))
+            .collect(Collectors.toList());
+
         return new DataElementDto(
             entity.getId(),
             entity.getElementType() != null ? entity.getElementType().name() : null,
@@ -149,10 +164,12 @@ public class MeasureMapper {
             entity.getGenderValue() != null ? entity.getGenderValue().name() : null,
             toThresholdDto(entity.getThresholds()),
             entity.getTimingOverride(),
+            entity.getTimingWindow(),
             entity.getAdditionalRequirements(),
             entity.getConfidence() != null ? entity.getConfidence().name() : null,
             entity.getReviewStatus() != null ? entity.getReviewStatus().name() : null,
-            entity.getDisplayOrder() != null ? entity.getDisplayOrder() : 0
+            entity.getDisplayOrder() != null ? entity.getDisplayOrder() : 0,
+            valueSetRefs
         );
     }
 

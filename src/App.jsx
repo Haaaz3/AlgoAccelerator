@@ -41,8 +41,9 @@ function AppContent() {
   const location = useLocation();
 
   const { setActiveTab, measures, loadFromApi: loadMeasures, isLoadingFromApi: measuresLoading, apiError: measuresError } = useMeasureStore();
-  const { loadFromApi: loadComponents, rebuildUsageIndex, isLoadingFromApi: componentsLoading, apiError: componentsError } = useComponentLibraryStore();
+  const { loadFromApi: loadComponents, rebuildUsageIndex, initializeWithSampleData, isLoadingFromApi: componentsLoading, apiError: componentsError } = useComponentLibraryStore();
   const [isRetrying, setIsRetrying] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
 
   // Sync URL to store on location change (one-way: URL -> store)
   useEffect(() => {
@@ -67,13 +68,22 @@ function AppContent() {
   }, [measuresLoading, componentsLoading, measures, rebuildUsageIndex]);
 
   const isLoading = measuresLoading || componentsLoading;
-  const hasError = !isLoading && (measuresError || componentsError);
+  const hasError = !isLoading && !demoMode && (measuresError || componentsError);
   const errorMessage = measuresError || componentsError;
 
   const handleRetry = async () => {
     setIsRetrying(true);
     await initializeStores();
     setIsRetrying(false);
+  };
+
+  const handleDemoMode = () => {
+    // Initialize component library with built-in sample data
+    initializeWithSampleData();
+    // Clear error state so the app renders
+    useMeasureStore.setState({ apiError: null });
+    useComponentLibraryStore.setState({ apiError: null });
+    setDemoMode(true);
   };
 
   return (
@@ -113,9 +123,15 @@ function AppContent() {
                       <RefreshCw className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`} />
                       {isRetrying ? 'Retrying...' : 'Retry Connection'}
                     </button>
+                    <button
+                      onClick={handleDemoMode}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-sm font-medium transition-colors"
+                    >
+                      Continue in Demo Mode
+                    </button>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-4">
-                    Run: <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">cd backend && ./mvnw spring-boot:run</code>
+                    Demo mode uses sample data stored in-browser. Import measures or connect a backend for full functionality.
                   </p>
                 </div>
               </div>
@@ -123,6 +139,20 @@ function AppContent() {
           </div>
         )}
         <main className="flex-1 flex flex-col overflow-hidden">
+          {demoMode && (
+            <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 flex items-center justify-between text-xs">
+              <span className="text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="w-3 h-3 inline mr-1.5" />
+                Demo Mode — data is stored in-browser only. Connect a backend for persistence.
+              </span>
+              <button
+                onClick={() => { setDemoMode(false); initializeStores(); }}
+                className="text-amber-600 dark:text-amber-400 hover:underline font-medium"
+              >
+                Reconnect
+              </button>
+            </div>
+          )}
           <Routes>
             <Route path="/" element={<MeasureLibrary />} />
             <Route path="/library" element={<MeasureLibrary />} />

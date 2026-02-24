@@ -116,6 +116,35 @@ function mapComparator(comp                           )                         
 }
 
 function transformDataElement(dto                )              {
+  // Transform valueSets from backend if present
+  const valueSets = dto.valueSets?.map(vs => ({
+    id: vs.id || vs.oid || '',
+    oid: vs.oid || '',
+    name: vs.name || '',
+    version: vs.version || '',
+    source: vs.source || 'backend',
+    verified: vs.verified || false,
+    codes: vs.codes?.map(c => ({
+      code: c.code || '',
+      system: c.system || '',
+      display: c.display || '',
+    })) || [],
+    totalCodeCount: vs.codes?.length || 0,
+  })) || [];
+
+  // Use first value set as the primary (backward compat with single-valueSet code paths)
+  const valueSet = valueSets.length > 0 ? valueSets[0] : undefined;
+
+  // Parse JSON fields that the backend stores as TEXT columns
+  let timingWindow = undefined;
+  if (dto.timingWindow) {
+    try { timingWindow = JSON.parse(dto.timingWindow); } catch { /* ignore */ }
+  }
+  let additionalRequirements = undefined;
+  if (dto.additionalRequirements) {
+    try { additionalRequirements = JSON.parse(dto.additionalRequirements); } catch { /* ignore */ }
+  }
+
   return {
     id: dto.id,
     type: mapElementType(dto.elementType),
@@ -125,6 +154,10 @@ function transformDataElement(dto                )              {
     negationRationale: dto.negationRationale || undefined,
     confidence: mapConfidence(dto.confidence),
     reviewStatus: mapReviewStatus(dto.reviewStatus),
+    valueSet,
+    valueSets,
+    timingWindow,
+    additionalRequirements,
     thresholds: dto.thresholds ? {
       ageMin: dto.thresholds.ageMin ?? undefined,
       ageMax: dto.thresholds.ageMax ?? undefined,
