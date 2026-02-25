@@ -18,12 +18,14 @@ import {
   MessageSquare,
   Link2,
   Unlink,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { InlineErrorBanner, InlineSuccessBanner } from '../shared/ErrorBoundary.jsx';
 import { useMeasureStore } from '../../stores/measureStore.js';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore.js';
 import { ComponentBuilder } from './ComponentBuilder.jsx';
 import { ComponentDetailPanel } from './ComponentDetailPanel.jsx';
+import { ComponentSwapModal } from './ComponentSwapModal.jsx';
 
 // ============================================================================
 // Constants
@@ -78,7 +80,7 @@ function getComplexityLevel(score) {
 // Data Element Node Component
 // ============================================================================
 
-function DataElementNode({ element, isSelected, onSelect, onDelete, deepMode }) {
+function DataElementNode({ element, isSelected, onSelect, onDelete, onSwap, deepMode }) {
   const hasZeroCodes = (element.valueSet?.codes?.length ?? 0) === 0 &&
                        (element.directCodes?.length ?? 0) === 0 &&
                        element.type !== 'demographic';
@@ -162,17 +164,33 @@ function DataElementNode({ element, isSelected, onSelect, onDelete, deepMode }) 
         </div>
       </div>
 
-      {/* Delete button in deep mode */}
+      {/* Action buttons in deep mode */}
       {deepMode && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(element.id);
-          }}
-          className="flex-shrink-0 p-1.5 rounded-lg text-[var(--text-dim)] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <Trash2 size={14} />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Swap button - shows when selected */}
+          {isSelected && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSwap(element);
+              }}
+              className="p-1.5 rounded-lg text-[var(--accent)] hover:text-[var(--accent)] hover:bg-[var(--accent-light)] transition-all"
+              title="Swap with another component"
+            >
+              <ArrowLeftRight size={14} />
+            </button>
+          )}
+          {/* Delete button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(element.id);
+            }}
+            className="p-1.5 rounded-lg text-[var(--text-dim)] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -182,7 +200,7 @@ function DataElementNode({ element, isSelected, onSelect, onDelete, deepMode }) 
 // Logic Clause Component
 // ============================================================================
 
-function LogicClause({ clause, depth, selectedNode, onSelectNode, onDelete, deepMode }) {
+function LogicClause({ clause, depth, selectedNode, onSelectNode, onDelete, onSwap, deepMode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   if (!clause || !clause.children) {
@@ -229,6 +247,7 @@ function LogicClause({ clause, depth, selectedNode, onSelectNode, onDelete, deep
                   selectedNode={selectedNode}
                   onSelectNode={onSelectNode}
                   onDelete={onDelete}
+                  onSwap={onSwap}
                   deepMode={deepMode}
                 />
               ) : (
@@ -237,6 +256,7 @@ function LogicClause({ clause, depth, selectedNode, onSelectNode, onDelete, deep
                   isSelected={selectedNode === child.id}
                   onSelect={onSelectNode}
                   onDelete={onDelete}
+                  onSwap={onSwap}
                   deepMode={deepMode}
                 />
               )}
@@ -275,6 +295,7 @@ function PopulationSection({
   onAddComponent,
   deepMode,
   onDelete,
+  onSwap,
 }) {
   const label = getPopulationLabel(population.type);
   const childCount = population.criteria?.children?.length || 0;
@@ -314,6 +335,7 @@ function PopulationSection({
               selectedNode={selectedNode}
               onSelectNode={onSelectNode}
               onDelete={onDelete}
+              onSwap={onSwap}
               deepMode={deepMode}
             />
           )}
@@ -370,6 +392,7 @@ export function UMSEditor() {
     addComponentToPopulation,
     addValueSet,
     deleteComponent,
+    replaceComponent,
     getReviewProgress,
     approveAllLowComplexity,
     exportCorrections,
@@ -391,6 +414,7 @@ export function UMSEditor() {
   const [expandedSections, setExpandedSections] = useState(new Set(['ip', 'den', 'ex', 'num', 'initial_population', 'denominator', 'denominator_exclusion', 'numerator']));
   const [selectedNode, setSelectedNode] = useState(null);
   const [builderTarget, setBuilderTarget] = useState(null);
+  const [swapTarget, setSwapTarget] = useState(null); // Component being swapped
   const [deepMode, setDeepMode] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -462,6 +486,27 @@ export function UMSEditor() {
   const handleDelete = (componentId) => {
     if (!measure) return;
     deleteComponent(measure.id, componentId);
+  };
+
+  // Handle swap initiation - opens the swap modal
+  const handleSwap = (element) => {
+    setSwapTarget(element);
+  };
+
+  // Handle swap confirmation - performs the actual replacement
+  const handleSwapConfirm = async (newComponent) => {
+    if (!measure || !swapTarget) return;
+
+    try {
+      await replaceComponent(measure.id, swapTarget.id, newComponent);
+      setSwapTarget(null);
+      setSelectedNode(null); // Deselect after swap
+      setSuccess('Component swapped successfully');
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (err) {
+      setError('Failed to swap component');
+      setTimeout(() => setError(null), 3000);
+    }
   };
 
   // Export corrections
@@ -722,6 +767,7 @@ export function UMSEditor() {
                 onAddComponent={() => setBuilderTarget({ populationId: population.id, populationType: population.type })}
                 deepMode={deepMode}
                 onDelete={handleDelete}
+                onSwap={handleSwap}
               />
             ))}
           </div>
@@ -824,6 +870,15 @@ export function UMSEditor() {
             setBuilderTarget(null);
           }}
           onClose={() => setBuilderTarget(null)}
+        />
+      )}
+
+      {/* Component Swap modal */}
+      {swapTarget && measure && (
+        <ComponentSwapModal
+          currentComponent={swapTarget}
+          onSwap={handleSwapConfirm}
+          onClose={() => setSwapTarget(null)}
         />
       )}
     </div>

@@ -201,236 +201,14 @@ function parseAgeRangeFromText(text        )                                    
   return null;
 }
 
-function getMeasureAgeRequirements(measure                      )                        {
-  // 1. Check explicit global constraints (most reliable)
-  if (measure.globalConstraints?.ageRange) {
-    return {
-      minAge: measure.globalConstraints.ageRange.min,
-      maxAge: measure.globalConstraints.ageRange.max,
-      description: `Age ${measure.globalConstraints.ageRange.min}-${measure.globalConstraints.ageRange.max}`,
-      checkType: measure.globalConstraints.ageCalculation === 'turns_during' ? 'turns' : 'range'
-    };
-  }
-
-  // 2. Scan ALL population criteria for age DataElements (not just IP)
-  for (const pop of measure.populations) {
-    const ageReq = findAgeRequirementInClause(pop.criteria);
-    if (ageReq) return ageReq;
-  }
-
-  // 3. Parse from population descriptions and narratives
-  for (const pop of measure.populations) {
-    const parsed = parseAgeRangeFromText(pop.description)
-      || parseAgeRangeFromText(pop.narrative);
-    if (parsed) {
-      return {
-        minAge: parsed.min,
-        maxAge: parsed.max,
-        description: `Age ${parsed.min}-${parsed.max}`,
-        checkType: parsed.min <= 18 ? 'turns' : 'range'
-      };
-    }
-  }
-
-  // 4. Parse from measure metadata title/description
-  const metaText = `${measure.metadata.title || ''} ${measure.metadata.description || ''}`;
-  const metaParsed = parseAgeRangeFromText(metaText);
-  if (metaParsed) {
-    return {
-      minAge: metaParsed.min,
-      maxAge: metaParsed.max,
-      description: `Age ${metaParsed.min}-${metaParsed.max}`,
-      checkType: metaParsed.min <= 18 ? 'turns' : 'range'
-    };
-  }
-
-  return null;
-}
-
-/** Walk a clause tree looking for a demographic DataElement with age info */
-function findAgeRequirementInClause(clause               )                        {
-  for (const child of clause.children) {
-    if ('operator' in child) {
-      const result = findAgeRequirementInClause(child                 );
-      if (result) return result;
-    } else {
-      const element = child               ;
-      const isAgeRelated = element.type === 'demographic'
-        || element.description?.toLowerCase().includes('age')
-        || element.thresholds?.ageMin !== undefined
-        || element.thresholds?.ageMax !== undefined;
-
-      if (!isAgeRelated) continue;
-
-      // Priority 1: Structured thresholds
-      if (element.thresholds?.ageMin !== undefined || element.thresholds?.ageMax !== undefined) {
-        const minAge = element.thresholds.ageMin ?? 0;
-        const maxAge = element.thresholds.ageMax ?? 120;
-        return {
-          minAge,
-          maxAge,
-          description: `Age ${minAge}-${maxAge}`,
-          checkType: minAge <= 18 ? 'turns' : 'range'
-        };
-      }
-
-      // Priority 2: Parse from description
-      const parsed = parseAgeRangeFromText(element.description || '');
-      if (parsed) {
-        return {
-          minAge: parsed.min,
-          maxAge: parsed.max,
-          description: `Age ${parsed.min}-${parsed.max}`,
-          checkType: parsed.min <= 18 ? 'turns' : 'range'
-        };
-      }
-
-      // Priority 3: Parse from additionalRequirements
-      if (element.additionalRequirements) {
-        for (const req of element.additionalRequirements) {
-          const reqParsed = parseAgeRangeFromText(req);
-          if (reqParsed) {
-            return {
-              minAge: reqParsed.min,
-              maxAge: reqParsed.max,
-              description: `Age ${reqParsed.min}-${reqParsed.max}`,
-              checkType: reqParsed.min <= 18 ? 'turns' : 'range'
-            };
-          }
-        }
-      }
-    }
-  }
-  return null;
-}
-
-/**
- * Calculate patient's age at a given date
- */
-function calculateAge(birthDate      , atDate      )         {
-  let age = atDate.getFullYear() - birthDate.getFullYear();
-  const monthDiff = atDate.getMonth() - birthDate.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && atDate.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age;
-}
-
-/**
- * Check if patient turns a specific age during a date range
- */
-function turnsAgeDuring(birthDate      , targetAge        , rangeStart      , rangeEnd      )          {
-  const targetBirthday = new Date(birthDate);
-  targetBirthday.setFullYear(birthDate.getFullYear() + targetAge);
-  return targetBirthday >= rangeStart && targetBirthday <= rangeEnd;
-}
-
-/**
- * Check if patient meets age requirement for the measure
- * This is a PRE-CHECK before any population evaluation
- */
-function checkAgeRequirement(
-  patient             ,
-  measure                      ,
-  mpStart        ,
-  mpEnd        
-)                                                      {
-  const birthDate = new Date(patient.demographics.birthDate);
-  const mpStartDate = new Date(mpStart);
-  const mpEndDate = new Date(mpEnd);
-
-  const ageAtStart = calculateAge(birthDate, mpStartDate);
-  const ageAtEnd = calculateAge(birthDate, mpEndDate);
-  const ageInfo = `Age ${ageAtStart} at MP start, ${ageAtEnd} at MP end`;
-
-  const ageReqs = getMeasureAgeRequirements(measure);
-
-  if (!ageReqs) {
-    // No specific age requirements detected, allow through
-    return { met: true, ageInfo };
-  }
-
-  // For "turns X" type measures (childhood immunizations)
-  if (ageReqs.checkType === 'turns') {
-    // Check if patient turns the target age (maxAge) during the measurement period
-    const turnsTargetAge = turnsAgeDuring(birthDate, ageReqs.maxAge, mpStartDate, mpEndDate);
-
-    if (!turnsTargetAge) {
-      // Also check if they're within the valid range to be considered
-      // For childhood imms: must be age 1-2 during the measurement period
-      const withinRange = ageAtEnd >= ageReqs.minAge && ageAtStart <= ageReqs.maxAge;
-
-      if (!withinRange) {
-        return {
-          met: false,
-          reason: `Patient age (${ageAtStart}-${ageAtEnd}) is outside the required range. ${ageReqs.description}`,
-          ageInfo
-        };
-      }
-    }
-
-    return { met: true, ageInfo };
-  }
-
-  // For range-based age requirements (adult measures)
-  // Patient must be within the age range at some point during the measurement period
-  const meetsMinAge = ageAtEnd >= ageReqs.minAge;
-  const meetsMaxAge = ageAtStart <= ageReqs.maxAge;
-
-  if (!meetsMinAge) {
-    return {
-      met: false,
-      reason: `Patient is too young (age ${ageAtEnd}). ${ageReqs.description}`,
-      ageInfo
-    };
-  }
-
-  if (!meetsMaxAge) {
-    return {
-      met: false,
-      reason: `Patient is too old (age ${ageAtStart}). ${ageReqs.description}`,
-      ageInfo
-    };
-  }
-
-  return { met: true, ageInfo };
-}
-
-/**
- * Check if patient meets gender requirement for the measure
- */
-function checkGenderRequirement(
-  patient             ,
-  measure
-)                                                                   {
-  const requiredGender = measure.globalConstraints?.gender;
-
-  // No gender requirement if: null, undefined, empty string, 'all', 'any', or 'Any'
-  const noGenderRequirement = !requiredGender ||
-    requiredGender === '' ||
-    requiredGender.toLowerCase() === 'all' ||
-    requiredGender.toLowerCase() === 'any';
-
-  if (noGenderRequirement) {
-    // Measure has no gender restriction — all genders pass
-    return { met: true, hasGenderRequirement: false };
-  }
-
-  // Measure requires specific gender (male/female)
-  if (patient.demographics.gender?.toLowerCase() !== requiredGender.toLowerCase()) {
-    return {
-      met: false,
-      reason: `Patient gender (${patient.demographics.gender}) does not match required gender (${requiredGender})`,
-      hasGenderRequirement: true
-    };
-  }
-
-  return {
-    met: true,
-    reason: `Patient gender (${patient.demographics.gender}) meets requirement (${requiredGender})`,
-    hasGenderRequirement: true
-  };
-}
+// ═══ DELETED: Pre-check functions removed (Components as Source of Truth refactor) ═══
+// - getMeasureAgeRequirements() — inferred age from globalConstraints/metadata/text
+// - findAgeRequirementInClause() — walked clause tree for age inference
+// - calculateAge() — used only by pre-check
+// - turnsAgeDuring() — used only by pre-check
+// - checkAgeRequirement() — pre-check shadow layer
+// - checkGenderRequirement() — read globalConstraints.gender
+// All evaluation now flows through evaluatePopulation → evaluateClause → evaluateDataElement
 
 /**
  * Evaluate a test patient against a measure and generate a validation trace
@@ -444,73 +222,10 @@ export function evaluatePatient(
   const mpStart = measurementPeriod?.start || `${new Date().getFullYear()}-01-01`;
   const mpEnd = measurementPeriod?.end || `${new Date().getFullYear()}-12-31`;
 
-  // Collect all IP pre-check nodes to show complete picture
-  const ipPreCheckNodes                   = [];
-  let ipPreChecksPassed = true;
-  const howCloseReasons           = [];
-
-  // Check gender requirement (for gender-specific measures)
-  const genderCheck = checkGenderRequirement(patient, measure);
-  if (genderCheck.hasGenderRequirement) {
-    // Only add gender node if this measure has gender requirements
-    ipPreCheckNodes.push({
-      id: 'gender-check',
-      title: 'Gender Requirement',
-      type: 'decision',
-      description: genderCheck.reason || (genderCheck.met ? 'Gender requirement met' : 'Gender requirement not met'),
-      status: genderCheck.met ? 'pass' : 'fail',
-      facts: [{
-        code: 'GENDER',
-        display: `Patient gender: ${patient.demographics.gender}`,
-        source: 'Demographics',
-      }],
-    });
-    if (!genderCheck.met) {
-      ipPreChecksPassed = false;
-      howCloseReasons.push(genderCheck.reason || 'Gender requirement not met');
-    }
-  }
-
-  // Check age requirement - but only add as a pre-check if the IP population
-  // does NOT already have a demographic/age criterion in its UMS-defined criteria.
-  // Otherwise, the age check will be duplicated (once as a pre-check node and
-  // once as a UMS criteria node) resulting in an extra criterion in the trace.
-  const ipPop_ = measure.populations.find(p =>
-    p.type === 'initial_population' || p.type === 'initial-population'
-  );
-  const ipHasAgeCriterion = ipPop_?.criteria?.children
-    ? findAgeRequirementInClause(ipPop_.criteria)
-    : (ipPop_?.criteria?.type === 'demographic');
-
-  const ageCheck = checkAgeRequirement(patient, measure, mpStart, mpEnd);
-  const ageReqs = getMeasureAgeRequirements(measure);
-  if ((ageReqs || ageCheck.ageInfo) && !ipHasAgeCriterion) {
-    // Only add the pre-check age node when the IP criteria don't already cover age
-    const ageDescription = ageCheck.met
-      ? `${ageCheck.ageInfo}. Meets requirement: ${ageReqs?.description || 'Age criteria satisfied'}`
-      : (ageCheck.reason || 'Age requirement not met');
-    ipPreCheckNodes.push({
-      id: 'age-check',
-      title: 'Age Requirement',
-      type: 'decision',
-      description: ageDescription,
-      status: ageCheck.met ? 'pass' : 'fail',
-      facts: [{
-        code: 'AGE',
-        display: ageCheck.ageInfo || `Patient age: calculated from DOB`,
-        source: 'Demographics',
-        date: patient.demographics.birthDate,
-      }],
-    });
-    if (!ageCheck.met) {
-      ipPreChecksPassed = false;
-      howCloseReasons.push(ageCheck.reason || 'Age requirement not met');
-    }
-  } else if ((ageReqs || ageCheck.ageInfo) && ipHasAgeCriterion && !ageCheck.met) {
-    // Even if we skip the pre-check node, still track failure for howClose reasons
-    ipPreChecksPassed = false;
-    howCloseReasons.push(ageCheck.reason || 'Age requirement not met');
-  }
+  // ── Components are the single source of truth ──
+  // All evaluation flows through evaluatePopulation → evaluateClause → evaluateDataElement.
+  // No shadow pre-checks for age or gender. If a demographic component exists in the
+  // population criteria, it gets evaluated. If it doesn't exist, it doesn't get checked.
 
   // Find each population type (handle both snake_case and kebab-case)
   const findPop = (types) => measure.populations.find(p => types.includes(p.type));
@@ -522,24 +237,16 @@ export function evaluatePatient(
   const numerPop = findPop(['numerator']);
   const _numerExclPop = findPop(['numerator_exclusion', 'numerator-exclusion']);
 
-  // Evaluate measure-defined IP criteria (only if pre-checks passed)
-  const ipMeasureCriteria = (ipPop && ipPreChecksPassed)
+  // Evaluate IP criteria directly from components — no pre-check layer
+  const ipResult = ipPop
     ? evaluatePopulation(patient, ipPop, measure, mpStart, mpEnd)
-    : { met: ipPreChecksPassed, nodes: [] };
+    : { met: true, nodes: [] };
 
-  // Combine pre-check nodes with measure-defined IP criteria nodes
-  const ipResult = {
-    met: ipPreChecksPassed && ipMeasureCriteria.met,
-    nodes: [...ipPreCheckNodes, ...ipMeasureCriteria.nodes],
-  };
-
-  // Denominator: check if it "equals Initial Population" (common pattern)
-  // If so, inherit the IP result directly to avoid mismatches
+  // Denominator equals IP when: no denominator defined, OR criteria is empty/missing
+  // NO text parsing — only inspect the criteria structure
   const denomEqualsIP = !denomPop
-    || denomPop.description?.toLowerCase().includes('equals initial population')
-    || denomPop.description?.toLowerCase().includes('same as initial population')
-    || denomPop.narrative?.toLowerCase().includes('equals initial population')
-    || denomPop.criteria?.children?.length === 0;
+    || !denomPop.criteria
+    || (denomPop.criteria.children && denomPop.criteria.children.length === 0);
 
   const denomResult = denomEqualsIP
     ? { met: ipResult.met, nodes: [] }
@@ -566,10 +273,7 @@ export function evaluatePatient(
 
   if (!ipResult.met) {
     finalOutcome = 'not_in_population';
-    // Use pre-check reasons if available, otherwise generate from IP criteria
-    howClose = howCloseReasons.length > 0
-      ? howCloseReasons
-      : generateHowClose(patient, ipPop, measure, mpStart, mpEnd);
+    howClose = generateHowClose(patient, ipPop, measure, mpStart, mpEnd);
   } else if (!denomResult.met) {
     finalOutcome = 'not_in_population';
     howClose = generateHowClose(patient, denomPop, measure, mpStart, mpEnd);
@@ -630,17 +334,6 @@ function evaluatePopulation(
     );
     if (node) nodes.push(node);
     return { met, nodes };
-  }
-
-  // Debug: log numerator criteria count
-  if (population.type === 'numerator' || population.type === 'NUMERATOR') {
-    const criteriaCount = population.criteria?.children?.length || 0;
-    console.log('[DEBUG] Numerator criteria count:', criteriaCount);
-    if (population.criteria?.children) {
-      console.log('[DEBUG] Numerator criteria titles:',
-        population.criteria.children.map((c) => c.title || c.description || c.id)
-      );
-    }
   }
 
   // Evaluate the criteria clause
@@ -826,25 +519,8 @@ function evaluateClause(
 // Data Element Evaluation
 // ============================================================================
 
-// Immunization-related keywords to detect vaccine criteria
-const IMMUNIZATION_KEYWORDS = [
-  'dtap', 'dtp', 'tetanus', 'diphtheria', 'pertussis',
-  'ipv', 'polio', 'opv',
-  'mmr', 'measles', 'mumps', 'rubella',
-  'hib', 'haemophilus',
-  'hep a', 'hep b', 'hepa', 'hepb', 'hepatitis',
-  'varicella', 'chickenpox', 'vzv',
-  'pcv', 'pneumococcal', 'prevnar',
-  'rotavirus', 'rota',
-  'influenza', 'flu',
-  'vaccine', 'immunization', 'vaccination',
-  'cvx', 'shot', 'immunize'
-];
-
-function descriptionSuggestsImmunization(desc        )          {
-  const lower = desc.toLowerCase();
-  return IMMUNIZATION_KEYWORDS.some(kw => lower.includes(kw));
-}
+// ═══ DELETED: IMMUNIZATION_KEYWORDS and descriptionSuggestsImmunization ═══
+// Heuristic detection removed — components are evaluated based on their explicit type
 
 function evaluateDataElement(
   patient             ,
@@ -858,29 +534,10 @@ function evaluateDataElement(
   let incomplete = false;
   let description = element.description;
 
-  // Check if description suggests this is about immunizations
-  const looksLikeImmunization = descriptionSuggestsImmunization(element.description);
-
-  // If it looks like an immunization criterion, try immunization evaluation first
-  if (looksLikeImmunization && element.type !== 'demographic') {
-    const immResult = evaluateImmunization(patient, element, measure, mpStart, mpEnd);
-    if (immResult.met) {
-      met = immResult.met;
-      facts.push(...immResult.facts);
-      // Skip to node creation
-      const node                 = {
-        id: element.id,
-        title: getElementTitle(element),
-        type: 'decision',
-        description,
-        status: 'pass',
-        facts,
-        cqlSnippet: generateCqlSnippet(element),
-        source: 'Test Patient Data',
-      };
-      return { met, node };
-    }
-  }
+  // ═══ Components as Source of Truth: NO heuristic detection ═══
+  // If element.type === 'immunization', evaluate as immunization.
+  // If element.type === 'procedure', evaluate as procedure.
+  // We do NOT guess based on description text.
 
   switch (element.type) {
     case 'demographic':
@@ -923,15 +580,7 @@ function evaluateDataElement(
       met = procResult.met;
       incomplete = procResult.incomplete || false;
       facts.push(...procResult.facts);
-      // If procedure didn't match but looks like immunization, try that too
-      if (!met && !incomplete && looksLikeImmunization) {
-        const immResult = evaluateImmunization(patient, element, measure, mpStart, mpEnd);
-        if (immResult.met) {
-          met = immResult.met;
-          facts.length = 0; // Clear previous facts
-          facts.push(...immResult.facts);
-        }
-      }
+      // NO fallback to immunization — if it's typed as procedure, evaluate as procedure
       break;
 
     case 'observation':

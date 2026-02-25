@@ -255,4 +255,78 @@ export const useMeasureStore = create((set, get) => ({
 
     return { total, approved, pending, flagged };
   },
+
+  // Replace a component in a measure with a new one from the library
+  replaceComponent: async (measureId, oldComponentId, newComponent) => {
+    const state = get();
+    const measure = state.activeMeasure || state.measures.find((m) => m.id === measureId);
+    if (!measure) return null;
+
+    // Helper function to recursively replace component in tree
+    const replaceInTree = (node) => {
+      if (!node) return node;
+
+      // If this node is the one we're looking for, replace it
+      if (node.id === oldComponentId) {
+        // Create new component preserving position-related properties
+        return {
+          ...newComponent,
+          id: `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          // Preserve some properties from the old component if applicable
+          reviewStatus: 'pending', // Reset review status for new component
+          // Link to library component if available
+          libraryComponentId: newComponent.id,
+        };
+      }
+
+      // Recursively process children if present
+      if (node.children) {
+        return {
+          ...node,
+          children: node.children.map(replaceInTree),
+        };
+      }
+
+      // Process criteria if present (for populations)
+      if (node.criteria) {
+        return {
+          ...node,
+          criteria: replaceInTree(node.criteria),
+        };
+      }
+
+      return node;
+    };
+
+    // Apply replacement to all populations
+    const updatedPopulations = measure.populations.map(replaceInTree);
+
+    // Update the measure via API
+    try {
+      const updatedMeasure = await measureApi.updateMeasure(measureId, {
+        populations: updatedPopulations,
+      });
+
+      set((state) => ({
+        measures: state.measures.map((m) => (m.id === measureId ? updatedMeasure : m)),
+        activeMeasure: state.activeMeasureId === measureId ? updatedMeasure : state.activeMeasure,
+      }));
+
+      return updatedMeasure;
+    } catch (error) {
+      console.error('Failed to replace component:', error);
+      // If API fails, still update local state for immediate feedback
+      const localUpdatedMeasure = {
+        ...measure,
+        populations: updatedPopulations,
+        updatedAt: new Date().toISOString(),
+      };
+
+      set((state) => ({
+        activeMeasure: state.activeMeasureId === measureId ? localUpdatedMeasure : state.activeMeasure,
+      }));
+
+      return localUpdatedMeasure;
+    }
+  },
 }));
