@@ -218,34 +218,35 @@ function parseAgeRangeFromText(text        )                                    
  * This is a STRUCTURAL check, not text parsing. We inspect component properties
  * (type, valueSet, codes) to determine if there's anything the evaluator can match against.
  */
-const EVALUATABLE_TYPES = new Set([
-  'demographic', 'diagnosis', 'encounter', 'procedure',
-  'observation', 'medication', 'immunization'
-]);
-
 function criteriaLacksEvaluatableContent(criteria               )          {
   if (!criteria) return true;
 
+  // Helper: check if a single element has anything to evaluate against
+  const elementLacksContent = (element             )          => {
+    // Demographic elements are always evaluatable — they check patient age/gender directly
+    if (element.type === 'demographic') return false;
+
+    // Everything else needs codes or value sets to match against patient data.
+    // An element typed "observation" with no codes is a placeholder, not a real criterion.
+    const hasValueSet = !!element.valueSet;
+    const hasValueSets = element.valueSets && element.valueSets.length > 0;
+    const hasCodes = element.codes && element.codes.length > 0;
+    return !hasValueSet && !hasValueSets && !hasCodes;
+  };
+
   // Single element (not wrapped in LogicalClause)
   if (!criteria.children) {
-    return !EVALUATABLE_TYPES.has(criteria.type)
-      && !criteria.valueSet
-      && (!criteria.valueSets || criteria.valueSets.length === 0);
+    return elementLacksContent(criteria               );
   }
 
   // LogicalClause — check all children recursively
-  if (!criteria.children || criteria.children.length === 0) return true;
+  if (criteria.children.length === 0) return true;
 
   return criteria.children.every(child => {
     if ('operator' in child) {
-      // Nested clause — recurse
       return criteriaLacksEvaluatableContent(child);
     }
-    // Leaf element — check if it has evaluatable content
-    const element = child               ;
-    return !EVALUATABLE_TYPES.has(element.type)
-      && !element.valueSet
-      && (!element.valueSets || element.valueSets.length === 0);
+    return elementLacksContent(child               );
   });
 }
 
