@@ -1642,6 +1642,15 @@ export function UMSEditor() {
           }}
         />
       )}
+
+      {/* Component Swap Modal */}
+      {swapTarget && (
+        <ComponentSwapModal
+          currentComponent={swapTarget}
+          onConfirm={handleSwapConfirm}
+          onClose={() => setSwapTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2072,6 +2081,7 @@ function CriteriaNode({
                   onResetTiming={onResetTiming}
                   selectedForMerge={selectedForMerge}
                   onToggleMergeSelection={onToggleMergeSelection}
+                  onSwap={onSwap}
                 />
               </div>
             </Fragment>
@@ -2400,6 +2410,19 @@ function CriteriaNode({
           >
             <AlertTriangle className={`w-4 h-4 ${element.reviewStatus === 'needs_revision' ? 'fill-amber-500/30' : ''}`} />
           </button>
+          {/* Swap button in deep mode when selected */}
+          {isSelected && deepMode && onSwap && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSwap(element.id);
+              }}
+              className="p-1.5 rounded hover:bg-[var(--accent-light)] text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors"
+              title="Swap with library component"
+            >
+              <ArrowLeftRight className="w-4 h-4" />
+            </button>
+          )}
           {/* Delete button in deep mode */}
           {deepMode && parentId && (
             <button
