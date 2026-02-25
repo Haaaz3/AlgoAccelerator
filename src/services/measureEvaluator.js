@@ -471,10 +471,21 @@ export function evaluatePatient(
     }
   }
 
-  // Check age requirement - always show for measures with age requirements
+  // Check age requirement - but only add as a pre-check if the IP population
+  // does NOT already have a demographic/age criterion in its UMS-defined criteria.
+  // Otherwise, the age check will be duplicated (once as a pre-check node and
+  // once as a UMS criteria node) resulting in an extra criterion in the trace.
+  const ipPop_ = measure.populations.find(p =>
+    p.type === 'initial_population' || p.type === 'initial-population'
+  );
+  const ipHasAgeCriterion = ipPop_?.criteria?.children
+    ? findAgeRequirementInClause(ipPop_.criteria)
+    : (ipPop_?.criteria?.type === 'demographic');
+
   const ageCheck = checkAgeRequirement(patient, measure, mpStart, mpEnd);
   const ageReqs = getMeasureAgeRequirements(measure);
-  if (ageReqs || ageCheck.ageInfo) {
+  if ((ageReqs || ageCheck.ageInfo) && !ipHasAgeCriterion) {
+    // Only add the pre-check age node when the IP criteria don't already cover age
     const ageDescription = ageCheck.met
       ? `${ageCheck.ageInfo}. Meets requirement: ${ageReqs?.description || 'Age criteria satisfied'}`
       : (ageCheck.reason || 'Age requirement not met');
@@ -495,6 +506,10 @@ export function evaluatePatient(
       ipPreChecksPassed = false;
       howCloseReasons.push(ageCheck.reason || 'Age requirement not met');
     }
+  } else if ((ageReqs || ageCheck.ageInfo) && ipHasAgeCriterion && !ageCheck.met) {
+    // Even if we skip the pre-check node, still track failure for howClose reasons
+    ipPreChecksPassed = false;
+    howCloseReasons.push(ageCheck.reason || 'Age requirement not met');
   }
 
   // Find each population type (handle both snake_case and kebab-case)
