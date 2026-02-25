@@ -299,6 +299,7 @@ export const useMeasureStore = create((set, get) => ({
     };
 
     // Apply replacement to all populations
+    if (!measure.populations) return null;
     const updatedPopulations = measure.populations.map(replaceInTree);
 
     // Update the measure via API

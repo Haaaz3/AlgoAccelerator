@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Search, ArrowLeftRight, CheckCircle, Link2, Unlink, Loader } from 'lucide-react';
+import { X, Search, ArrowLeftRight, CheckCircle, Loader } from 'lucide-react';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore.js';
 
 // ============================================================================
