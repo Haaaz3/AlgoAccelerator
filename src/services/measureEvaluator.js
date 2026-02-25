@@ -211,6 +211,45 @@ function parseAgeRangeFromText(text        )                                    
 // All evaluation now flows through evaluatePopulation → evaluateClause → evaluateDataElement
 
 /**
+ * Check if a criteria tree has no evaluatable clinical content.
+ * Returns true if all leaf elements lack clinical types, value sets, and codes —
+ * meaning this population is a passthrough reference (e.g., "Denominator = Initial Population").
+ *
+ * This is a STRUCTURAL check, not text parsing. We inspect component properties
+ * (type, valueSet, codes) to determine if there's anything the evaluator can match against.
+ */
+const EVALUATABLE_TYPES = new Set([
+  'demographic', 'diagnosis', 'encounter', 'procedure',
+  'observation', 'medication', 'immunization'
+]);
+
+function criteriaLacksEvaluatableContent(criteria               )          {
+  if (!criteria) return true;
+
+  // Single element (not wrapped in LogicalClause)
+  if (!criteria.children) {
+    return !EVALUATABLE_TYPES.has(criteria.type)
+      && !criteria.valueSet
+      && (!criteria.valueSets || criteria.valueSets.length === 0);
+  }
+
+  // LogicalClause — check all children recursively
+  if (!criteria.children || criteria.children.length === 0) return true;
+
+  return criteria.children.every(child => {
+    if ('operator' in child) {
+      // Nested clause — recurse
+      return criteriaLacksEvaluatableContent(child);
+    }
+    // Leaf element — check if it has evaluatable content
+    const element = child               ;
+    return !EVALUATABLE_TYPES.has(element.type)
+      && !element.valueSet
+      && (!element.valueSets || element.valueSets.length === 0);
+  });
+}
+
+/**
  * Evaluate a test patient against a measure and generate a validation trace
  */
 export function evaluatePatient(
@@ -242,11 +281,16 @@ export function evaluatePatient(
     ? evaluatePopulation(patient, ipPop, measure, mpStart, mpEnd)
     : { met: true, nodes: [] };
 
-  // Denominator equals IP when: no denominator defined, OR criteria is empty/missing
-  // NO text parsing — only inspect the criteria structure
+  // Denominator equals IP when: no denominator defined, criteria is empty/missing,
+  // or criteria contains only non-evaluatable reference elements (no clinical data to match).
+  // This handles the common pattern where the AI extractor creates a placeholder element
+  // like "All patients in initial population" instead of leaving criteria empty.
   const denomEqualsIP = !denomPop
     || !denomPop.criteria
-    || (denomPop.criteria.children && denomPop.criteria.children.length === 0);
+    || (denomPop.criteria.children && denomPop.criteria.children.length === 0)
+    || denomPop.criteria.referencePopulation === 'initial_population'
+    || denomPop.criteria.referencePopulation === 'initial-population'
+    || criteriaLacksEvaluatableContent(denomPop.criteria);
 
   const denomResult = denomEqualsIP
     ? { met: ipResult.met, nodes: [] }
