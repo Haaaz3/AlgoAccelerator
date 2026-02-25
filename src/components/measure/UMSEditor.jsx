@@ -1643,14 +1643,7 @@ export function UMSEditor() {
         />
       )}
 
-      {/* Component Swap Modal */}
-      {swapTarget && (
-        <ComponentSwapModal
-          currentComponent={swapTarget}
-          onConfirm={handleSwapConfirm}
-          onClose={() => setSwapTarget(null)}
-        />
-      )}
+      {/* Component Swap Modal — TODO: wire up swapTarget state and handleSwapConfirm */}
     </div>
   );
 }
