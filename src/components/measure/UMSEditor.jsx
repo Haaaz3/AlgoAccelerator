@@ -1819,6 +1819,70 @@ function PopulationSection({
             />
           )}
 
+          {/* ═══ Completeness Warnings ═══ */}
+
+          {/* Warning 1: Missing demographic component in IP */}
+          {(population.type === 'initial_population' || population.type === 'initial-population') && (() => {
+            // Check if any child in the criteria tree is a demographic component
+            const hasDemographic = (node) => {
+              if (!node) return false;
+              if (node.type === 'demographic') return true;
+              if (node.children) return node.children.some(child => hasDemographic(child));
+              return false;
+            };
+
+            if (hasDemographic(population.criteria)) return null;
+
+            return (
+              <div className="ml-7 mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-xs font-medium text-amber-400">No demographic component found</span>
+                  <p className="text-xs text-amber-400/70 mt-0.5">
+                    Age and gender requirements won't be checked during validation. Add a demographic component if this measure has age or gender criteria.
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Warning 2: Empty criteria (non-denominator populations) */}
+          {population.type !== 'denominator' && (!population.criteria ||
+            (population.criteria.children && population.criteria.children.length === 0) ||
+            (!population.criteria.children && !population.criteria.type)) && (
+            <div className="ml-7 mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="text-xs font-medium text-amber-400">No criteria defined</span>
+                <p className="text-xs text-amber-400/70 mt-0.5">
+                  This population has no components. All patients will automatically qualify.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Info: Denominator passthrough detection */}
+          {population.type === 'denominator' && population.criteria && (() => {
+            // Same structural check as measureEvaluator.js criteriaLacksEvaluatableContent
+            const lacksContent = (node) => {
+              if (!node) return true;
+              if (node.type === 'demographic') return false;
+              if (!node.children) {
+                return !node.valueSet && (!node.valueSets || node.valueSets.length === 0) && (!node.codes || node.codes.length === 0);
+              }
+              if (node.children.length === 0) return true;
+              return node.children.every(child => 'operator' in child ? lacksContent(child) : lacksContent(child));
+            };
+
+            if (!lacksContent(population.criteria)) return null;
+
+            return (
+              <div className="ml-7 mt-2 p-2 rounded-lg bg-[var(--accent)]/5 border border-[var(--accent)]/20 flex items-center gap-2">
+                <span className="text-xs text-[var(--accent)]">ℹ Treated as "equals Initial Population" — no distinct clinical criteria defined</span>
+              </div>
+            );
+          })()}
+
           {/* Add Component Button - only visible in Deep Edit Mode */}
           {deepMode && (
             <button
