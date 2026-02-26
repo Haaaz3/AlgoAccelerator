@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, Fragment, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine, Square, CheckSquare, Database } from 'lucide-react';
+import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine, Square, CheckSquare, Database, ArrowLeftRight } from 'lucide-react';
 import { InlineErrorBanner, InlineSuccessBanner } from '../shared/ErrorBoundary';
 import { validateReferentialIntegrity, formatMismatches } from '../../utils/integrityCheck';
 import { useMeasureStore } from '../../stores/measureStore';
@@ -246,7 +246,7 @@ function AgeRequirementConfig({ element, onUpdate }) {
 
 export function UMSEditor() {
   const navigate = useNavigate();
-  const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, setOperatorBetweenSiblings, deleteComponent, syncAgeRange, updateTimingOverride, updateTimingWindow, updateMeasurementPeriod, updateDataElement } = useMeasureStore();
+  const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, setOperatorBetweenSiblings, deleteComponent, replaceComponent, syncAgeRange, updateTimingOverride, updateTimingWindow, updateMeasurementPeriod, updateDataElement } = useMeasureStore();
   const measure = getActiveMeasure();
   const {
     components: libraryComponents,
@@ -266,6 +266,8 @@ export function UMSEditor() {
   const [activeValueSetElementId, setActiveValueSetElementId] = useState               (null);
   const [builderTarget, setBuilderTarget] = useState                                                         (null);
   const [addComponentTarget, setAddComponentTarget] = useState                                                         (null);
+  // Swap/replace mode: tracks the component being replaced
+  const [swapTarget, setSwapTarget] = useState(null); // { populationId, populationType, parentClauseId, componentId, componentName, index }
   const [deepMode, setDeepMode] = useState(false);
   const [showValueSetBrowser, setShowValueSetBrowser] = useState(false);
   const [componentLinkMap, setComponentLinkMap] = useState                        ({});
@@ -1280,6 +1282,16 @@ export function UMSEditor() {
                 onToggleOperator={(clauseId) => toggleLogicalOperator(measure.id, clauseId)}
                 onReorder={(parentId, childId, dir) => reorderComponent(measure.id, parentId, childId, dir)}
                 onDeleteComponent={(componentId) => deleteComponent(measure.id, componentId)}
+                onReplaceComponent={(parentClauseId, componentId, componentName, index) => {
+                  setSwapTarget({
+                    populationId: population.id,
+                    populationType: population.type,
+                    parentClauseId,
+                    componentId,
+                    componentName,
+                    index,
+                  });
+                }}
                 onSetOperatorBetween={(clauseId, i1, i2, op) => setOperatorBetweenSiblings(measure.id, clauseId, i1, i2, op)}
                 dragState={dragState}
                 onDragStart={handleDragStart}
@@ -1505,6 +1517,61 @@ export function UMSEditor() {
               populationType: addComponentTarget.populationType,
             });
             setAddComponentTarget(null);
+          }}
+        />
+      )}
+
+      {/* Swap/Replace Component Modal - reuses AddComponentModal in replace mode */}
+      {swapTarget && measure && (
+        <AddComponentModal
+          targetMeasure={measure.metadata?.title || measure.id}
+          targetSection={swapTarget.populationType || 'Population'}
+          mode="replace"
+          replaceTarget={{
+            index: swapTarget.index,
+            componentId: swapTarget.componentId,
+            componentName: swapTarget.componentName,
+            parentClauseId: swapTarget.parentClauseId,
+          }}
+          onClose={() => setSwapTarget(null)}
+          onAdd={(libraryComponent) => {
+            // Check if this is an Age Requirement component using robust detection
+            const isAgeReq = isAgeRequirementComponent(libraryComponent);
+
+            // Derive element type from category, but force 'demographic' for Age Requirement
+            const category = libraryComponent.metadata?.category || libraryComponent.category || 'observation';
+            const elementType = isAgeReq ? 'demographic' : categoryToElementType(category);
+
+            // Create a component reference from the library component
+            const newComponent = {
+              id: `comp-${Date.now()}`,
+              type: elementType,
+              subtype: isAgeReq ? 'age' : libraryComponent.subtype,
+              name: libraryComponent.name,
+              description: libraryComponent.description,
+              valueSet: libraryComponent.valueSet,
+              valueSetRef: libraryComponent.valueSet?.id,
+              libraryRef: libraryComponent.id,
+              libraryComponentId: libraryComponent.id,
+              timing: libraryComponent.timing || {},
+              negation: libraryComponent.negation || false,
+              category: category,
+              // Copy demographic fields
+              genderValue: libraryComponent.genderValue,
+              resourceType: libraryComponent.resourceType,
+              // Force default thresholds for Age Requirement (user can configure)
+              thresholds: isAgeReq ? { ageMin: 18, ageMax: 65 } : libraryComponent.thresholds,
+              confidence: 'high',
+              reviewStatus: 'pending',
+            };
+
+            // Perform the atomic replace operation
+            replaceComponent(
+              measure.id,
+              swapTarget.parentClauseId,
+              swapTarget.componentId,
+              newComponent
+            );
           }}
         />
       )}
@@ -1895,6 +1962,7 @@ function PopulationSection({
   onToggleOperator,
   onReorder,
   onDeleteComponent,
+  onReplaceComponent,
   onSetOperatorBetween,
   dragState,
   onDragStart,
@@ -2022,6 +2090,7 @@ function PopulationSection({
               onToggleOperator={onToggleOperator}
               onReorder={onReorder}
               onDeleteComponent={onDeleteComponent}
+              onReplaceComponent={onReplaceComponent}
               onSetOperatorBetween={onSetOperatorBetween}
               dragState={dragState}
               onDragStart={onDragStart}
@@ -2136,6 +2205,7 @@ function CriteriaNode({
   onToggleOperator,
   onReorder,
   onDeleteComponent,
+  onReplaceComponent,
   onSetOperatorBetween,
   dragState,
   onDragStart,
@@ -2280,6 +2350,7 @@ function CriteriaNode({
                   onToggleOperator={onToggleOperator}
                   onReorder={onReorder}
                   onDeleteComponent={onDeleteComponent}
+                  onReplaceComponent={onReplaceComponent}
                   onSetOperatorBetween={onSetOperatorBetween}
                   dragState={dragState}
                   onDragStart={onDragStart}
@@ -2627,6 +2698,19 @@ function CriteriaNode({
           >
             <AlertTriangle className={`w-4 h-4 ${element.reviewStatus === 'needs_revision' ? 'fill-amber-500/30' : ''}`} />
           </button>
+          {/* Swap/Replace button in deep mode */}
+          {deepMode && parentId && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onReplaceComponent(parentId, element.id, element.description || element.name || 'Component', index);
+              }}
+              className="p-1.5 rounded hover:bg-[var(--accent-light)] text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors"
+              title="Replace with another component"
+            >
+              <ArrowLeftRight className="w-4 h-4" />
+            </button>
+          )}
           {/* Delete button in deep mode */}
           {deepMode && parentId && (
             <button

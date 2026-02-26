@@ -3,7 +3,6 @@ import {
   X,
   Search,
   Check,
-  ChevronDown,
   Link,
   Sparkles,
   Plus,
@@ -24,13 +23,28 @@ import {
   Heart,
   Code,
   Layers,
+  ArrowLeftRight,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
+import { inferCategory, getCategoryLabel } from '../../utils/inferCategory';
 
 // ============================================================================
-// Icons mapping
+// Icons mapping - supports both singular and plural category names
 // ============================================================================
 const ICONS = {
+  // Plural forms (from component library)
+  demographics: User,
+  encounters: Building2,
+  conditions: Stethoscope,
+  procedures: Scissors,
+  medications: Pill,
+  assessments: ClipboardList,
+  laboratory: FlaskConical,
+  'clinical observations': Activity,
+  exclusions: AlertTriangle,
+  // Singular forms (legacy)
   encounter: Building2,
   diagnosis: Stethoscope,
   procedure: Scissors,
@@ -47,9 +61,21 @@ const ICONS = {
   symptom: Activity,
   familyhistory: Heart,
   custom: Code,
+  other: Code,
 };
 
 const CAT_COLORS = {
+  // Plural forms (from component library)
+  demographics: { bg: 'rgba(100, 116, 139, 0.15)', text: '#64748b' },
+  encounters: { bg: 'rgba(59, 130, 246, 0.15)', text: '#3b82f6' },
+  conditions: { bg: 'rgba(236, 72, 153, 0.15)', text: '#ec4899' },
+  procedures: { bg: 'rgba(16, 185, 129, 0.15)', text: '#10b981' },
+  medications: { bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b' },
+  assessments: { bg: 'rgba(139, 92, 246, 0.15)', text: '#8b5cf6' },
+  laboratory: { bg: 'rgba(99, 102, 241, 0.15)', text: '#6366f1' },
+  'clinical observations': { bg: 'rgba(34, 197, 94, 0.15)', text: '#22c55e' },
+  exclusions: { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444' },
+  // Singular forms (legacy)
   encounter: { bg: 'rgba(59, 130, 246, 0.15)', text: '#3b82f6' },
   diagnosis: { bg: 'rgba(236, 72, 153, 0.15)', text: '#ec4899' },
   procedure: { bg: 'rgba(16, 185, 129, 0.15)', text: '#10b981' },
@@ -63,6 +89,7 @@ const CAT_COLORS = {
   communication: { bg: 'rgba(34, 197, 94, 0.15)', text: '#22c55e' },
   device: { bg: 'rgba(120, 113, 108, 0.15)', text: '#78716c' },
   custom: { bg: 'rgba(120, 113, 108, 0.1)', text: '#78716c' },
+  other: { bg: 'rgba(120, 113, 108, 0.1)', text: '#78716c' },
 };
 
 const CONFIDENCE_COLORS = {
@@ -72,53 +99,67 @@ const CONFIDENCE_COLORS = {
 };
 
 // ============================================================================
-// Chip Select Components
+// Category Filter List (matches sidebar design)
 // ============================================================================
-function ChipSelect({ options, value, onChange }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map(o => {
-        const selected = value === o;
-        return (
-          <button
-            key={o}
-            type="button"
-            onClick={() => onChange(selected ? null : o)}
-            className="px-3 py-1.5 rounded-md text-xs font-medium transition-all capitalize"
-            style={{
-              border: selected ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-              backgroundColor: selected ? 'var(--accent-muted)' : 'var(--bg-primary)',
-              color: selected ? 'var(--accent)' : 'var(--text)',
-            }}
-          >
-            {o}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+const CATEGORY_ORDER = [
+  'demographics',
+  'encounters',
+  'conditions',
+  'procedures',
+  'medications',
+  'assessments',
+  'laboratory',
+  'clinical-observations',
+  'exclusions',
+];
 
-function MultiChipSelect({ options, value, onChange }) {
-  const arr = value || [];
-  const toggle = (v) => onChange(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
+function CategoryFilterList({ categoryCounts, selectedCategories, onToggleCategory, totalCount }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map(o => {
-        const selected = arr.includes(o);
+    <div className="space-y-0.5">
+      {/* All Components row */}
+      <button
+        type="button"
+        onClick={() => onToggleCategory(null)} // null = clear all filters
+        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+          selectedCategories.length === 0
+            ? 'bg-[var(--accent-light)] text-[var(--accent)] font-semibold'
+            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
+        }`}
+      >
+        <span>All Components</span>
+        <span className={`px-2 py-0.5 text-xs rounded-full ${
+          selectedCategories.length === 0
+            ? 'bg-[var(--accent)] text-white'
+            : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'
+        }`}>
+          {totalCount}
+        </span>
+      </button>
+
+      {/* Category rows */}
+      {CATEGORY_ORDER.map(cat => {
+        const count = categoryCounts[cat] || 0;
+        if (count === 0) return null;
+        const isSelected = selectedCategories.includes(cat);
         return (
           <button
-            key={o}
+            key={cat}
             type="button"
-            onClick={() => toggle(o)}
-            className="px-3 py-1.5 rounded-md text-xs font-medium transition-all capitalize"
-            style={{
-              border: selected ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-              backgroundColor: selected ? 'var(--accent-muted)' : 'var(--bg-primary)',
-              color: selected ? 'var(--accent)' : 'var(--text)',
-            }}
+            onClick={() => onToggleCategory(cat)}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+              isSelected
+                ? 'bg-[var(--accent-light)] text-[var(--accent)] font-semibold'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
+            }`}
           >
-            {o}
+            <span>{getCategoryLabel(cat)}</span>
+            <span className={`px-2 py-0.5 text-xs rounded-full ${
+              isSelected
+                ? 'bg-[var(--accent)] text-white'
+                : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'
+            }`}>
+              {count}
+            </span>
           </button>
         );
       })}
@@ -135,24 +176,38 @@ export default function AddComponentModal({
   onCreateNew,
   targetMeasure = 'Unknown Measure',
   targetSection = 'Unknown Section',
+  // Replace mode props
+  mode = 'add', // 'add' | 'replace'
+  replaceTarget = null, // { index, componentId, componentName, parentClauseId }
 }) {
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState([]);
-  const [filterConfidence, setFilterConfidence] = useState(null);
   const [sortBy, setSortBy] = useState('name');
-  const [showFilters, setShowFilters] = useState(false);
   const [added, setAdded] = useState(false);
+  const [showCategoryFilter, setShowCategoryFilter] = useState(true);
 
   const { components } = useComponentLibraryStore();
 
-  // Get all categories from components
-  const allCategories = useMemo(() => {
-    const cats = [...new Set(components.map(c => c.category || c.type || 'custom'))];
-    return cats.filter(Boolean).sort();
+  const isReplaceMode = mode === 'replace';
+
+  // Get category from a component using inferCategory utility
+  const getComponentCategory = useCallback((c) => {
+    return inferCategory(c);
+  }, []);
+
+  // Get category counts for all active components
+  const { categoryCounts, totalCount } = useMemo(() => {
+    const activeComponents = components.filter(c => c.versionInfo?.status !== 'archived');
+    const counts = {};
+    activeComponents.forEach(c => {
+      const cat = inferCategory(c);
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return { categoryCounts: counts, totalCount: activeComponents.length };
   }, [components]);
 
-  // Filter and sort components
+  // Filter and sort components (only search text + category filters)
   const filtered = useMemo(() => {
     let items = [...components].filter(c => c.versionInfo?.status !== 'archived');
 
@@ -166,12 +221,9 @@ export default function AddComponentModal({
       );
     }
 
+    // Category filter: OR logic (show components matching ANY selected category)
     if (filterCat.length > 0) {
-      items = items.filter(c => filterCat.includes(c.category || c.type));
-    }
-
-    if (filterConfidence) {
-      items = items.filter(c => c.complexity?.level === filterConfidence);
+      items = items.filter(c => filterCat.includes(getComponentCategory(c)));
     }
 
     items.sort((a, b) => {
@@ -183,14 +235,14 @@ export default function AddComponentModal({
     });
 
     return items;
-  }, [components, search, filterCat, filterConfidence, sortBy]);
+  }, [components, search, filterCat, sortBy]);
 
-  // Group by category
+  // Group by category (real categories only, not atomic/composite type)
   const grouped = useMemo(() => {
     if (sortBy !== 'category') return null;
     const map = {};
     filtered.forEach(c => {
-      const cat = c.category || c.type || 'custom';
+      const cat = getComponentCategory(c);
       (map[cat] = map[cat] || []).push(c);
     });
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
@@ -214,8 +266,8 @@ export default function AddComponentModal({
   // Success State
   // ============================================================================
   if (added && selectedComp) {
-    const cat = selectedComp.category || selectedComp.type || 'custom';
-    const cc = CAT_COLORS[cat] || CAT_COLORS.custom;
+    const cat = getComponentCategory(selectedComp);
+    const cc = CAT_COLORS[cat] || CAT_COLORS.other;
     const IconComponent = ICONS[cat] || Code;
 
     return (
@@ -231,11 +283,20 @@ export default function AddComponentModal({
             <Check size={24} className="text-green-600" />
           </div>
           <div className="text-lg font-bold mb-1.5" style={{ color: 'var(--text)' }}>
-            Component Added
+            {isReplaceMode ? 'Component Replaced' : 'Component Added'}
           </div>
           <div className="text-sm mb-5" style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            <strong>{selectedComp.name}</strong> has been linked to<br />
-            <span style={{ color: 'var(--accent)' }}>{targetSection}</span> in {targetMeasure}
+            {isReplaceMode ? (
+              <>
+                Replaced <strong>"{replaceTarget?.componentName}"</strong> with<br />
+                <strong>{selectedComp.name}</strong>
+              </>
+            ) : (
+              <>
+                <strong>{selectedComp.name}</strong> has been linked to<br />
+                <span style={{ color: 'var(--accent)' }}>{targetSection}</span> in {targetMeasure}
+              </>
+            )}
           </div>
 
           <div
@@ -265,14 +326,16 @@ export default function AddComponentModal({
           </div>
 
           <div className="flex gap-2 justify-center">
-            <button
-              type="button"
-              onClick={handleAddAnother}
-              className="px-5 py-2 rounded-lg border text-sm font-medium transition-colors"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
-            >
-              Add Another
-            </button>
+            {!isReplaceMode && (
+              <button
+                type="button"
+                onClick={handleAddAnother}
+                className="px-5 py-2 rounded-lg border text-sm font-medium transition-colors"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+              >
+                Add Another
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -292,8 +355,8 @@ export default function AddComponentModal({
   // ============================================================================
   const Tile = ({ comp }) => {
     const isSel = selected === comp.id;
-    const cat = comp.category || comp.type || 'custom';
-    const cc = CAT_COLORS[cat] || CAT_COLORS.custom;
+    const cat = getComponentCategory(comp);
+    const cc = CAT_COLORS[cat] || CAT_COLORS.other;
     const IconComponent = ICONS[cat] || Code;
     const cxLevel = comp.complexity?.level || 'medium';
     const cxDots = cxLevel === 'low' ? 1 : cxLevel === 'medium' ? 2 : 3;
@@ -394,10 +457,10 @@ export default function AddComponentModal({
               <div className="flex gap-3 mb-2">
                 <div className="flex-1">
                   <div className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: 'var(--text-secondary)' }}>
-                    Type
+                    Category
                   </div>
-                  <div className="text-xs font-medium" style={{ color: 'var(--text)' }}>
-                    {comp.type === 'composite' ? 'Composite' : 'Single'}
+                  <div className="text-xs font-medium capitalize" style={{ color: 'var(--text)' }}>
+                    {cat}
                   </div>
                 </div>
                 <div className="flex-1">
@@ -462,14 +525,18 @@ export default function AddComponentModal({
                 className="w-7 h-7 rounded-lg flex items-center justify-center"
                 style={{ backgroundColor: 'var(--accent-muted)', border: '1px solid var(--accent)' }}
               >
-                <Layers size={14} style={{ color: 'var(--accent)' }} />
+                {isReplaceMode ? (
+                  <ArrowLeftRight size={14} style={{ color: 'var(--accent)' }} />
+                ) : (
+                  <Layers size={14} style={{ color: 'var(--accent)' }} />
+                )}
               </div>
               <div>
                 <h2 className="text-[15px] font-bold" style={{ color: 'var(--text)' }}>
-                  Add Component
+                  {isReplaceMode ? 'Replace Component' : 'Add Component'}
                 </h2>
                 <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                  Browse the library to find an existing component
+                  Browse the library to find {isReplaceMode ? 'a replacement' : 'an existing component'}
                 </p>
               </div>
             </div>
@@ -488,9 +555,17 @@ export default function AddComponentModal({
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg mt-2 mb-3"
             style={{ backgroundColor: 'var(--info-bg)', border: '1px solid var(--info-border, var(--border))' }}
           >
-            <Plus size={12} style={{ color: 'var(--info-text)' }} />
+            {isReplaceMode ? (
+              <ArrowLeftRight size={12} style={{ color: 'var(--info-text)' }} />
+            ) : (
+              <Plus size={12} style={{ color: 'var(--info-text)' }} />
+            )}
             <span className="text-[11px]" style={{ color: 'var(--info-text)' }}>
-              Adding to <strong>{targetSection}</strong> in <strong>{targetMeasure}</strong>
+              {isReplaceMode ? (
+                <>Replacing <strong>"{replaceTarget?.componentName}"</strong> in <strong>{targetSection}</strong> in <strong>{targetMeasure}</strong></>
+              ) : (
+                <>Adding to <strong>{targetSection}</strong> in <strong>{targetMeasure}</strong></>
+              )}
             </span>
           </div>
 
@@ -509,66 +584,67 @@ export default function AddComponentModal({
             />
           </div>
 
-          {/* Filters + Sort */}
-          <div className="flex items-center justify-between mb-1.5">
+          {/* Category Filter Section - collapsible */}
+          <div className="mb-2">
             <button
               type="button"
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium"
-              style={{
-                border: (filterCat.length || filterConfidence) ? '1.5px solid var(--accent)' : '1px solid var(--border)',
-                backgroundColor: (filterCat.length || filterConfidence) ? 'var(--accent-muted)' : 'var(--bg-primary)',
-                color: (filterCat.length || filterConfidence) ? 'var(--accent)' : 'var(--text-secondary)',
-              }}
+              onClick={() => setShowCategoryFilter(!showCategoryFilter)}
+              className="flex items-center gap-1.5 text-xs font-semibold mb-1.5"
+              style={{ color: 'var(--text-secondary)' }}
             >
-              Filters {(filterCat.length + (filterConfidence ? 1 : 0)) > 0 && `(${filterCat.length + (filterConfidence ? 1 : 0)})`}
-              <ChevronDown size={12} />
+              {showCategoryFilter ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <span>Category</span>
+              {filterCat.length > 0 && (
+                <span className="px-1.5 py-0.5 text-[10px] bg-[var(--accent)] text-white rounded-full">
+                  {filterCat.length}
+                </span>
+              )}
             </button>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Sort:</span>
-              {['name', 'category', 'codes', 'used'].map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setSortBy(s)}
-                  className="px-2 py-1 rounded text-[10px] font-semibold capitalize"
-                  style={{
-                    backgroundColor: sortBy === s ? 'var(--accent)' : 'transparent',
-                    color: sortBy === s ? 'white' : 'var(--text-secondary)',
+            {showCategoryFilter && (
+              <div
+                className="p-2 rounded-lg border max-h-[200px] overflow-y-auto"
+                style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border)' }}
+              >
+                <CategoryFilterList
+                  categoryCounts={categoryCounts}
+                  selectedCategories={filterCat}
+                  totalCount={totalCount}
+                  onToggleCategory={(cat) => {
+                    if (cat === null) {
+                      // "All Components" clicked - clear filters
+                      setFilterCat([]);
+                    } else {
+                      // Toggle individual category
+                      setFilterCat(prev =>
+                        prev.includes(cat)
+                          ? prev.filter(c => c !== cat)
+                          : [...prev, cat]
+                      );
+                    }
                   }}
-                >
-                  {s === 'used' ? 'Most Used' : s}
-                </button>
-              ))}
-            </div>
+                />
+              </div>
+            )}
           </div>
 
-          {/* Filters panel */}
-          {showFilters && (
-            <div
-              className="p-3 rounded-lg border mb-2"
-              style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-tertiary)' }}
-            >
-              <div className="mb-2">
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Category</label>
-                <MultiChipSelect options={allCategories} value={filterCat} onChange={setFilterCat} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Complexity</label>
-                <ChipSelect options={['low', 'medium', 'high']} value={filterConfidence} onChange={setFilterConfidence} />
-              </div>
-              {(filterCat.length > 0 || filterConfidence) && (
-                <button
-                  type="button"
-                  onClick={() => { setFilterCat([]); setFilterConfidence(null); }}
-                  className="mt-2 text-xs font-medium"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  Clear all filters
-                </button>
-              )}
-            </div>
-          )}
+          {/* Sort options */}
+          <div className="flex items-center gap-1 mb-1.5">
+            <span className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Sort:</span>
+            {['name', 'category', 'codes', 'used'].map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSortBy(s)}
+                className="px-2 py-1 rounded text-[10px] font-semibold capitalize"
+                style={{
+                  backgroundColor: sortBy === s ? 'var(--accent)' : 'transparent',
+                  color: sortBy === s ? 'white' : 'var(--text-secondary)',
+                }}
+              >
+                {s === 'used' ? 'Most Used' : s}
+              </button>
+            ))}
+          </div>
 
           {/* Count */}
           <div
@@ -664,7 +740,7 @@ export default function AddComponentModal({
                 type="button"
                 onClick={handleAdd}
                 disabled={!selected}
-                className="px-5 py-2 rounded-lg text-sm font-semibold transition-all"
+                className="px-5 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2"
                 style={{
                   backgroundColor: selected ? 'var(--accent)' : 'var(--border)',
                   color: selected ? 'white' : 'var(--text-secondary)',
@@ -672,7 +748,8 @@ export default function AddComponentModal({
                   boxShadow: selected ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
                 }}
               >
-                Add to Measure
+                {isReplaceMode && <ArrowLeftRight size={14} />}
+                {isReplaceMode ? 'Replace Component' : 'Add to Measure'}
               </button>
             </div>
           </div>

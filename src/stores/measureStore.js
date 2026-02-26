@@ -1248,6 +1248,45 @@ export const useMeasureStore = create              ()(
           };
         }),
 
+      // Replace a component in a parent clause at the same position (atomic swap)
+      replaceComponent: (measureId, parentClauseId, oldComponentId, newComponent) =>
+        set((state) => {
+          const replaceInTree = (obj     )      => {
+            if (!obj) return obj;
+
+            // Found the parent clause - do the swap
+            if (obj.id === parentClauseId && obj.children) {
+              const children = [...obj.children];
+              const idx = children.findIndex((c     ) => c.id === oldComponentId);
+              if (idx !== -1) {
+                // Replace old component with new one at the same index
+                children[idx] = newComponent;
+                return { ...obj, children };
+              }
+            }
+
+            // Recurse into nested structures
+            if (obj.criteria) {
+              return { ...obj, criteria: replaceInTree(obj.criteria) };
+            }
+            if (obj.children) {
+              return { ...obj, children: obj.children.map(replaceInTree) };
+            }
+            return obj;
+          };
+
+          return {
+            measures: state.measures.map((m) => {
+              if (m.id !== measureId) return m;
+              return {
+                ...m,
+                populations: m.populations.map(replaceInTree),
+                updatedAt: new Date().toISOString(),
+              };
+            }),
+          };
+        }),
+
       updateTimingOverride: (measureId, componentId, modified) =>
         set((state) => {
           const updateComponent = (obj     )      => {
