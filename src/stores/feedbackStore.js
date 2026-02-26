@@ -16,8 +16,13 @@ import { persist } from 'zustand/middleware';
  * Auto-classify the correction pattern based on field path
  */
 function classifyCorrectionPattern(fieldPath, _originalValue, _correctedValue) {
+  // Component-level corrections (highest priority)
+  if (fieldPath.includes('DELETED')) return 'component_hallucination';
+  if (fieldPath.includes('ADDED')) return 'component_missing';
+  // Field-level corrections
   if (fieldPath.includes('resourceType')) return 'resource_type_misclassification';
   if (fieldPath.includes('valueSet.oid') || fieldPath.includes('valueSet.name')) return 'value_set_error';
+  if (fieldPath.includes('valueSet.codes')) return 'code_system_error';
   if (fieldPath.includes('timing')) return 'timing_interpretation_error';
   if (fieldPath.includes('negation')) return 'negation_logic_error';
   if (fieldPath.includes('operator') || fieldPath.includes('logical')) return 'logical_operator_error';
@@ -31,6 +36,10 @@ function classifyCorrectionPattern(fieldPath, _originalValue, _correctedValue) {
  * Classify the severity of a correction
  */
 function classifySeverity(fieldPath) {
+  // High: component-level changes (additions/deletions) affect generated code directly
+  if (fieldPath.includes('DELETED') || fieldPath.includes('ADDED')) {
+    return 'high';
+  }
   // High: changes that affect generated code
   if (['resourceType', 'valueSet', 'timing', 'negation', 'operator', 'logical'].some(k => fieldPath.includes(k))) {
     return 'high';
@@ -48,6 +57,8 @@ function classifySeverity(fieldPath) {
  */
 function getFieldLabel(fieldPath) {
   const labels = {
+    DELETED: 'Component Deleted',
+    ADDED: 'Component Added',
     resourceType: 'Resource Type',
     'valueSet.oid': 'Value Set OID',
     'valueSet.name': 'Value Set Name',
@@ -55,6 +66,7 @@ function getFieldLabel(fieldPath) {
     'timing.operator': 'Timing Operator',
     'timing.quantity': 'Timing Duration',
     'timing.unit': 'Timing Unit',
+    timing: 'Timing',
     negation: 'Negation',
     operator: 'Logical Operator',
     gender: 'Gender Constraint',

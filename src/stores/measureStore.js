@@ -778,90 +778,145 @@ export const useMeasureStore = create              ()(
       setActiveTrace: (id) => set({ activeTraceId: id }),
 
       // Value set editing with correction tracking
-      addCodeToValueSet: (measureId, valueSetId, code, userNotes) =>
-        set((state) => {
-          const measure = state.measures.find((m) => m.id === measureId);
-          if (!measure) return state;
+      addCodeToValueSet: (measureId, valueSetId, code, userNotes) => {
+        // Record to feedback store for analytics
+        const measure = get().measures.find((m) => m.id === measureId);
+        if (measure) {
+          try {
+            const feedbackStore = useFeedbackStore.getState();
+            if (feedbackStore.feedbackEnabled && measure._originalExtraction) {
+              const valueSet = measure.valueSets.find((vs) => vs.id === valueSetId);
+              feedbackStore.recordCorrection({
+                measureId: measure.id,
+                measureTitle: measure.metadata?.title || measure.title || 'Unknown',
+                catalogueType: measure.metadata?.catalogueType || 'unknown',
+                extractionTimestamp: measure.metadata?.extractedAt,
+                fieldPath: `${valueSetId}.valueSet.codes`,
+                fieldLabel: 'Value Set Code Added',
+                originalValue: 'NOT_IN_SET',
+                correctedValue: { code: code.code, display: code.display, system: code.system },
+                dataElementName: valueSet?.name || '',
+                populationName: '',
+                userNote: userNotes || '',
+              });
+            }
+          } catch (err) {
+            console.error('[feedback] Add code capture error:', err);
+          }
+        }
 
-          const valueSet = measure.valueSets.find((vs) => vs.id === valueSetId);
+        set((state) => {
+          const m = state.measures.find((m) => m.id === measureId);
+          if (!m) return state;
+
+          const valueSet = m.valueSets.find((vs) => vs.id === valueSetId);
           const originalCodes = valueSet?.codes ? [...valueSet.codes] : [];
 
           // Create correction record
-          const correction                    = {
+          const correction = {
             id: `corr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             timestamp: new Date().toISOString(),
             correctionType: 'code_added',
             componentId: valueSetId,
-            componentPath: `valueSets[${measure.valueSets.findIndex((vs) => vs.id === valueSetId)}].codes`,
+            componentPath: `valueSets[${m.valueSets.findIndex((vs) => vs.id === valueSetId)}].codes`,
             originalValue: originalCodes,
             correctedValue: [...originalCodes, code],
             userNotes,
             measureContext: {
-              measureId: measure.metadata.measureId,
-              measureType: measure.metadata.measureType,
-              program: measure.metadata.program,
+              measureId: m.metadata.measureId,
+              measureType: m.metadata.measureType,
+              program: m.metadata.program,
             },
           };
 
           return {
-            measures: state.measures.map((m) => {
-              if (m.id !== measureId) return m;
+            measures: state.measures.map((measure) => {
+              if (measure.id !== measureId) return measure;
               return {
-                ...m,
-                valueSets: m.valueSets.map((vs) =>
+                ...measure,
+                valueSets: measure.valueSets.map((vs) =>
                   vs.id === valueSetId
                     ? { ...vs, codes: [...(vs.codes || []), code] }
                     : vs
                 ),
-                corrections: [...(m.corrections || []), correction],
+                corrections: [...(measure.corrections || []), correction],
                 updatedAt: new Date().toISOString(),
               };
             }),
           };
-        }),
+        });
+      },
 
-      removeCodeFromValueSet: (measureId, valueSetId, codeValue, userNotes) =>
+      removeCodeFromValueSet: (measureId, valueSetId, codeValue, userNotes) => {
+        // Record to feedback store for analytics
+        const measure = get().measures.find((m) => m.id === measureId);
+        if (measure) {
+          try {
+            const feedbackStore = useFeedbackStore.getState();
+            if (feedbackStore.feedbackEnabled && measure._originalExtraction) {
+              const valueSet = measure.valueSets.find((vs) => vs.id === valueSetId);
+              const removedCode = valueSet?.codes?.find((c) => c.code === codeValue);
+              feedbackStore.recordCorrection({
+                measureId: measure.id,
+                measureTitle: measure.metadata?.title || measure.title || 'Unknown',
+                catalogueType: measure.metadata?.catalogueType || 'unknown',
+                extractionTimestamp: measure.metadata?.extractedAt,
+                fieldPath: `${valueSetId}.valueSet.codes`,
+                fieldLabel: 'Value Set Code Removed',
+                originalValue: removedCode ? { code: removedCode.code, display: removedCode.display, system: removedCode.system } : codeValue,
+                correctedValue: 'REMOVED_FROM_SET',
+                dataElementName: valueSet?.name || '',
+                populationName: '',
+                userNote: userNotes || '',
+              });
+            }
+          } catch (err) {
+            console.error('[feedback] Remove code capture error:', err);
+          }
+        }
+
         set((state) => {
-          const measure = state.measures.find((m) => m.id === measureId);
-          if (!measure) return state;
+          const m = state.measures.find((m) => m.id === measureId);
+          if (!m) return state;
 
-          const valueSet = measure.valueSets.find((vs) => vs.id === valueSetId);
+          const valueSet = m.valueSets.find((vs) => vs.id === valueSetId);
           const originalCodes = valueSet?.codes ? [...valueSet.codes] : [];
           const removedCode = originalCodes.find((c) => c.code === codeValue);
           const newCodes = originalCodes.filter((c) => c.code !== codeValue);
 
-          const correction                    = {
+          const correction = {
             id: `corr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             timestamp: new Date().toISOString(),
             correctionType: 'code_removed',
             componentId: valueSetId,
-            componentPath: `valueSets[${measure.valueSets.findIndex((vs) => vs.id === valueSetId)}].codes`,
+            componentPath: `valueSets[${m.valueSets.findIndex((vs) => vs.id === valueSetId)}].codes`,
             originalValue: removedCode,
             correctedValue: null,
             userNotes,
             measureContext: {
-              measureId: measure.metadata.measureId,
-              measureType: measure.metadata.measureType,
-              program: measure.metadata.program,
+              measureId: m.metadata.measureId,
+              measureType: m.metadata.measureType,
+              program: m.metadata.program,
             },
           };
 
           return {
-            measures: state.measures.map((m) => {
-              if (m.id !== measureId) return m;
+            measures: state.measures.map((measure) => {
+              if (measure.id !== measureId) return measure;
               return {
-                ...m,
-                valueSets: m.valueSets.map((vs) =>
+                ...measure,
+                valueSets: measure.valueSets.map((vs) =>
                   vs.id === valueSetId
                     ? { ...vs, codes: newCodes }
                     : vs
                 ),
-                corrections: [...(m.corrections || []), correction],
+                corrections: [...(measure.corrections || []), correction],
                 updatedAt: new Date().toISOString(),
               };
             }),
           };
-        }),
+        });
+      },
 
       updateDataElement: (measureId, componentId, updates, correctionType, userNotes) =>
         set((state) => {
@@ -1029,7 +1084,66 @@ export const useMeasureStore = create              ()(
 
       // Component builder: add a new component to a population's criteria
       // Always adds directly to the root criteria children (no "Additional Criteria" wrapper)
-      addComponentToPopulation: (measureId, populationId, component, logicOperator) =>
+      addComponentToPopulation: (measureId, populationId, component, logicOperator) => {
+        console.log('[feedback] addComponentToPopulation called:', { measureId, populationId, componentId: component?.id });
+        // Get measure to check if this is a new component (not in original extraction)
+        const measure = get().measures.find((m) => m.id === measureId);
+        console.log('[feedback] measure found:', !!measure, 'has _originalExtraction:', !!measure?._originalExtraction);
+        const population = measure?.populations.find((p) => p.id === populationId);
+
+        // Record addition to feedback store if component wasn't in original extraction
+        if (measure && component) {
+          try {
+            const feedbackStore = useFeedbackStore.getState();
+            console.log('[feedback] feedbackEnabled:', feedbackStore.feedbackEnabled);
+            if (feedbackStore.feedbackEnabled && measure._originalExtraction) {
+              // Check if this component existed in the original extraction
+              const findOriginalElement = (nodes, targetId) => {
+                if (!nodes) return null;
+                for (const node of nodes) {
+                  if (node?.id === targetId) return node;
+                  if (node?.criteria) {
+                    const found = findOriginalElement([node.criteria], targetId);
+                    if (found) return found;
+                  }
+                  if (node?.children) {
+                    const found = findOriginalElement(node.children, targetId);
+                    if (found) return found;
+                  }
+                }
+                return null;
+              };
+
+              const originalElement = findOriginalElement(measure._originalExtraction, component.id);
+              console.log('[feedback] component exists in original extraction:', !!originalElement);
+              if (!originalElement) {
+                // This component was NOT in the original extraction - LLM missed it
+                console.log('[feedback] Capturing addition:', component.id, component.description || component.name);
+                feedbackStore.recordCorrection({
+                  measureId: measure.id,
+                  measureTitle: measure.metadata?.title || measure.title || 'Unknown',
+                  catalogueType: measure.metadata?.catalogueType || 'unknown',
+                  extractionTimestamp: measure.metadata?.extractedAt,
+                  fieldPath: `${component.id}.ADDED`,
+                  fieldLabel: 'Component Added (Missing from extraction)',
+                  originalValue: 'NOT_EXTRACTED',
+                  correctedValue: {
+                    name: component.name || component.description,
+                    resourceType: component.resourceType || component.type,
+                    valueSet: component.valueSet?.name || component.valueSet?.oid,
+                  },
+                  dataElementName: component.name || component.description || '',
+                  populationName: population?.type || '',
+                  userNote: '',
+                });
+              }
+            }
+          } catch (err) {
+            console.error('[feedback] Addition capture error:', err);
+          }
+        }
+
+        // Now perform the actual addition
         set((state) => ({
           measures: state.measures.map((m) => {
             if (m.id !== measureId) return m;
@@ -1044,10 +1158,10 @@ export const useMeasureStore = create              ()(
                     ...pop,
                     criteria: {
                       id: `${pop.type}-criteria-new`,
-                      operator: (logicOperator || 'AND')                ,
+                      operator: (logicOperator || 'AND'),
                       description: 'Criteria',
-                      confidence: 'high'         ,
-                      reviewStatus: 'pending'         ,
+                      confidence: 'high',
+                      reviewStatus: 'pending',
                       children: [component],
                     },
                   };
@@ -1068,7 +1182,8 @@ export const useMeasureStore = create              ()(
               updatedAt: new Date().toISOString(),
             };
           }),
-        })),
+        }));
+      },
 
       // Component builder: delete a component from a population
       deleteComponentFromPopulation: (measureId, populationId, componentId) =>
@@ -1113,14 +1228,93 @@ export const useMeasureStore = create              ()(
         })),
 
       // Toggle AND/OR/NOT logical operator
-      toggleLogicalOperator: (measureId, clauseId) =>
+      toggleLogicalOperator: (measureId, clauseId) => {
+        // Capture original operator for feedback
+        const measure = get().measures.find((m) => m.id === measureId);
+        let originalOperator = null;
+        let newOperator = null;
+
+        if (measure) {
+          // Find the clause and its current operator
+          const findClause = (node) => {
+            if (!node) return null;
+            if (node.id === clauseId && 'operator' in node) return node;
+            if (node.criteria) {
+              const found = findClause(node.criteria);
+              if (found) return found;
+            }
+            if (node.children) {
+              for (const child of node.children) {
+                const found = findClause(child);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+
+          for (const pop of measure.populations) {
+            const clause = findClause(pop);
+            if (clause) {
+              originalOperator = clause.operator;
+              newOperator = originalOperator === 'AND' ? 'OR' : originalOperator === 'OR' ? 'NOT' : 'AND';
+              break;
+            }
+          }
+
+          // Record operator change to feedback store
+          if (originalOperator && newOperator) {
+            try {
+              const feedbackStore = useFeedbackStore.getState();
+              if (feedbackStore.feedbackEnabled && measure._originalExtraction) {
+                // Find original clause in extraction
+                const findOriginalClause = (nodes, targetId) => {
+                  if (!nodes) return null;
+                  for (const node of nodes) {
+                    if (node?.id === targetId && 'operator' in node) return node;
+                    if (node?.criteria) {
+                      const found = findOriginalClause([node.criteria], targetId);
+                      if (found) return found;
+                    }
+                    if (node?.children) {
+                      const found = findOriginalClause(node.children, targetId);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+
+                const originalClause = findOriginalClause(measure._originalExtraction, clauseId);
+                // Only record if original extraction had this clause and operator is different
+                if (originalClause && originalClause.operator !== newOperator) {
+                  feedbackStore.recordCorrection({
+                    measureId: measure.id,
+                    measureTitle: measure.metadata?.title || measure.title || 'Unknown',
+                    catalogueType: measure.metadata?.catalogueType || 'unknown',
+                    extractionTimestamp: measure.metadata?.extractedAt,
+                    fieldPath: `${clauseId}.operator`,
+                    fieldLabel: 'Logical Operator',
+                    originalValue: originalClause.operator,
+                    correctedValue: newOperator,
+                    dataElementName: '',
+                    populationName: '',
+                    userNote: '',
+                  });
+                }
+              }
+            } catch (err) {
+              console.error('[feedback] Operator toggle capture error:', err);
+            }
+          }
+        }
+
+        // Now perform the actual toggle
         set((state) => {
-          const toggleOperator = (obj     )      => {
+          const toggleOperator = (obj) => {
             if (!obj) return obj;
             if (obj.id === clauseId && 'operator' in obj) {
               // Cycle through: AND -> OR -> NOT -> AND
-              const newOperator = obj.operator === 'AND' ? 'OR' : obj.operator === 'OR' ? 'NOT' : 'AND';
-              return { ...obj, operator: newOperator };
+              const nextOperator = obj.operator === 'AND' ? 'OR' : obj.operator === 'OR' ? 'NOT' : 'AND';
+              return { ...obj, operator: nextOperator };
             }
             if (obj.criteria) {
               return { ...obj, criteria: toggleOperator(obj.criteria) };
@@ -1141,7 +1335,8 @@ export const useMeasureStore = create              ()(
               };
             }),
           };
-        }),
+        });
+      },
 
       // Reorder a component within its parent (move up/down)
       reorderComponent: (measureId, parentClauseId, componentId, direction) =>
@@ -1231,9 +1426,34 @@ export const useMeasureStore = create              ()(
         }),
 
       // Set operator between two specific siblings in a clause
-      setOperatorBetweenSiblings: (measureId, clauseId, index1, index2, operator) =>
+      setOperatorBetweenSiblings: (measureId, clauseId, index1, index2, operator) => {
+        // Record operator change to feedback store
+        const measure = get().measures.find((m) => m.id === measureId);
+        if (measure) {
+          try {
+            const feedbackStore = useFeedbackStore.getState();
+            if (feedbackStore.feedbackEnabled && measure._originalExtraction) {
+              feedbackStore.recordCorrection({
+                measureId: measure.id,
+                measureTitle: measure.metadata?.title || measure.title || 'Unknown',
+                catalogueType: measure.metadata?.catalogueType || 'unknown',
+                extractionTimestamp: measure.metadata?.extractedAt,
+                fieldPath: `${clauseId}.operator.between`,
+                fieldLabel: 'Logical Operator (Between Siblings)',
+                originalValue: 'previous',
+                correctedValue: operator,
+                dataElementName: '',
+                populationName: '',
+                userNote: '',
+              });
+            }
+          } catch (err) {
+            console.error('[feedback] Operator between siblings capture error:', err);
+          }
+        }
+
         set((state) => {
-          const updateClause = (obj     )      => {
+          const updateClause = (obj) => {
             if (!obj) return obj;
 
             if (obj.id === clauseId && 'operator' in obj && 'children' in obj) {
@@ -1259,12 +1479,103 @@ export const useMeasureStore = create              ()(
               };
             }),
           };
-        }),
+        });
+      },
 
       // Delete a component from anywhere in the tree
-      deleteComponent: (measureId, componentId) =>
+      deleteComponent: (measureId, componentId) => {
+        console.log('[feedback] deleteComponent called:', { measureId, componentId });
+        // Capture the element before deletion for feedback
+        const measure = get().measures.find((m) => m.id === measureId);
+        console.log('[feedback] measure found:', !!measure, 'has _originalExtraction:', !!measure?._originalExtraction);
+        let deletedElement = null;
+        let populationName = '';
+
+        if (measure) {
+          // Find the element being deleted
+          const findElement = (node, popName = '') => {
+            if (!node) return null;
+            if (node.id === componentId) return { element: node, popName };
+            if (node.criteria) {
+              const found = findElement(node.criteria, popName);
+              if (found) return found;
+            }
+            if (node.children) {
+              for (const child of node.children) {
+                const found = findElement(child, popName);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+
+          for (const pop of measure.populations) {
+            const found = findElement(pop.criteria, pop.type);
+            if (found) {
+              deletedElement = found.element;
+              populationName = found.popName;
+              break;
+            }
+          }
+
+          // Record deletion to feedback store
+          console.log('[feedback] deletedElement found:', !!deletedElement, deletedElement?.id, deletedElement?.description);
+          if (deletedElement) {
+            try {
+              const feedbackStore = useFeedbackStore.getState();
+              console.log('[feedback] feedbackEnabled:', feedbackStore.feedbackEnabled);
+              console.log('[feedback] has _originalExtraction:', !!measure._originalExtraction);
+              if (feedbackStore.feedbackEnabled && measure._originalExtraction) {
+                // Check if this element existed in the original extraction
+                const findOriginalElement = (nodes, targetId) => {
+                  if (!nodes) return null;
+                  for (const node of nodes) {
+                    if (node?.id === targetId) return node;
+                    if (node?.criteria) {
+                      const found = findOriginalElement([node.criteria], targetId);
+                      if (found) return found;
+                    }
+                    if (node?.children) {
+                      const found = findOriginalElement(node.children, targetId);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+
+                const originalElement = findOriginalElement(measure._originalExtraction, componentId);
+                console.log('[feedback] originalElement found in extraction:', !!originalElement);
+                if (originalElement) {
+                  // This element was in the original extraction - record as hallucination
+                  console.log('[feedback] Capturing deletion:', componentId, originalElement.description || originalElement.name);
+                  feedbackStore.recordCorrection({
+                    measureId: measure.id,
+                    measureTitle: measure.metadata?.title || measure.title || 'Unknown',
+                    catalogueType: measure.metadata?.catalogueType || 'unknown',
+                    extractionTimestamp: measure.metadata?.extractedAt,
+                    fieldPath: `${componentId}.DELETED`,
+                    fieldLabel: 'Component Deleted',
+                    originalValue: {
+                      name: originalElement.name || originalElement.description,
+                      resourceType: originalElement.resourceType || originalElement.type,
+                      valueSet: originalElement.valueSet?.name || originalElement.valueSet?.oid,
+                    },
+                    correctedValue: 'DELETED',
+                    dataElementName: originalElement.name || originalElement.description || '',
+                    populationName: populationName,
+                    userNote: '',
+                  });
+                }
+              }
+            } catch (err) {
+              console.error('[feedback] Delete capture error:', err);
+            }
+          }
+        }
+
+        // Now perform the actual deletion
         set((state) => {
-          const removeFromTree = (obj     )      => {
+          const removeFromTree = (obj) => {
             if (!obj) return obj;
 
             if (obj.criteria) {
@@ -1277,7 +1588,7 @@ export const useMeasureStore = create              ()(
 
             if (obj.children) {
               const filteredChildren = obj.children
-                .filter((c     ) => c.id !== componentId)
+                .filter((c) => c.id !== componentId)
                 .map(removeFromTree);
               return { ...obj, children: filteredChildren };
             }
@@ -1295,7 +1606,8 @@ export const useMeasureStore = create              ()(
               };
             }),
           };
-        }),
+        });
+      },
 
       // Replace a component in a parent clause at the same position (atomic swap)
       replaceComponent: (measureId, parentClauseId, oldComponentId, newComponent) =>
@@ -1336,9 +1648,57 @@ export const useMeasureStore = create              ()(
           };
         }),
 
-      updateTimingOverride: (measureId, componentId, modified) =>
+      updateTimingOverride: (measureId, componentId, modified) => {
+        // Record timing change to feedback store
+        const measure = get().measures.find((m) => m.id === measureId);
+        if (measure) {
+          try {
+            const feedbackStore = useFeedbackStore.getState();
+            if (feedbackStore.feedbackEnabled && measure._originalExtraction) {
+              // Find the element to get its name
+              const findElement = (nodes, targetId) => {
+                if (!nodes) return null;
+                for (const node of nodes) {
+                  if (node?.id === targetId) return node;
+                  if (node?.criteria) {
+                    const found = findElement([node.criteria], targetId);
+                    if (found) return found;
+                  }
+                  if (node?.children) {
+                    const found = findElement(node.children, targetId);
+                    if (found) return found;
+                  }
+                }
+                return null;
+              };
+
+              const element = findElement(measure.populations, componentId);
+              const originalElement = findElement(measure._originalExtraction, componentId);
+
+              if (element && originalElement) {
+                const originalTiming = originalElement.timingOverride;
+                feedbackStore.recordCorrection({
+                  measureId: measure.id,
+                  measureTitle: measure.metadata?.title || measure.title || 'Unknown',
+                  catalogueType: measure.metadata?.catalogueType || 'unknown',
+                  extractionTimestamp: measure.metadata?.extractedAt,
+                  fieldPath: `${componentId}.timing`,
+                  fieldLabel: 'Timing Override',
+                  originalValue: originalTiming ? JSON.stringify(originalTiming) : 'none',
+                  correctedValue: JSON.stringify(modified),
+                  dataElementName: element.name || element.description || '',
+                  populationName: '',
+                  userNote: '',
+                });
+              }
+            }
+          } catch (err) {
+            console.error('[feedback] Timing override capture error:', err);
+          }
+        }
+
         set((state) => {
-          const updateComponent = (obj     )      => {
+          const updateComponent = (obj) => {
             if (!obj) return obj;
             if (obj.id === componentId) {
               // If the component has a timingOverride, update it
@@ -1374,7 +1734,8 @@ export const useMeasureStore = create              ()(
               };
             }),
           };
-        }),
+        });
+      },
 
       updateTimingWindow: (measureId, componentId, modified) =>
         set((state) => {

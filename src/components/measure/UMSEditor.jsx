@@ -893,6 +893,30 @@ export function UMSEditor() {
     forceUpdate({});
   }, [measures]);
 
+  // Recalculate review progress from current measure state
+  // Calculate directly from measure.populations to ensure it reflects current state after deletions
+  // Must be before early return to satisfy React hooks rules
+  const reviewProgress = useMemo(() => {
+    if (!measure) return { total: 0, approved: 0, pending: 0, flagged: 0 };
+
+    let total = 0, approved = 0, pending = 0, flagged = 0;
+
+    const countStatus = (obj) => {
+      if (!obj) return;
+      if (obj.reviewStatus) {
+        total++;
+        if (obj.reviewStatus === 'approved') approved++;
+        else if (obj.reviewStatus === 'pending') pending++;
+        else if (obj.reviewStatus === 'flagged' || obj.reviewStatus === 'needs_revision') flagged++;
+      }
+      if (obj.criteria) countStatus(obj.criteria);
+      if (obj.children) obj.children.forEach(countStatus);
+    };
+
+    measure.populations.forEach(countStatus);
+    return { total, approved, pending, flagged };
+  }, [measure]);
+
   // Resizable panel state (must be before early return to satisfy React hooks rules)
   const [detailPanelWidth, setDetailPanelWidth] = useState(450);
   const isResizing = useRef(false);
@@ -972,8 +996,7 @@ export function UMSEditor() {
     }
   };
 
-  // Recalculate review progress from current measure state
-  const reviewProgress = useMeasureStore.getState().getReviewProgress(measure.id);
+  // progressPercent calculated from reviewProgress (computed via useMemo before early return)
   const progressPercent = reviewProgress.total > 0 ? Math.round((reviewProgress.approved / reviewProgress.total) * 100) : 0;
 
   // Get corrections count

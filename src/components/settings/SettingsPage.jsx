@@ -6,6 +6,8 @@ import { getCatalogueTypeOptions } from '../../services/catalogueDetector';
 
 // Pattern labels for display
 const PATTERN_LABELS = {
+  component_hallucination: 'Hallucinated Component',
+  component_missing: 'Missing Component',
   resource_type_misclassification: 'Resource Type',
   value_set_error: 'Value Set',
   timing_interpretation_error: 'Timing',
