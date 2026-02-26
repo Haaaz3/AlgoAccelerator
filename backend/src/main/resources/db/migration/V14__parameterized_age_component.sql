@@ -3,6 +3,9 @@
 -- one configurable Age Requirement component. Each measure configures its own
 -- age range using thresholds on the data element.
 
+-- Add subtype column to library_component table for component categorization
+ALTER TABLE library_component ADD COLUMN IF NOT EXISTS subtype VARCHAR(50);
+
 -- Delete old individual age components
 DELETE FROM library_component WHERE id IN (
     'age-12-plus',
