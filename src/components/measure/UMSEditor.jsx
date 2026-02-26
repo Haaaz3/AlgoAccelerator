@@ -110,7 +110,7 @@ function NumberStepper({ value, min, max, onChange }) {
           const v = parseInt(e.target.value, 10);
           if (!isNaN(v) && v >= min && v <= max) onChange(v);
         }}
-        className="w-12 text-center text-sm font-medium bg-transparent border-x border-[var(--border)]"
+        className="w-12 text-center text-sm font-medium bg-transparent border-x border-[var(--border)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         min={min}
         max={max}
       />
