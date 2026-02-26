@@ -2412,7 +2412,12 @@ function CriteriaNode({
             </span>
             <ComplexityBadge level={calculateDataElementComplexity(element)} size="sm" />
           </div>
-          <p className="text-sm text-[var(--text)]">{cleanDescription(element.description)}</p>
+          {/* For age requirement, show formatted range instead of template description */}
+          {(element.subtype === 'age' || (element.type === 'demographic' && element.thresholds?.ageMin !== undefined && !element.genderValue)) ? (
+            <p className="text-sm text-[var(--text)]">Age Requirement: {formatAgeRange(element.thresholds)}</p>
+          ) : (
+            <p className="text-sm text-[var(--text)]">{cleanDescription(element.description)}</p>
+          )}
 
           {/* Library Connection Indicator */}
           {linkedComponent && (
@@ -2460,7 +2465,7 @@ function CriteriaNode({
             );
           })()}
 
-          {/* Age Requirement - show formatted range and config panel when selected */}
+          {/* Age Requirement - show formatted range label only (editing happens in right panel) */}
           {(element.type === 'demographic' || element.subtype === 'age' || element.componentId?.includes('age')) &&
            !element.genderValue && (
             <div className="mt-2">
@@ -2468,13 +2473,6 @@ function CriteriaNode({
                 <span className="font-medium">Age:</span>
                 <span className="font-bold">{formatAgeRange(element.thresholds)}</span>
               </span>
-              {/* Inline age config panel when selected in deep mode */}
-              {isSelected && deepMode && onUpdateElement && (
-                <AgeRequirementConfig
-                  element={element}
-                  onUpdate={onUpdateElement}
-                />
-              )}
             </div>
           )}
 
@@ -3253,71 +3251,83 @@ function NodeDetailPanel({
           )}
         </div>
 
-        {/* Editable Description */}
-        <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Description</h4>
-            {editingField !== 'description' && (
-              <button
-                onClick={() => { setEditingField('description'); setEditValue(node?.description || ''); }}
-                className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          {editingField === 'description' ? (
-            <div className="space-y-2">
-              <textarea
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--accent)]/50 rounded-lg text-sm text-[var(--text)] focus:outline-none resize-none"
-                rows={3}
-                autoFocus
-              />
-              <div className="flex gap-2 justify-end">
-                <button onClick={() => setEditingField(null)} className="px-3 py-1.5 text-xs bg-[var(--bg-secondary)] text-[var(--text-muted)] rounded hover:text-[var(--text)]">
-                  Cancel
-                </button>
-                <button onClick={saveDescription} className="px-3 py-1.5 text-xs bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-hover)]">
-                  Save
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-[var(--text)]">{node.description}</p>
-          )}
-        </div>
-
-        {/* Editable Age Range (if detected) */}
-        {ageRange && (
+        {/* Editable Description - hide for age requirement components */}
+        {!(node.subtype === 'age' || (node.type === 'demographic' && node.thresholds?.ageMin !== undefined && !node.genderValue)) && (
           <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Age Range</h4>
-              {editingField !== 'ageRange' && (
+              <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Description</h4>
+              {editingField !== 'description' && (
                 <button
-                  onClick={() => setEditingField('ageRange')}
+                  onClick={() => { setEditingField('description'); setEditValue(node?.description || ''); }}
                   className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
-            {editingField === 'ageRange' ? (
-              <AgeRangeEditor
-                min={ageRange.min}
-                max={ageRange.max}
-                onSave={saveAgeRange}
-                onCancel={() => setEditingField(null)}
-              />
-            ) : (
-              <div className="flex items-center gap-3">
-                <span className="text-2xl font-bold text-[var(--accent)]">{ageRange.min}</span>
-                <span className="text-[var(--text-muted)]">to</span>
-                <span className="text-2xl font-bold text-[var(--accent)]">{ageRange.max}</span>
-                <span className="text-sm text-[var(--text-muted)]">years old</span>
+            {editingField === 'description' ? (
+              <div className="space-y-2">
+                <textarea
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  className="w-full px-3 py-2 bg-[var(--bg-secondary)] border border-[var(--accent)]/50 rounded-lg text-sm text-[var(--text)] focus:outline-none resize-none"
+                  rows={3}
+                  autoFocus
+                />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setEditingField(null)} className="px-3 py-1.5 text-xs bg-[var(--bg-secondary)] text-[var(--text-muted)] rounded hover:text-[var(--text)]">
+                    Cancel
+                  </button>
+                  <button onClick={saveDescription} className="px-3 py-1.5 text-xs bg-[var(--primary)] text-white rounded hover:bg-[var(--primary-hover)]">
+                    Save
+                  </button>
+                </div>
               </div>
+            ) : (
+              <p className="text-sm text-[var(--text)]">{node.description}</p>
             )}
+          </div>
+        )}
+
+        {/* Age Range - inline editing with NumberSteppers */}
+        {ageRange && (
+          <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
+            <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-3">Age Range</h4>
+
+            {/* Live preview sentence */}
+            <div className="mb-4 p-2 bg-[var(--bg-secondary)] rounded-lg text-center">
+              <span className="text-sm text-[var(--text)]">
+                Patient is <span className="font-bold text-[var(--accent)]">{node.thresholds?.ageMin ?? ageRange.min}</span> to <span className="font-bold text-[var(--accent)]">{node.thresholds?.ageMax ?? ageRange.max}</span> years old
+              </span>
+            </div>
+
+            {/* Inline NumberStepper inputs */}
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <label className="text-xs text-[var(--text-dim)] block mb-1.5">Minimum Age</label>
+                <NumberStepper
+                  value={node.thresholds?.ageMin ?? ageRange.min}
+                  min={0}
+                  max={120}
+                  onChange={(v) => {
+                    const newThresholds = { ...(node.thresholds || {}), ageMin: v };
+                    updateDataElement(measureId, node.id, { thresholds: newThresholds });
+                  }}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-[var(--text-dim)] block mb-1.5">Maximum Age</label>
+                <NumberStepper
+                  value={node.thresholds?.ageMax ?? ageRange.max}
+                  min={0}
+                  max={120}
+                  onChange={(v) => {
+                    const newThresholds = { ...(node.thresholds || {}), ageMax: v };
+                    updateDataElement(measureId, node.id, { thresholds: newThresholds });
+                  }}
+                />
+              </div>
+            </div>
           </div>
         )}
 
