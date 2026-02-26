@@ -135,7 +135,7 @@ function AgeRequirementConfig({ element, onUpdate }) {
       const { ageMax, ...rest } = thresholds;
       onUpdate(element.id, { ...element, thresholds: rest });
     } else {
-      updateThreshold({ ageMax: 64 });
+      updateThreshold({ ageMax: 65 });
     }
   };
 
@@ -163,7 +163,7 @@ function AgeRequirementConfig({ element, onUpdate }) {
 
         {!noMax && (
           <NumberStepper
-            value={thresholds.ageMax ?? 64}
+            value={thresholds.ageMax ?? 65}
             min={0}
             max={120}
             onChange={(v) => updateThreshold({ ageMax: v })}
@@ -1469,7 +1469,7 @@ export function UMSEditor() {
               genderValue: libraryComponent.genderValue,
               resourceType: libraryComponent.resourceType,
               // Default thresholds for age requirement (user can configure)
-              thresholds: libraryComponent.subtype === 'age' ? { ageMin: 18, ageMax: 64 } : libraryComponent.thresholds,
+              thresholds: libraryComponent.subtype === 'age' ? { ageMin: 18, ageMax: 65 } : libraryComponent.thresholds,
               confidence: 'high',
               reviewStatus: 'pending',
             };
