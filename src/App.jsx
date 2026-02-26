@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useMeasureStore } from './stores/measureStore';
 import { useComponentLibraryStore } from './stores/componentLibraryStore';
 import { Sidebar } from './components/layout/Sidebar';
@@ -26,7 +26,7 @@ const ROUTE_TO_TAB = {
   '/settings': 'settings',
 };
 
-const TAB_TO_ROUTE = {
+const _TAB_TO_ROUTE = {
   library: '/library',
   editor: '/editor',
   valuesets: '/valuesets',

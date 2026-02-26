@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Code, Copy, Check, Download, RefreshCw, FileCode, Database, Sparkles, Library, ChevronRight, CheckCircle, XCircle, AlertTriangle, Loader2, Server, Search, X, ChevronUp, ChevronDown, Edit3 } from 'lucide-react';
+import { Code, Copy, Check, Download, RefreshCw, FileCode, Database, Sparkles, Library, ChevronRight, CheckCircle, XCircle, AlertTriangle, Loader2, Search, X, ChevronUp, ChevronDown, Edit3 } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
 import { generateCQL, validateCQL, isCQLServiceAvailable } from '../../services/cqlGenerator';
 import { validateCQLSyntax,                                                       } from '../../services/cqlValidator';
@@ -21,7 +21,6 @@ export function CodeGeneration() {
     setLastGeneratedCode,
     saveMeasureCodeOverride,
     revertMeasureCodeOverride,
-    getMeasureCodeOverride,
     measureCodeOverrides,
   } = useMeasureStore();
   // Use Zustand selector for reactive updates when measure is edited
@@ -55,7 +54,7 @@ export function CodeGeneration() {
 
   // Component-aware generation result (for composition stats)
   const [composedResult, setComposedResult] = useState                            (null);
-  const [useComponentAware, setUseComponentAware] = useState(true);
+  const [useComponentAware, _setUseComponentAware] = useState(true);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,7 +69,7 @@ export function CodeGeneration() {
   const [showAuditDetails, setShowAuditDetails] = useState(false);
 
   // Code editor mode state
-  const [showCodeEditor, setShowCodeEditor] = useState(false);
+  const [_showCodeEditor, setShowCodeEditor] = useState(false);
 
   // Get measure-level code override for current format
   const measureOverrideKey = measure ? `${measure.id}::${format === 'cql' ? 'cql' : 'synapse-sql'}` : null;
@@ -131,7 +130,7 @@ export function CodeGeneration() {
       'synapse': 'synapse-sql',
     };
     return getOverrideCountForMeasure(measure, formatMap[format]);
-  }, [measure, format, codeStates]);
+  }, [measure, format]);
 
   // Check CQL service availability on mount
   useEffect(() => {
@@ -256,8 +255,8 @@ export function CodeGeneration() {
 
     const parts                    = [];
     let lastIndex = 0;
-    const lowerQuery = searchQuery.toLowerCase();
-    const lowerCode = code.toLowerCase();
+    const _lowerQuery = searchQuery.toLowerCase();
+    const _lowerCode = code.toLowerCase();
 
     searchResults.forEach((pos, idx) => {
       // Add text before match
@@ -374,7 +373,8 @@ export function CodeGeneration() {
         setSyntaxValidationResult(null);
       }
     }
-  }, [measure, format, useComponentAware, codeStates, libraryComponents]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measure, format, useComponentAware, codeStates, libraryComponents]); // setLastGeneratedCode is Zustand action (stable)
 
   // Generate Synapse SQL when format is 'synapse'
   useEffect(() => {
@@ -463,7 +463,8 @@ export function CodeGeneration() {
         setComposedResult(null);
       }
     }
-  }, [measure, format, useComponentAware, codeStates, libraryComponents]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measure, format, useComponentAware, codeStates, libraryComponents]); // setLastGeneratedCode is Zustand action (stable)
 
   if (!measure) {
     return (
@@ -686,7 +687,7 @@ export function CodeGeneration() {
                   {/* Expanded Audit Details */}
                   {showAuditDetails && overrideSummary && (
                     <div className="mt-4 space-y-3">
-                      {overrideSummary.overrideInfos.map((info, index) => (
+                      {overrideSummary.overrideInfos.map((info, _index) => (
                         <div
                           key={info.componentId}
                           className="p-3 bg-[var(--bg)] rounded-lg border border-amber-500/20"
@@ -1449,7 +1450,7 @@ function getPopulation(populations       , type        )             {
   return populations.find(p => variants.includes(p.type)) || null;
 }
 
-function getGeneratedCode(measure     , format                  )         {
+function _getGeneratedCode(measure     , format                  )         {
   // Use globalConstraints as primary source (single source of truth), fallback to population extraction
   const ageRange = measure.globalConstraints?.ageRange ||
                    extractAgeRange(measure.populations) ||

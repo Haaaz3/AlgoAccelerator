@@ -73,7 +73,7 @@ function containsKeywords(text        , keywords          )          {
  */
 function isLabValueSet(valueSet                   )          {
   const name = valueSet.name.toLowerCase();
-  const oid = valueSet.oid.toLowerCase();
+  const _oid = valueSet.oid.toLowerCase();
 
   // Check name for lab keywords
   if (containsKeywords(name, LAB_KEYWORDS)) {

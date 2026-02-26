@@ -29,9 +29,7 @@ import {
 import {
   escapeIdentifier,
   validateLibraryName,
-  validateVersion,
   intervalTemplate,
-  statusCheckTemplate,
   existsQueryTemplate,
   defineTemplate,
   combineExpressionsTemplate,
@@ -48,9 +46,6 @@ import {
   hospiceCheckTemplate,
   STANDARD_INCLUDES,
   STANDARD_CODE_SYSTEMS,
-                       
-                              
-                     
 } from './cqlTemplates';
 
 // ============================================================================

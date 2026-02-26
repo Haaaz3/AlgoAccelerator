@@ -235,7 +235,7 @@ export default function AddComponentModal({
     });
 
     return items;
-  }, [components, search, filterCat, sortBy]);
+  }, [components, search, filterCat, sortBy, getComponentCategory]);
 
   // Group by category (real categories only, not atomic/composite type)
   const grouped = useMemo(() => {
@@ -246,7 +246,7 @@ export default function AddComponentModal({
       (map[cat] = map[cat] || []).push(c);
     });
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
-  }, [filtered, sortBy]);
+  }, [filtered, sortBy, getComponentCategory]);
 
   const selectedComp = selected ? components.find(c => c.id === selected) : null;
 

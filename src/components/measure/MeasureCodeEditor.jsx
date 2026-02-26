@@ -11,27 +11,22 @@
  * - Helpful guidance throughout
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Edit3,
   Save,
-  X,
   RotateCcw,
   History,
   MessageSquare,
   Clock,
   CheckCircle,
-  AlertTriangle,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   FileCode,
   GitCompare,
   HelpCircle,
-  Info,
 } from 'lucide-react';
 import { diffLines } from 'diff';
-import { useMeasureStore } from '../../stores/measureStore';
 import { formatNoteTimestamp } from '../../types/componentCode';
 
 // =============================================================================
@@ -334,7 +329,7 @@ export function MeasureCodeEditor({
   code,
   originalCode,
   format,
-  measureId,
+  _measureId,
   onSave,
   editHistory = [],
   hasOverride = false,

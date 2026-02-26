@@ -814,7 +814,7 @@ export function mergeChunkExtractionResults(
   }
 
   const mergedPopulations                               = [];
-  for (const [type, results] of populationsByType) {
+  for (const [_type, results] of populationsByType) {
     if (results.length === 1) {
       mergedPopulations.push(results[0]);
     } else {

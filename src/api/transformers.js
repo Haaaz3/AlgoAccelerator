@@ -398,7 +398,7 @@ function createDefaultVersionInfo(status                )                       
   };
 }
 
-function createDefaultUsage()                 {
+function _createDefaultUsage()                 {
   return {
     measureIds: [],
     usageCount: 0,

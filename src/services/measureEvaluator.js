@@ -20,7 +20,7 @@
                    
                   
                       
-import { getEffectiveTiming, getEffectiveWindow, getOperatorBetween } from '../types/ums';
+import { getEffectiveTiming, getOperatorBetween } from '../types/ums';
 import { resolveTimingWindow,                     } from '../utils/timingResolver';
 // ============================================================================
 // Test Patient Data Types
@@ -100,7 +100,7 @@ import { resolveTimingWindow,                     } from '../utils/timingResolve
 /**
  * Detect if a measure is for cervical cancer screening based on title/ID
  */
-function isCervicalCancerMeasure(measure                      )          {
+function _isCervicalCancerMeasure(measure                      )          {
   const title = measure.metadata.title?.toLowerCase() || '';
   const measureId = measure.metadata.measureId?.toUpperCase() || '';
 
@@ -115,7 +115,7 @@ function isCervicalCancerMeasure(measure                      )          {
 /**
  * Detect if a measure is for childhood immunizations based on title/ID
  */
-function isChildhoodImmunizationMeasure(measure                      )          {
+function _isChildhoodImmunizationMeasure(measure                      )          {
   const title = measure.metadata.title?.toLowerCase() || '';
   const measureId = measure.metadata.measureId?.toUpperCase() || '';
 
@@ -131,7 +131,7 @@ function isChildhoodImmunizationMeasure(measure                      )          
 /**
  * Detect if a measure is for colorectal cancer screening
  */
-function isColorectalCancerMeasure(measure                      )          {
+function _isColorectalCancerMeasure(measure                      )          {
   const title = measure.metadata.title?.toLowerCase() || '';
   const measureId = measure.metadata.measureId?.toUpperCase() || '';
 
@@ -145,7 +145,7 @@ function isColorectalCancerMeasure(measure                      )          {
 /**
  * Detect if a measure is for breast cancer screening
  */
-function isBreastCancerMeasure(measure                      )          {
+function _isBreastCancerMeasure(measure                      )          {
   const title = measure.metadata.title?.toLowerCase() || '';
   const measureId = measure.metadata.measureId?.toUpperCase() || '';
 
@@ -412,7 +412,7 @@ function evaluateClause(
 
   // Track if we've already satisfied an OR group (for short-circuit evaluation)
   let orSatisfied = false;
-  let orSatisfiedByIndex = -1;
+  let _orSatisfiedByIndex = -1;
   let orSatisfiedByTitle = '';
 
   for (let i = 0; i < clause.children.length; i++) {
@@ -499,7 +499,7 @@ function evaluateClause(
       // Track OR satisfaction for short-circuiting
       if (isOrClause && met && !orSatisfied) {
         orSatisfied = true;
-        orSatisfiedByIndex = i;
+        _orSatisfiedByIndex = i;
         orSatisfiedByTitle = groupNode.title;
       }
     } else {
@@ -517,7 +517,7 @@ function evaluateClause(
         // Track OR satisfaction for short-circuiting
         if (isOrClause && met && !orSatisfied) {
           orSatisfied = true;
-          orSatisfiedByIndex = i;
+          _orSatisfiedByIndex = i;
           orSatisfiedByTitle = node.title;
         }
       }
@@ -1243,6 +1243,7 @@ function evaluateImmunization(
     return { met: false, facts, incomplete: false };
   }
 
+  // eslint-disable-next-line no-unused-vars
   const { codes: codesToMatch, needsCodes } = getCodesFromElement(element, measure);
   const descLower = element.description.toLowerCase();
 
@@ -1424,7 +1425,7 @@ function evaluateAssessment(
   }
 
   // Check if this element has no codes configured (incomplete)
-  const { codes: codesToMatch, needsCodes } = getCodesFromElement(element, measure);
+  const { codes: _codesToMatch2, needsCodes } = getCodesFromElement(element, measure);
   if (needsCodes) {
     facts.push({
       code: 'NO_CODES',

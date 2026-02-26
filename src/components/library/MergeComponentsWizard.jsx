@@ -3,7 +3,6 @@ import {
   X,
   Check,
   Search,
-  GripVertical,
   Code,
   Building2,
   Stethoscope,
@@ -303,8 +302,8 @@ export default function MergeComponentsWizard({ onSave, onClose, preSelectedIds 
     const isSel = selected.includes(comp.id);
     const cat = comp.category || comp.type || 'custom';
     const cc = CAT_COLORS[cat] || CAT_COLORS.custom;
-    const IconComponent = ICONS[cat] || Code;
-    const conf = CONFIDENCE_COLORS[comp.complexity?.level] || CONFIDENCE_COLORS.medium;
+    const _IconComponent = ICONS[cat] || Code;
+    const _conf = CONFIDENCE_COLORS[comp.complexity?.level] || CONFIDENCE_COLORS.medium;
     const cxLevel = comp.complexity?.level || 'medium';
     const cxDots = cxLevel === 'low' ? 1 : cxLevel === 'medium' ? 2 : 3;
     const cxColor = cxLevel === 'low' ? '#059669' : cxLevel === 'medium' ? '#d97706' : '#dc2626';
@@ -578,7 +577,7 @@ export default function MergeComponentsWizard({ onSave, onClose, preSelectedIds 
       <div className="mb-3.5">
         <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Components to Merge ({selected.length})</label>
         <div className="flex flex-col gap-1">
-          {selectedComponents.map((c, idx) => {
+          {selectedComponents.map((c) => {
             const cat = c.category || c.type || 'custom';
             const cc = CAT_COLORS[cat] || CAT_COLORS.custom;
             const IconComponent = ICONS[cat] || Code;
@@ -588,7 +587,6 @@ export default function MergeComponentsWizard({ onSave, onClose, preSelectedIds 
                 className="flex items-center gap-2 p-2 rounded-lg"
                 style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}
               >
-                <GripVertical size={12} style={{ color: 'var(--text-secondary)' }} />
                 <div className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: cc.bg }}>
                   <IconComponent size={12} style={{ color: cc.text }} />
                 </div>

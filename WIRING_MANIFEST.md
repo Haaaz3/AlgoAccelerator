@@ -20,17 +20,17 @@ A comprehensive map of how components, stores, and services connect and communic
 
 | Store | File | Purpose | Persistence Key |
 |-------|------|---------|-----------------|
-| measureStore | `src/stores/measureStore.ts` | Measures, corrections, active tab | `measure-storage` |
-| componentLibraryStore | `src/stores/componentLibraryStore.ts` | Reusable components | `component-library-storage` |
-| settingsStore | `src/stores/settingsStore.ts` | User preferences, API keys | `settings-storage` |
-| componentCodeStore | `src/stores/componentCodeStore.ts` | Code generation state | `component-code-storage` |
+| measureStore | `src/stores/measureStore.js` | Measures, corrections, active tab | `measure-storage` |
+| componentLibraryStore | `src/stores/componentLibraryStore.js` | Reusable components | `component-library-storage` |
+| settingsStore | `src/stores/settingsStore.js` | User preferences, API keys | `settings-storage` |
+| componentCodeStore | `src/stores/componentCodeStore.js` | Code generation state | `component-code-storage` |
 
 ---
 
 ### Component Subscriptions
 
-#### UMSEditor.tsx (Heaviest Store User)
-**File:** `src/components/measure/UMSEditor.tsx`
+#### UMSEditor.jsx (Heaviest Store User)
+**File:** `src/components/measure/UMSEditor.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
@@ -48,8 +48,8 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### MeasureLibrary.tsx
-**File:** `src/components/measure/MeasureLibrary.tsx`
+#### MeasureLibrary.jsx
+**File:** `src/components/measure/MeasureLibrary.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
@@ -61,8 +61,8 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### LibraryBrowser.tsx
-**File:** `src/components/library/LibraryBrowser.tsx`
+#### LibraryBrowser.jsx
+**File:** `src/components/library/LibraryBrowser.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
@@ -73,8 +73,8 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### ComponentEditor.tsx
-**File:** `src/components/library/ComponentEditor.tsx`
+#### ComponentEditor.jsx
+**File:** `src/components/library/ComponentEditor.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
@@ -85,8 +85,8 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### ComponentDetail.tsx
-**File:** `src/components/library/ComponentDetail.tsx`
+#### ComponentDetail.jsx
+**File:** `src/components/library/ComponentDetail.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
@@ -148,8 +148,8 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### ValueSetManager.tsx
-**File:** `src/components/valueset/ValueSetManager.tsx`
+#### ValueSetManager.jsx
+**File:** `src/components/valueset/ValueSetManager.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
@@ -159,8 +159,8 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### ValidationView.tsx
-**File:** `src/components/validation/ValidationView.tsx`
+#### ValidationView.jsx
+**File:** `src/components/validation/ValidationView.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
@@ -170,8 +170,8 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### MeasureCreator.tsx
-**File:** `src/components/measure/MeasureCreator.tsx`
+#### MeasureCreator.jsx
+**File:** `src/components/measure/MeasureCreator.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
@@ -182,8 +182,8 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### Settings.tsx
-**File:** `src/components/settings/Settings.tsx`
+#### Settings.jsx
+**File:** `src/components/settings/Settings.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
@@ -210,8 +210,8 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### ComponentDetailPanel.tsx
-**File:** `src/components/measure/ComponentDetailPanel.tsx`
+#### ComponentDetailPanel.jsx
+**File:** `src/components/measure/ComponentDetailPanel.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
@@ -238,22 +238,22 @@ A comprehensive map of how components, stores, and services connect and communic
 
 | Service | Primary Purpose | Key Exports |
 |---------|-----------------|-------------|
-| `measureIngestion.ts` | Document parsing & measure creation | `ingestMeasureFiles`, `parsePDFDocument` |
-| `aiExtractor.ts` | AI-powered data extraction | `extractMeasureWithAI`, `extractPopulations` |
-| `documentLoader.ts` | File loading & text extraction | `extractFromFiles`, `extractFromPDF` |
-| `cqlGenerator.ts` | CQL code generation | `generateCQL`, `validateCQL` |
-| `hdiSqlGenerator.ts` | HDI SQL generation | `generateHDISQL`, `validateHDISQLDetailed` |
-| `componentLibraryService.ts` | Component CRUD operations | `createAtomicComponent`, `createCompositeComponent`, `approveComponent` |
-| `componentMatcher.ts` | Library matching | `findExactMatch`, `parseDataElementToComponent` |
-| `componentCodeGenerator.ts` | Per-component code | `generateComponentCode`, `generateDataElementCode` |
-| `testPatientGenerator.ts` | Test patient creation | `generateTestPatients`, `generatePatientBundle` |
-| `measureEvaluator.ts` | Measure evaluation | `evaluateMeasure`, `evaluatePopulation` |
-| `complexityCalculator.ts` | Complexity scoring | `calculateDataElementComplexity`, `calculateCompositeComplexity` |
-| `copilotService.ts` | AI co-pilot context & messaging | `buildCopilotContext`, `buildCopilotSystemPrompt`, `sendCopilotMessage` |
-| `copilotProviders.ts` | Modular LLM provider architecture | `AnthropicProvider`, `OpenAIProvider`, `getProvider` |
-| `vsacService.ts` | VSAC API integration | `fetchValueSetExpansion` |
-| `vsacCodeCache.ts` | Local VSAC code cache | `getCodesForOid`, `hasCodesForOid` |
-| `api.ts` | External API calls | `fetchVSACValueSet`, `callLLM` |
+| `measureIngestion.js` | Document parsing & measure creation | `ingestMeasureFiles`, `parsePDFDocument` |
+| `aiExtractor.js` | AI-powered data extraction | `extractMeasureWithAI`, `extractPopulations` |
+| `documentLoader.js` | File loading & text extraction | `extractFromFiles`, `extractFromPDF` |
+| `cqlGenerator.js` | CQL code generation | `generateCQL`, `validateCQL` |
+| `hdiSqlGenerator.js` | HDI SQL generation | `generateHDISQL`, `validateHDISQLDetailed` |
+| `componentLibraryService.js` | Component CRUD operations | `createAtomicComponent`, `createCompositeComponent`, `approveComponent` |
+| `componentMatcher.js` | Library matching | `findExactMatch`, `parseDataElementToComponent` |
+| `componentCodeGenerator.js` | Per-component code | `generateComponentCode`, `generateDataElementCode` |
+| `testPatientGenerator.js` | Test patient creation | `generateTestPatients`, `generatePatientBundle` |
+| `measureEvaluator.js` | Measure evaluation | `evaluateMeasure`, `evaluatePopulation` |
+| `complexityCalculator.js` | Complexity scoring | `calculateDataElementComplexity`, `calculateCompositeComplexity` |
+| `copilotService.js` | AI co-pilot context & messaging | `buildCopilotContext`, `buildCopilotSystemPrompt`, `sendCopilotMessage` |
+| `copilotProviders.js` | Modular LLM provider architecture | `AnthropicProvider`, `OpenAIProvider`, `getProvider` |
+| `vsacService.js` | VSAC API integration | `fetchValueSetExpansion` |
+| `vsacCodeCache.js` | Local VSAC code cache | `getCodesForOid`, `hasCodesForOid` |
+| `api.js` | External API calls | `fetchVSACValueSet`, `callLLM` |
 
 ---
 
@@ -264,20 +264,20 @@ A comprehensive map of how components, stores, and services connect and communic
 │                           INGESTION PIPELINE                                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  MeasureCreator.tsx                                                          │
+│  MeasureCreator.jsx                                                          │
 │         │                                                                    │
 │         ▼                                                                    │
-│  measureIngestion.ts::ingestMeasureFiles()                                   │
+│  measureIngestion.js::ingestMeasureFiles()                                   │
 │         │                                                                    │
-│         ├──▶ documentLoader.ts::extractFromFiles()                           │
+│         ├──▶ documentLoader.js::extractFromFiles()                           │
 │         │         │                                                          │
 │         │         └──▶ extractFromPDF() ──▶ pdf.js library                   │
 │         │                                                                    │
-│         └──▶ aiExtractor.ts::extractMeasureWithAI()                          │
+│         └──▶ aiExtractor.js::extractMeasureWithAI()                          │
 │                   │                                                          │
 │                   ├──▶ extractPopulations()                                  │
 │                   ├──▶ extractValueSets()                                    │
-│                   └──▶ api.ts::callLLM() ──▶ Anthropic/OpenAI API            │
+│                   └──▶ api.js::callLLM() ──▶ Anthropic/OpenAI API            │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -285,16 +285,16 @@ A comprehensive map of how components, stores, and services connect and communic
 │                        CODE GENERATION PIPELINE                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  CodeGeneration.tsx                                                          │
+│  CodeGeneration.jsx                                                          │
 │         │                                                                    │
-│         ├──▶ cqlGenerator.ts::generateCQL()                                  │
+│         ├──▶ cqlGenerator.js::generateCQL()                                  │
 │         │         │                                                          │
 │         │         ├──▶ generateHeader()                                      │
 │         │         ├──▶ generateValueSetDeclarations()                        │
 │         │         ├──▶ generatePopulationDefinitions()                       │
 │         │         └──▶ validateCQL() ──▶ (external CQL translator)           │
 │         │                                                                    │
-│         └──▶ hdiSqlGenerator.ts::generateHDISQL()                            │
+│         └──▶ hdiSqlGenerator.js::generateHDISQL()                            │
 │                   │                                                          │
 │                   ├──▶ extractPredicatesFromUMS()                            │
 │                   ├──▶ generatePredicateCTEs()                               │
@@ -311,22 +311,22 @@ A comprehensive map of how components, stores, and services connect and communic
 │                     COMPONENT LIBRARY MANAGEMENT                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  ComponentEditor.tsx / UMSEditor.tsx                                         │
+│  ComponentEditor.jsx / UMSEditor.jsx                                         │
 │         │                                                                    │
 │         ▼                                                                    │
-│  componentLibraryStore.ts                                                    │
+│  componentLibraryStore.js                                                    │
 │         │                                                                    │
-│         ├──▶ componentLibraryService.ts::createAtomicComponent()             │
+│         ├──▶ componentLibraryService.js::createAtomicComponent()             │
 │         │                                                                    │
-│         ├──▶ componentLibraryService.ts::createCompositeComponent()          │
+│         ├──▶ componentLibraryService.js::createCompositeComponent()          │
 │         │                                                                    │
-│         ├──▶ componentMatcher.ts::findExactMatch()                           │
+│         ├──▶ componentMatcher.js::findExactMatch()                           │
 │         │         │                                                          │
 │         │         └──▶ parseDataElementToComponent()                         │
 │         │                                                                    │
-│         ├──▶ componentLibraryService.ts::approveComponent()                  │
+│         ├──▶ componentLibraryService.js::approveComponent()                  │
 │         │                                                                    │
-│         └──▶ complexityCalculator.ts::calculateDataElementComplexity()       │
+│         └──▶ complexityCalculator.js::calculateDataElementComplexity()       │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -334,13 +334,13 @@ A comprehensive map of how components, stores, and services connect and communic
 │                         VALIDATION PIPELINE                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  ValidationView.tsx                                                          │
+│  ValidationView.jsx                                                          │
 │         │                                                                    │
-│         ├──▶ testPatientGenerator.ts::generateTestPatients()                 │
+│         ├──▶ testPatientGenerator.js::generateTestPatients()                 │
 │         │         │                                                          │
 │         │         └──▶ generatePatientBundle()                               │
 │         │                                                                    │
-│         └──▶ measureEvaluator.ts::evaluateMeasure()                          │
+│         └──▶ measureEvaluator.js::evaluateMeasure()                          │
 │                   │                                                          │
 │                   ├──▶ evaluatePopulation()                                  │
 │                   ├──▶ matchResourcesToElement()                             │
@@ -354,19 +354,19 @@ A comprehensive map of how components, stores, and services connect and communic
 │                                                                              │
 │  CopilotPanel.jsx                                                            │
 │         │                                                                    │
-│         ├──▶ copilotService.ts::buildCopilotContext()                        │
+│         ├──▶ copilotService.js::buildCopilotContext()                        │
 │         │         │                                                          │
 │         │         ├──▶ Read measureStore.lastGeneratedCode                   │
 │         │         ├──▶ Read componentLibraryStore.components                 │
 │         │         └──▶ Build measure structure context                       │
 │         │                                                                    │
-│         ├──▶ copilotService.ts::buildCopilotSystemPrompt()                   │
+│         ├──▶ copilotService.js::buildCopilotSystemPrompt()                   │
 │         │         │                                                          │
 │         │         └──▶ Generate CQL/FHIR domain-aware system prompt          │
 │         │                                                                    │
-│         └──▶ copilotService.ts::sendCopilotMessage()                         │
+│         └──▶ copilotService.js::sendCopilotMessage()                         │
 │                   │                                                          │
-│                   └──▶ copilotProviders.ts::getProvider()                    │
+│                   └──▶ copilotProviders.js::getProvider()                    │
 │                             │                                                │
 │                             ├──▶ AnthropicProvider → Anthropic API           │
 │                             └──▶ OpenAIProvider → OpenAI API                 │
@@ -385,7 +385,7 @@ A comprehensive map of how components, stores, and services connect and communic
 │                         CODE CUSTOMIZATION PIPELINE                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  CodeGeneration.tsx                                                          │
+│  CodeGeneration.jsx                                                          │
 │         │                                                                    │
 │         ├──▶ Generate CQL/SQL                                                │
 │         │         │                                                          │
@@ -439,20 +439,20 @@ A comprehensive map of how components, stores, and services connect and communic
 User Action: Upload PDF in MeasureCreator modal
     │
     ▼
-MeasureCreator.tsx (lines 88-124)
+MeasureCreator.jsx (lines 88-124)
     │ captures file upload
     ▼
-documentLoader.ts::extractFromFiles()
+documentLoader.js::extractFromFiles()
     │
     ▼
-documentLoader.ts::extractFromPDF() (lines 127-193)
+documentLoader.js::extractFromPDF() (lines 127-193)
     │ uses pdf.js to parse pages
     ▼
-measureIngestion.ts::ingestMeasureFiles()
+measureIngestion.js::ingestMeasureFiles()
     │
-    ├──▶ aiExtractor.ts::extractMeasureWithAI()
+    ├──▶ aiExtractor.js::extractMeasureWithAI()
     │         │
-    │         └──▶ api.ts::callLLM() → Anthropic/OpenAI
+    │         └──▶ api.js::callLLM() → Anthropic/OpenAI
     │
     ▼
 Component State Updates:
@@ -478,16 +478,16 @@ UI: Measure appears in library, components linked
 User Action: Click "New Component" in LibraryBrowser
     │
     ▼
-LibraryBrowser.tsx (lines 159-161)
+LibraryBrowser.jsx (lines 159-161)
     │ handleNewComponent()
     ▼
-ComponentEditor.tsx opens (lines 78-340)
+ComponentEditor.jsx opens (lines 78-340)
     │ form creation with type selection
     ▼
 User fills form, clicks Save
     │
     ▼
-ComponentEditor.tsx::handleSave() (lines 219-250)
+ComponentEditor.jsx::handleSave() (lines 219-250)
     │
     ├──▶ componentLibraryService::createAtomicComponent()
     │    OR
@@ -514,10 +514,10 @@ UI: Component appears in list with "Draft" badge
 User Action: Select components via checkboxes → Click "Merge"
     │
     ▼
-UMSEditor.tsx::toggleMergeSelection() (lines 59-69)
+UMSEditor.jsx::toggleMergeSelection() (lines 59-69)
     │ manages Set of selected IDs
     ▼
-UMSEditor.tsx merge dialog (lines 788-810)
+UMSEditor.jsx merge dialog (lines 788-810)
     │ user enters merged component name
     ▼
 componentLibraryStore.mergeComponents() (lines 714-822)
@@ -545,7 +545,7 @@ UI: Merged component appears, originals show "Archived"
 User Action: Select value set → Add/Remove code
     │
     ▼
-ValueSetManager.tsx (lines 18-180)
+ValueSetManager.jsx (lines 18-180)
     │ inline code editing
     ▼
 measureStore.addCodeToValueSet() (lines 325-408)
@@ -573,10 +573,10 @@ UI: Code count updates, correction indicator shows
 User Action: Navigate to Code Gen tab → Select CQL format
     │
     ▼
-CodeGeneration.tsx (lines 35-41)
+CodeGeneration.jsx (lines 35-41)
     │ useEffect triggers on format change
     ▼
-cqlGenerator.ts::generateCQL(measure) (lines 71-155)
+cqlGenerator.js::generateCQL(measure) (lines 71-155)
     │
     ├──▶ generateHeader()
     ├──▶ generateValueSetDeclarations()
@@ -603,10 +603,10 @@ UI: CQL displays in syntax-highlighted editor
 User Action: Navigate to Code Gen → Select HDI SQL button
     │
     ▼
-CodeGeneration.tsx (lines 43-63)
+CodeGeneration.jsx (lines 43-63)
     │ useEffect calls generateHDISQL()
     ▼
-hdiSqlGenerator.ts::generateHDISQL(measure, config) (lines 73-150)
+hdiSqlGenerator.js::generateHDISQL(measure, config) (lines 73-150)
     │
     ├──▶ extractPredicatesFromUMS() (lines 159-203)
     │       walks clause tree, maps data elements
@@ -639,7 +639,7 @@ UI: BigQuery SQL displays with CTEs and comments
 Trigger: Measure loads or "Link Component" clicked
     │
     ▼
-UMSEditor.tsx (lines 170-185)
+UMSEditor.jsx (lines 170-185)
     │ useEffect on mount
     ▼
 componentLibraryStore.linkMeasureComponents(measureId, populations)
@@ -673,7 +673,7 @@ UI: Data element shows linked badge, usage counts update
 User Action: Click "Approve" in ComponentDetail panel
     │
     ▼
-ComponentDetail.tsx (lines 81-83)
+ComponentDetail.jsx (lines 81-83)
     │ handleApprove() callback
     ▼
 componentLibraryStore.approve(componentId, 'current-user')
@@ -704,7 +704,7 @@ UI: Status badge → "Approved" (green), version history updated
 User Action: Click operator button on logical clause
     │
     ▼
-LogicTreeEditor.tsx
+LogicTreeEditor.jsx
     │ receives onToggleOperator callback from UMSEditor
     ▼
 measureStore.toggleLogicalOperator(measureId, clauseId)
@@ -733,7 +733,7 @@ UI: Operator button text/color changes, tree updates
 User Action: Click timing badge → Edit → Save
     │
     ▼
-TimingEditor.tsx::TimingBadge (lines 100-135)
+TimingEditor.jsx::TimingBadge (lines 100-135)
     │ onClick opens editor
     ▼
 TimingEditorPanel (lines 146-190)
@@ -771,7 +771,7 @@ User Action: Opens Co-pilot panel → Types question → Send
 CopilotPanel.jsx (lines 180-220)
     │ handleSend() captures message
     ▼
-copilotService.ts::buildCopilotContext()
+copilotService.js::buildCopilotContext()
     │
     ├──▶ Reads measureStore.lastGeneratedCode (CQL + SQL)
     ├──▶ Reads componentLibraryStore.components
@@ -779,16 +779,16 @@ copilotService.ts::buildCopilotContext()
     └──▶ Returns structured context object
     │
     ▼
-copilotService.ts::buildCopilotSystemPrompt(context)
+copilotService.js::buildCopilotSystemPrompt(context)
     │
     ├──▶ Generates CQL/FHIR domain-aware instructions
     ├──▶ Includes measure structure in prompt
     └──▶ Defines proposal JSON response format
     │
     ▼
-copilotService.ts::sendCopilotMessage(history, context, settings)
+copilotService.js::sendCopilotMessage(history, context, settings)
     │
-    └──▶ copilotProviders.ts::getProvider(settings.provider)
+    └──▶ copilotProviders.js::getProvider(settings.provider)
               │
               ├──▶ AnthropicProvider.chat() → Anthropic API
               └──▶ OpenAIProvider.chat() → OpenAI API
@@ -852,7 +852,7 @@ User enters required note (min 10 chars)
     ▼
 MeasureCodeEditor.jsx::handleSave()
     │
-    └──▶ Parent callback → CodeGeneration.tsx::handleSaveCodeOverride()
+    └──▶ Parent callback → CodeGeneration.jsx::handleSaveCodeOverride()
               │
               └──▶ measureStore.saveMeasureCodeOverride(measureId, format, code, note, originalCode)
                         │
@@ -881,7 +881,7 @@ User Action: Clicks "Revert to Original" in MeasureCodeEditor
     ▼
 MeasureCodeEditor.jsx::handleRevert()
     │
-    └──▶ Parent callback → CodeGeneration.tsx::handleRevertCodeOverride()
+    └──▶ Parent callback → CodeGeneration.jsx::handleRevertCodeOverride()
               │
               └──▶ measureStore.revertMeasureCodeOverride(measureId, format)
                         │
@@ -904,7 +904,7 @@ UI: Code reverts to generated, "Custom Override" badge removed
 User Action: Click "Edit" on value set section in NodeDetailPanel
     │
     ▼
-NodeDetailPanel (UMSEditor.tsx)
+NodeDetailPanel (UMSEditor.jsx)
     │ setEditingValueSet(true)
     ▼
 User modifies OID or VS Name
@@ -938,7 +938,7 @@ VsacFetchButton::handleFetch()
     │
     ├──▶ Check vsacApiKey from settingsStore
     │
-    └──▶ vsacService.ts::fetchValueSetExpansion(oid, apiKey)
+    └──▶ vsacService.js::fetchValueSetExpansion(oid, apiKey)
               │
               └──▶ VSAC API → returns { codes, valueSetName, version }
     │
@@ -970,7 +970,7 @@ UI: Codes table populates, "Fetched X codes" success message
 User Action: Click "+ Add Code" → Fill form → Click "Add"
     │
     ▼
-NodeDetailPanel (UMSEditor.tsx)
+NodeDetailPanel (UMSEditor.jsx)
     │ showAddCodeForm = true
     ▼
 User enters: code, display, system (dropdown)
@@ -1052,13 +1052,13 @@ UI: Component appears in population tree, linked to library
 
 ### Unused Service Exports
 
-#### componentLibraryService.ts
+#### componentLibraryService.js
 | Line | Export | Reason |
 |------|--------|--------|
 | 334 | `getApprovedComponents()` | Not imported anywhere |
 | 338 | `getAffectedMeasures()` | Not imported anywhere |
 
-#### hdiSqlGenerator.ts
+#### hdiSqlGenerator.js
 | Line | Export | Reason |
 |------|--------|--------|
 | 827 | `generateHDISQLWithContexts()` | Wrapper never called |
@@ -1066,18 +1066,18 @@ UI: Component appears in population tree, linked to library
 | 766 | `validateHDISQLBasic()` | Superseded by `validateHDISQLDetailed()` |
 | 804 | `formatHDISQL()` | SQL formatter never called |
 
-#### cqlGenerator.ts
+#### cqlGenerator.js
 | Line | Export | Reason |
 |------|--------|--------|
 | 980 | `generateAndValidateCQL()` | Convenience wrapper never used |
 
-#### testPatientGenerator.ts
+#### testPatientGenerator.js
 | Line | Export | Reason |
 |------|--------|--------|
 | 1591 | `getTestPatientById()` | Accessor never called |
 | 1598 | `getAllTestPatients()` | Batch accessor never called |
 
-#### api.ts
+#### api.js
 | Line | Export | Reason |
 |------|--------|--------|
 | 58 | `searchVSAC()` | VSAC search never imported |
@@ -1088,14 +1088,14 @@ UI: Component appears in population tree, linked to library
 | 206 | `chatWithLLM()` | Chat proxy never called |
 | 238 | `getLLMModels()` | Model listing never used |
 
-#### componentCodeGenerator.ts
+#### componentCodeGenerator.js
 | Line | Export | Reason |
 |------|--------|--------|
 | 393 | `generateClauseCode()` | Only internal recursive calls |
 | 423 | `generateCQLDefinitionName()` | Never called externally |
 | 434 | `generateSQLAlias()` | Never called externally |
 
-#### measureIngestion.ts
+#### measureIngestion.js
 | Line | Export | Reason |
 |------|--------|--------|
 | 46 | `ingestMeasureFilesDirect()` | Alternative implementation never used |
@@ -1105,7 +1105,7 @@ UI: Component appears in population tree, linked to library
 
 ### Unreachable Code Paths
 
-#### hdiSqlGenerator.ts (Lines 917-929)
+#### hdiSqlGenerator.js (Lines 917-929)
 ```typescript
 if (typeof child === 'string') {
   return `  select empi_id from ${child}`;
@@ -1115,7 +1115,7 @@ if (typeof child === 'string') {
 ```
 **Issue:** Nested predicates already converted to strings by line 907
 
-#### cqlGenerator.ts (Line 598)
+#### cqlGenerator.js (Line 598)
 ```typescript
 lines.push('  true // TODO: Define numerator criteria');
 ```
@@ -1126,8 +1126,8 @@ lines.push('  true // TODO: Define numerator criteria');
 ### Cleanup Recommendations
 
 1. **Remove completely:**
-   - All VSAC API functions in `api.ts`
-   - Both LLM proxy functions in `api.ts`
+   - All VSAC API functions in `api.js`
+   - Both LLM proxy functions in `api.js`
    - componentLibraryService: `getApprovedComponents`, `getAffectedMeasures`
    - testPatientGenerator: `getTestPatientById`, `getAllTestPatients`
 
@@ -1159,13 +1159,13 @@ Internal `get()` calls within measureStore:
 
 | Component | Stores Used | Integration Point |
 |-----------|-------------|-------------------|
-| UMSEditor.tsx | 4 stores | Links measures to library, syncs components |
-| ComponentEditor.tsx | 2 stores | Updates measures when components change |
-| LibraryBrowser.tsx | 2 stores | Recalculates usage from measures |
-| MeasureLibrary.tsx | 3 stores | Links components on import |
-| ComponentDetail.tsx | 2 stores | Displays code state for components |
+| UMSEditor.jsx | 4 stores | Links measures to library, syncs components |
+| ComponentEditor.jsx | 2 stores | Updates measures when components change |
+| LibraryBrowser.jsx | 2 stores | Recalculates usage from measures |
+| MeasureLibrary.jsx | 3 stores | Links components on import |
+| ComponentDetail.jsx | 2 stores | Displays code state for components |
 | CopilotPanel.jsx | 3 stores | Builds context, applies proposals to measures |
-| CodeGeneration.tsx | 1 store | Generates code, manages overrides |
+| CodeGeneration.jsx | 1 store | Generates code, manages overrides |
 
 ---
 
@@ -1173,7 +1173,7 @@ Internal `get()` calls within measureStore:
 
 #### Sequence A: Measure Import → Usage Update
 ```
-MeasureLibrary.tsx
+MeasureLibrary.jsx
     │
     └──▶ measureStore.addMeasure()
               │
@@ -1187,7 +1187,7 @@ MeasureLibrary.tsx
 
 #### Sequence B: Component Edit → Measure Sync
 ```
-ComponentEditor.tsx
+ComponentEditor.jsx
     │
     └──▶ componentLibraryStore.syncComponentToMeasures()
               │
@@ -1198,7 +1198,7 @@ ComponentEditor.tsx
 
 #### Sequence C: Code Generation → Display
 ```
-CodeGeneration.tsx
+CodeGeneration.jsx
     │
     ├──▶ measureStore.selectedCodeFormat
     ├──▶ measureStore.activeMeasure
@@ -1216,7 +1216,7 @@ CodeGeneration.tsx
 |------|-----------|-------|------------|
 | Reference Desync | `component.usage.measureIds` vs `element.libraryComponentId` | Same data in two places | Call `recalculateUsage()` explicitly |
 | Override Orphaning | `componentCodeStore.overrides` | Component ID changes orphan overrides | None - ID changes break overrides |
-| Settings Staleness | `settingsStore` → `CodeGeneration.tsx` | Code doesn't regenerate on provider change | Manual regenerate required |
+| Settings Staleness | `settingsStore` → `CodeGeneration.jsx` | Code doesn't regenerate on provider change | Manual regenerate required |
 | Sample Data Race | `initializeWithSampleData()` | Multiple tabs could overwrite | Single `initialized` flag check |
 
 ---
@@ -1225,10 +1225,10 @@ CodeGeneration.tsx
 
 | Dependency | Location | Risk |
 |------------|----------|------|
-| Library lookup for DataElement | UMSEditor.tsx lines 122-149 | `getComponent()` can return null |
+| Library lookup for DataElement | UMSEditor.jsx lines 122-149 | `getComponent()` can return null |
 | Measure ID mismatch | measureStore vs componentLibraryStore | `measureId` vs `measure.id` confusion |
 | Value set code sync | ValueSetManager → Library | Manual sync required, not enforced |
-| Complexity calculations | complexityCalculator.ts | Different scores at different times |
+| Complexity calculations | complexityCalculator.js | Different scores at different times |
 
 ---
 

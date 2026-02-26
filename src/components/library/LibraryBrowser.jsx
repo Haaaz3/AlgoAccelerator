@@ -4,7 +4,6 @@ import {
   Filter,
   Plus,
   Layers,
-  ChevronRight,
   Package,
   GitBranch,
   Tag,
@@ -13,10 +12,8 @@ import {
   Clock,
   FileEdit,
   Archive,
-  Users,
   ChevronDown,
   X,
-  ArrowUpDown,
   ArrowUp,
   ArrowDown,
   Building2,
@@ -205,7 +202,7 @@ export function LibraryBrowser() {
     });
   }, [selectedCategory, setFilters]);
 
-  const filteredComponents = useMemo(() => getFilteredComponents(), [components, filters, getFilteredComponents]);
+  const filteredComponents = useMemo(() => getFilteredComponents(), [getFilteredComponents]);
 
   const handleSearchChange = (e                                     ) => {
     setFilters({ searchQuery: e.target.value });
@@ -227,7 +224,7 @@ export function LibraryBrowser() {
     setFilters({ complexities: next.length > 0 ? next : undefined });
   };
 
-  const handleUsageSortToggle = () => {
+  const _handleUsageSortToggle = () => {
     const current = filters.usageSort;
     // Cycle: none → desc → asc → none
     const next = current === undefined ? 'desc' : current === 'desc' ? 'asc' : undefined;

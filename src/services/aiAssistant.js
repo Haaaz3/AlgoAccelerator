@@ -15,7 +15,7 @@
                
                       
                                                            
-import { callLLM,                      } from './llmClient';
+import { callLLM } from './llmClient';
 
 // =============================================================================
 // TYPES
@@ -479,8 +479,8 @@ export function applyAIChanges(
 export function formatChangesForDisplay(
   currentComponent                                        ,
   changes                                             ,
-  mpStart        ,
-  mpEnd        
+  _mpStart        ,
+  _mpEnd
 )                                                     {
   const displayChanges                                                     = [];
 

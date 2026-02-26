@@ -1507,7 +1507,7 @@ async function extractWithMultiPassAdapter(
   onProgress                                         ,
   provider              = 'anthropic',
   model         ,
-  customConfig                  ,
+  _customConfig                  ,
 )                              {
   // Map progress from multi-pass format to legacy format
   const progressMapper = (mpProgress                                                                             ) => {

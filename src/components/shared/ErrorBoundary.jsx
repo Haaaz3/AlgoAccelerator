@@ -5,8 +5,8 @@ import { AlertTriangle, RefreshCw, CheckCircle } from 'lucide-react';
  * Error Boundary component that catches render errors in child components.
  * Displays a user-friendly error message with retry functionality.
  */
-export class ErrorBoundary extends Component                                         {
-  constructor(props                    ) {
+export class ErrorBoundary extends Component {
+  constructor(props) {
     super(props);
     this.state = {
       hasError: false,
@@ -15,11 +15,11 @@ export class ErrorBoundary extends Component                                    
     };
   }
 
-  static getDerivedStateFromError(error       )                              {
+  static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error       , errorInfo           )       {
+  componentDidCatch(error, errorInfo) {
     // Log the error details to console with full component stack
     console.error(`[ErrorBoundary] Error in ${this.props.fallbackName}:`, error);
     console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack);
@@ -27,15 +27,15 @@ export class ErrorBoundary extends Component                                    
     this.setState({ errorInfo });
   }
 
-  handleRetry = ()       => {
+  handleRetry() {
     this.setState({
       hasError: false,
       error: null,
       errorInfo: null,
     });
-  };
+  }
 
-  render()            {
+  render() {
     if (this.state.hasError) {
       return (
         <div className="flex-1 flex items-center justify-center p-8">
@@ -67,7 +67,7 @@ export class ErrorBoundary extends Component                                    
             </p>
 
             <button
-              onClick={this.handleRetry}
+              onClick={() => this.handleRetry()}
               className="w-full px-4 py-2 bg-[var(--accent)] text-white rounded-lg font-medium hover:bg-[var(--accent)]/90 transition-colors flex items-center justify-center gap-2"
             >
               <RefreshCw className="w-4 h-4" />
@@ -87,7 +87,7 @@ export class ErrorBoundary extends Component                                    
  * Use this for recoverable errors that don't require unmounting the component.
  */
 
-export function InlineErrorBanner({ message, onDismiss }                        )            {
+export function InlineErrorBanner({ message, onDismiss }) {
   return (
     <div className="mb-4 p-3 bg-[var(--danger)]/10 border border-[var(--danger)]/30 rounded-lg flex items-start gap-3">
       <AlertTriangle className="w-5 h-5 text-[var(--danger)] flex-shrink-0 mt-0.5" />
@@ -111,7 +111,7 @@ export function InlineErrorBanner({ message, onDismiss }                        
  * Use this for confirming successful operations.
  */
 
-export function InlineSuccessBanner({ message, onDismiss }                          )            {
+export function InlineSuccessBanner({ message, onDismiss }) {
   return (
     <div className="mb-4 p-3 bg-[var(--success)]/10 border border-[var(--success)]/30 rounded-lg flex items-start gap-3">
       <CheckCircle className="w-5 h-5 text-[var(--success)] flex-shrink-0 mt-0.5" />

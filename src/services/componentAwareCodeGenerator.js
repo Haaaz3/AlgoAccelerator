@@ -237,7 +237,7 @@ function getEffectiveComponentCode(
  */
 function generateFreshElementCode(element             )                               {
   const vsName = element.valueSet?.name || element.description || 'Value Set';
-  const vsOid = element.valueSet?.oid || 'UNKNOWN_OID';
+  const _vsOid = element.valueSet?.oid || 'UNKNOWN_OID';
 
   // Generate simple CQL exists query
   let cql        ;
@@ -495,9 +495,9 @@ ${populationDefs}
  */
 function assembleSQL(
   measure                      ,
-  populations                          
+  populations
 )         {
-  const measureName = (measure.metadata.measureId || 'measure').replace(/[^a-zA-Z0-9]/g, '_');
+  const _measureName = (measure.metadata.measureId || 'measure').replace(/[^a-zA-Z0-9]/g, '_');
 
   // Build population CTEs
   const populationCTEs = populations.map(pop => {

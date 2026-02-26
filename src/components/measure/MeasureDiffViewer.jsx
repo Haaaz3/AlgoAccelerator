@@ -21,7 +21,6 @@ import {
   FileText,
   Code2,
   X,
-  AlertTriangle,
   CheckCircle,
 } from 'lucide-react';
 
@@ -144,7 +143,7 @@ const ElementDiffRow = ({ diff }                     ) => {
 export const MeasureDiffViewer = ({ measures, onClose }                        ) => {
   const [oldMeasureId, setOldMeasureId] = useState        ('');
   const [newMeasureId, setNewMeasureId] = useState        ('');
-  const [showCodeDiff, setShowCodeDiff] = useState(false);
+  const [_showCodeDiff, _setShowCodeDiff] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     metadata: true,
     elements: true,

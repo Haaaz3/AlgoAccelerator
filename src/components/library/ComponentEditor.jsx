@@ -46,7 +46,7 @@ const CATEGORIES                                                = [
 // ============================================================================
 
 export default function ComponentEditor({ componentId, onSave, onClose }                      ) {
-  const { components, addComponent, updateComponent, getComponent, syncComponentToMeasures, handleSharedEdit, rebuildUsageIndex } = useComponentLibraryStore();
+  const { components, addComponent, updateComponent, getComponent, syncComponentToMeasures, handleSharedEdit: _handleSharedEdit, rebuildUsageIndex } = useComponentLibraryStore();
   const { measures, batchUpdateMeasures } = useMeasureStore();
   const [showSharedWarning, setShowSharedWarning] = useState(false);
   const [pendingChanges, setPendingChanges] = useState                     (null);

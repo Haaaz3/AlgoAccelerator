@@ -2,7 +2,7 @@
  * Validation API client.
  */
 
-import { get, post } from './client';
+import { get } from './client';
 
 // Response types matching backend DTOs
 

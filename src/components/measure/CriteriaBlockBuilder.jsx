@@ -7,7 +7,7 @@
  * - Any FHIR/QI-Core based quality measure
  */
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Trash2,
@@ -467,7 +467,7 @@ function ValueSetSelector({
   value,
   onChange,
   availableValueSets,
-  resourceType,
+  resourceType: _resourceType,
 }   
                  
                                                

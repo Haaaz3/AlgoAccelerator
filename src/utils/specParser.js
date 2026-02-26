@@ -530,7 +530,7 @@ async function parseStructuredSpec(file      , format        )                  
           }
         }
       }
-    } catch (e) {
+    } catch {
       data.warnings.push('Failed to parse JSON content');
     }
   } else if (format === 'xml') {

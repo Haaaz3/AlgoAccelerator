@@ -38,7 +38,7 @@ import {
   validateMeasureComponents,
                                  
 } from '../services/componentMatcher';
-import { sampleAtomics, sampleComposites, sampleCategories } from '../data/sampleLibraryData';
+import { sampleAtomics, sampleComposites } from '../data/sampleLibraryData';
 ;                                                                                    
 import { validateReferentialIntegrity, formatMismatches } from '../utils/integrityCheck';
 import { getComponents, getComponent } from '../api/components';

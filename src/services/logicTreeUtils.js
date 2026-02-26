@@ -441,7 +441,7 @@ function buildMixedOperatorDescription(
   childDescriptions          
 )         {
   const parts           = [];
-  let currentOp                  = clause.operator;
+  let _currentOp                  = clause.operator;
 
   for (let i = 0; i < childDescriptions.length; i++) {
     parts.push(childDescriptions[i]);
@@ -449,7 +449,7 @@ function buildMixedOperatorDescription(
     if (i < childDescriptions.length - 1) {
       const nextOp = getOperatorBetween(clause, i, i + 1);
       parts.push(` ${nextOp} `);
-      currentOp = nextOp;
+      _currentOp = nextOp;
     }
   }
 

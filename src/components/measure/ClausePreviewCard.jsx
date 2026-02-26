@@ -28,7 +28,7 @@ function isLogicalClause(node                             )                     
   return 'operator' in node && ('children' in node || 'elements' in node);
 }
 
-function isDataElement(node                             )                      {
+function _isDataElement(node                             )                      {
   return 'type' in node && !('operator' in node);
 }
 
@@ -195,7 +195,7 @@ const ClauseNode                            = ({
   node,
   depth,
   library,
-  isLast,
+  isLast: _isLast,
   onClick,
 }) => {
   const [isExpanded, setIsExpanded] = useState(depth < 2);
@@ -442,8 +442,8 @@ export const ClauseDiffView                                = ({
   updated,
   className = '',
 }) => {
-  const originalSummary = generateNaturalLanguage(original);
-  const updatedSummary = generateNaturalLanguage(updated);
+  const _originalSummary = generateNaturalLanguage(original);
+  const _updatedSummary = generateNaturalLanguage(updated);
 
   const originalCount = countElements(original);
   const updatedCount = countElements(updated);

@@ -319,7 +319,7 @@ export function CopilotPanel() {
   // Only subscribe to the specific primitive values we need for UI updates
   const activeMeasureId = useMeasureStore(state => state.activeMeasureId);
   const measures = useMeasureStore(state => state.measures);
-  const lastGeneratedCode = useMeasureStore(state => state.lastGeneratedCode);
+  const _lastGeneratedCode = useMeasureStore(state => state.lastGeneratedCode);
 
   // Compute activeMeasure from the stable references
   const activeMeasure = activeMeasureId ? measures.find(m => m.id === activeMeasureId) : null;

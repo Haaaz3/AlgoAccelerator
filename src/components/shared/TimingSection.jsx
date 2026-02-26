@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Clock, ChevronDown, AlertTriangle, Settings2 } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Clock, AlertTriangle, Settings2 } from 'lucide-react';
 import { isAgeComponent, isSexGenderComponent } from '../../utils/inferCategory';
 
 // ============================================================================
@@ -259,8 +259,9 @@ export function TimingSection({
   const ageReference = ageEvaluatedAtProp ?? ageReferenceInternal;
 
   // Detect initial preset from existing timing
-  const initialPreset = useMemo(() => detectPreset(timing), []);
-  const [selectedPreset, setSelectedPreset] = useState(initialPreset);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const _initialPreset = useMemo(() => detectPreset(timing), []); // Intentional: only calculate on mount
+  const [selectedPreset, setSelectedPreset] = useState(_initialPreset);
 
   // Local state for lookback inputs
   const [lookbackQuantity, setLookbackQuantity] = useState(

@@ -659,7 +659,7 @@ export function generateSchemaDocumentation()         {
     '',
   ];
 
-  for (const [key, table] of Object.entries(HDI_TABLES)) {
+  for (const [_key, table] of Object.entries(HDI_TABLES)) {
     lines.push(`## ${table.name}`);
     if (table.description) {
       lines.push(table.description);

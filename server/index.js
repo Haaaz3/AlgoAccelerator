@@ -58,7 +58,7 @@ app.use('/api/vsac', vsacRouter);
 app.use('/api/llm', llmRouter);
 
 // Error handling
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error('API Error:', err);
   res.status(err.status || 500).json({
     error: err.message || 'Internal server error',

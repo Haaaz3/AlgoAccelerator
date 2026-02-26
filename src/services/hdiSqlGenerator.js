@@ -43,9 +43,6 @@ import {
   generateImmunizationPredicateCTE,
   generateEncounterPredicateCTE,
   generateFullSQL,
-  generateIPSDCTE,
-  generateMedCoverageCTE,
-  generateCumulativeDaysSupplyCTE,
 } from './hdiSqlTemplates';
 
 

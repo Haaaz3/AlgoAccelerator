@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Info, Code, FileText, User, AlertTriangle, Cpu, FileCode, Database, ChevronDown, ChevronUp, Heart, Calendar, Stethoscope, Pill, Syringe, Activity, Edit3, X, Save, Plus, Trash2, Library, ChevronRight, ArrowUpDown, Filter, ArrowUp, ArrowDown } from 'lucide-react';
+import { CheckCircle, XCircle, Info, Code, FileText, User, AlertTriangle, Cpu, FileCode, Database, ChevronUp, Heart, Calendar, Stethoscope, Pill, Syringe, Activity, Edit3, X, Save, Plus, Trash2, Library, ChevronRight, Filter, ArrowUp, ArrowDown } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
 import { generateTestPatients } from '../../services/testPatientGenerator';
 import { evaluatePatient } from '../../services/measureEvaluator';
@@ -1282,7 +1282,8 @@ function calculateAge(birthDate        )         {
 }
 
 // Helper to detect screening measures that use OR logic for numerator
-function isScreeningMeasure(measureTitle        , measureId        )          {
+// QA-FLAG: Confirmed unused, candidate for removal
+function _isScreeningMeasure(measureTitle        , measureId        )          {
   const title = measureTitle.toLowerCase();
   const id = measureId?.toUpperCase() || '';
 
@@ -1382,7 +1383,8 @@ export function ValidationTraceViewer() {
     setSelectedTrace(traces[0] || null);
     setSelectedPatient(patients[0] || null);
     setIsGenerating(false);
-  }, [measure?.id]); // Re-run when measure changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measure?.id]); // Intentional: measure object changes frequently, but we only re-evaluate when measure.id changes
 
   // Handle patient selection
   const handleSelectPatient = (trace                        , _index        ) => {
@@ -2247,7 +2249,7 @@ export function ValidationTraceViewer() {
  * Find the first qualifying fact from a list of validation nodes.
  * Returns the earliest dated fact that contributed to qualification.
  */
-function findFirstQualifyingFact(nodes                  )                                                                            {
+function _findFirstQualifyingFact(nodes                  )                                                                            {
   let earliest                                                                            = null;
   let earliestDate              = null;
 
@@ -2275,7 +2277,7 @@ function findFirstQualifyingFact(nodes                  )                       
 
     // Recursively check children
     if (node.children && node.children.length > 0) {
-      const childResult = findFirstQualifyingFact(node.children);
+      const childResult = _findFirstQualifyingFact(node.children);
       if (childResult) {
         const childDate = new Date(childResult.date);
         if (!earliestDate || childDate < earliestDate) {
@@ -2471,11 +2473,11 @@ function VaccineResultCard({ node, onClick }) {
   );
 }
 
-function ValidationSection({
+function _ValidationSection({
   title,
   subtitle,
   nodes,
-  operator,
+  _operator,
   resultChip,
   resultPositive,
   onInspect,
@@ -2744,7 +2746,7 @@ function ValidationNodeRow({ node, onClick }) {
   );
 }
 
-function ValidationNodeCard({ node, onClick }                                               ) {
+function _ValidationNodeCard({ node, onClick }                                               ) {
   return (
     <div
       onClick={onClick}
@@ -2943,7 +2945,7 @@ function getFirstQualifyingFact(nodes                  )                        
   return null;
 }
 
-function EvaluationFlowItem({
+function _EvaluationFlowItem({
   label,
   met,
   nodes,
@@ -3020,7 +3022,7 @@ function EvaluationFlowItem({
   );
 }
 
-function SummaryPill({ label, value, positive }                                                     ) {
+function _SummaryPill({ label, value, positive }                                                     ) {
   return (
     <div className="flex items-center gap-2 px-3 py-2 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] text-sm">
       <span className="text-[var(--text-muted)]">{label}</span>
@@ -3033,7 +3035,7 @@ function SummaryPill({ label, value, positive }                                 
  * DetailedEvaluationSummary - Enhanced evaluation summary that shows ALL criteria
  * Replaces the simple Measure Evaluation Summary with detailed narrative for each criterion
  */
-function DetailedEvaluationSummary({ trace, patient, measure }) {
+function DetailedEvaluationSummary({ trace, _patient, measure }) {
   const [collapsedSections, setCollapsedSections] = useState({});
 
   const toggleSection = (sectionId) => {
@@ -3044,8 +3046,8 @@ function DetailedEvaluationSummary({ trace, patient, measure }) {
   };
 
   // Get measurement period for display
-  const mpStart = measure?.measurementPeriod?.start || `${new Date().getFullYear()}-01-01`;
-  const mpEnd = measure?.measurementPeriod?.end || `${new Date().getFullYear()}-12-31`;
+  const _mpStart = measure?.measurementPeriod?.start || `${new Date().getFullYear()}-01-01`;
+  const _mpEnd = measure?.measurementPeriod?.end || `${new Date().getFullYear()}-12-31`;
 
   // Helper to format dates
   const formatDate = (dateStr) => {

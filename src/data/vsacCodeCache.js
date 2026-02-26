@@ -11,7 +11,7 @@
 /**
  * Map FHIR system URIs to app short names
  */
-function fhirUriToAppSystem(fhirUri) {
+function _fhirUriToAppSystem(fhirUri) {
   const mapping = {
     'http://snomed.info/sct': 'SNOMED',
     'http://www.ama-assn.org/go/cpt': 'CPT',

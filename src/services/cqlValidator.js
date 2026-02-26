@@ -129,8 +129,8 @@ function checkBalancedDelimiters(cql        )                       {
   let inString = false;
   let inComment = false;
   let stringChar = '';
-  let parenCount = 0;
-  let bracketCount = 0;
+  let _parenCount = 0;
+  let _bracketCount = 0;
   let lineNum = 1;
   let colNum = 1;
 
@@ -191,7 +191,7 @@ function checkBalancedDelimiters(cql        )                       {
     // Track parentheses
     if (char === '(') {
       parenStack.push({ line: lineNum, col: colNum });
-      parenCount++;
+      _parenCount++;
     } else if (char === ')') {
       if (parenStack.length === 0) {
         errors.push({
@@ -204,13 +204,13 @@ function checkBalancedDelimiters(cql        )                       {
       } else {
         parenStack.pop();
       }
-      parenCount--;
+      _parenCount--;
     }
 
     // Track brackets
     if (char === '[') {
       bracketStack.push({ line: lineNum, col: colNum });
-      bracketCount++;
+      _bracketCount++;
     } else if (char === ']') {
       if (bracketStack.length === 0) {
         errors.push({
@@ -223,7 +223,7 @@ function checkBalancedDelimiters(cql        )                       {
       } else {
         bracketStack.pop();
       }
-      bracketCount--;
+      _bracketCount--;
     }
   }
 
@@ -264,7 +264,7 @@ function checkBalancedDelimiters(cql        )                       {
 /**
  * Check for required CQL library structure
  */
-function checkLibraryStructure(cql        , lines          )                       {
+function checkLibraryStructure(cql        , _lines          )                       {
   const errors                       = [];
 
   // Check for library declaration
@@ -376,7 +376,7 @@ function checkCommonSyntaxIssues(cql        , lines          )                  
 /**
  * Check for potential issues (warnings)
  */
-function checkPotentialIssues(cql        , lines          )                         {
+function checkPotentialIssues(cql        , _lines          )                         {
   const warnings                         = [];
 
   // Check for empty definitions

@@ -286,7 +286,7 @@ function escapeRegExp(string        )         {
 export function applySQLOverrides(
   generatedSQL        ,
   measure                      ,
-  format                       
+  _format
 )                                          {
   // Map 'hdi' to synapse-sql for lookup (both use Synapse/T-SQL style)
   const lookupFormat                   = 'synapse-sql';

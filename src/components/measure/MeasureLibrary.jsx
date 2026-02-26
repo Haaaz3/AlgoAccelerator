@@ -17,11 +17,11 @@ const PROGRAM_LABELS                                 = {
 };
 
 // Helper to reset review status recursively
-function resetReviewStatus(obj     )      {
+function _resetReviewStatus(obj     )      {
   if (!obj) return obj;
   const result = { ...obj, reviewStatus: 'pending' };
   if (result.children) {
-    result.children = result.children.map(resetReviewStatus);
+    result.children = result.children.map(_resetReviewStatus);
   }
   return result;
 }
@@ -47,10 +47,10 @@ export function MeasureLibrary() {
 
   // Batch queue state
   const [batchQueue, setBatchQueue] = useState          ([]);
-  const [batchIndex, setBatchIndex] = useState(0);
-  const [batchTotal, setBatchTotal] = useState(0);
-  const [queueDragActive, setQueueDragActive] = useState(false);
-  const queueInputRef = useRef                  (null);
+  const [_batchIndex, setBatchIndex] = useState(0);
+  const [_batchTotal, setBatchTotal] = useState(0);
+  const [_queueDragActive, setQueueDragActive] = useState(false);
+  const _queueInputRef = useRef                  (null);
   const fileInputRef = useRef                  (null);
   const batchQueueRef = useRef          ([]);
   const processingRef = useRef(false);
@@ -88,12 +88,12 @@ export function MeasureLibrary() {
 
 
   // Supported file extensions
-  const SUPPORTED_EXTENSIONS = ['.pdf', '.html', '.htm', '.xlsx', '.xls', '.csv', '.xml', '.json', '.cql', '.txt', '.zip'];
+  const SUPPORTED_EXTENSIONS = useMemo(() => ['.pdf', '.html', '.htm', '.xlsx', '.xls', '.csv', '.xml', '.json', '.cql', '.txt', '.zip'], []);
 
-  const isFileSupported = (file      ) => {
+  const isFileSupported = useCallback((file      ) => {
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
     return SUPPORTED_EXTENSIONS.includes(ext);
-  };
+  }, [SUPPORTED_EXTENSIONS]);
 
   // Process the next item in the queue (or the first file group)
   const processNext = useCallback(async () => {
@@ -266,9 +266,9 @@ export function MeasureLibrary() {
       batchCounterRef.current.index = 0;
       processNext();
     }
-  }, [getActiveApiKey, getActiveProvider, selectedProvider, selectedModel, getCustomLlmConfig, processNext]);
+  }, [getActiveApiKey, getActiveProvider, selectedProvider, getCustomLlmConfig, processNext, isFileSupported]);
 
-  const handleDrop = useCallback(async (e                 ) => {
+  const _handleDrop = useCallback(async (e                 ) => {
     e.preventDefault();
     setDragActive(false);
     const files = Array.from(e.dataTransfer.files);
@@ -283,7 +283,7 @@ export function MeasureLibrary() {
   }, [handleFiles]);
 
   // Queue-specific drop handler
-  const handleQueueDrop = useCallback((e                 ) => {
+  const _handleQueueDrop = useCallback((e                 ) => {
     e.preventDefault();
     e.stopPropagation();
     setQueueDragActive(false);
@@ -294,9 +294,9 @@ export function MeasureLibrary() {
       batchCounterRef.current.total++;
       setBatchTotal(batchCounterRef.current.total);
     }
-  }, []);
+  }, [isFileSupported]);
 
-  const handleQueueFileInput = useCallback((e                                     ) => {
+  const _handleQueueFileInput = useCallback((e                                     ) => {
     const files = e.target.files;
     if (!files) return;
     const supported = Array.from(files).filter(isFileSupported);
@@ -307,7 +307,7 @@ export function MeasureLibrary() {
       setBatchTotal(batchCounterRef.current.total);
     }
     e.target.value = '';
-  }, []);
+  }, [isFileSupported]);
 
   const removeFromQueue = useCallback((index        ) => {
     batchQueueRef.current = batchQueueRef.current.filter((_, i) => i !== index);

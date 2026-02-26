@@ -6,7 +6,6 @@ import {
   AlertCircle,
   Plus,
   Library,
-  ArrowRight,
   Search,
   Sparkles,
   Package,
@@ -38,7 +37,10 @@ export default function ImportMatcher({ onComplete, onCancel }                  
   // --------------------------------------------------------------------------
   // Derived data
   // --------------------------------------------------------------------------
-  const matches = importMatcherState?.matches ?? [];
+  const matches = useMemo(
+    () => importMatcherState?.matches ?? [],
+    [importMatcherState?.matches]
+  );
 
   const exactMatches = useMemo(
     () => matches.filter((m) => m.matchType === 'exact'),

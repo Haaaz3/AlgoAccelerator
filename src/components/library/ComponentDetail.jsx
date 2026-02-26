@@ -18,12 +18,14 @@ import {
   ExternalLink,
   Code2,
 } from 'lucide-react';
+// Note: setActiveTab was removed as it was unused - setActiveMeasure handles tab switching internally
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useMeasureStore } from '../../stores/measureStore';
 import { useComponentCodeStore, getStoreKey } from '../../stores/componentCodeStore';
 import { getComplexityColor, getComplexityDots } from '../../services/complexityCalculator';
 import { ComponentCodeViewer } from '../measure/ComponentCodeViewer';
-import { createDefaultComponentCodeState } from '../../types/componentCode';
+// QA-FLAG: createDefaultComponentCodeState may be used for future code state initialization
+import { createDefaultComponentCodeState as _createDefaultComponentCodeState } from '../../types/componentCode';
 
 // ============================================================================
 // Props
@@ -166,7 +168,7 @@ function LibraryCodeViewer({ component }                        ) {
 export function ComponentDetail({ componentId, onClose, onEdit }                      ) {
   const { getComponent, approve, archiveComponentVersion, addComponent } =
     useComponentLibraryStore();
-  const { measures, setActiveMeasure, setActiveTab } = useMeasureStore();
+  const { measures, setActiveMeasure } = useMeasureStore();
 
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);

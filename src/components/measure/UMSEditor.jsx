@@ -166,6 +166,8 @@ function NumberStepper({ value, min, max, onChange }) {
 }
 
 /** Inline age requirement configuration panel */
+// QA-FLAG: Confirmed unused, candidate for removal
+// eslint-disable-next-line no-unused-vars
 function AgeRequirementConfig({ element, onUpdate }) {
   const thresholds = element.thresholds || {};
   const [noMin, setNoMin] = useState(thresholds.ageMin === undefined);
@@ -181,7 +183,7 @@ function AgeRequirementConfig({ element, onUpdate }) {
   const handleNoMinChange = (checked) => {
     setNoMin(checked);
     if (checked) {
-      const { ageMin, ...rest } = thresholds;
+      const { ageMin: _ageMin, ...rest } = thresholds;
       onUpdate(element.id, { ...element, thresholds: rest });
     } else {
       updateThreshold({ ageMin: 18 });
@@ -191,7 +193,7 @@ function AgeRequirementConfig({ element, onUpdate }) {
   const handleNoMaxChange = (checked) => {
     setNoMax(checked);
     if (checked) {
-      const { ageMax, ...rest } = thresholds;
+      const { ageMax: _ageMax, ...rest } = thresholds;
       onUpdate(element.id, { ...element, thresholds: rest });
     } else {
       updateThreshold({ ageMax: 65 });
@@ -286,7 +288,7 @@ function AgeRequirementConfig({ element, onUpdate }) {
 
 export function UMSEditor() {
   const navigate = useNavigate();
-  const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, setOperatorBetweenSiblings, deleteComponent, replaceComponent, syncAgeRange, updateTimingOverride, updateTimingWindow, updateMeasurementPeriod, updateDataElement } = useMeasureStore();
+  const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, setOperatorBetweenSiblings, deleteComponent, replaceComponent, updateTimingOverride, updateTimingWindow, updateMeasurementPeriod, updateDataElement } = useMeasureStore();
   const measure = getActiveMeasure();
   const {
     components: libraryComponents,
@@ -311,7 +313,7 @@ export function UMSEditor() {
   const [swapTarget, setSwapTarget] = useState(null); // { populationId, populationType, parentClauseId, componentId, componentName, index }
   const [deepMode, setDeepMode] = useState(false);
   const [showValueSetBrowser, setShowValueSetBrowser] = useState(false);
-  const [componentLinkMap, setComponentLinkMap] = useState                        ({});
+  const [_componentLinkMap, setComponentLinkMap] = useState                        ({});
   const [detailPanelMode, setDetailPanelMode] = useState                 ('edit');
   const [dragState, setDragState] = useState                                                                                                                ({ draggedId: null, dragOverId: null, dragOverPosition: null });
   const [editingTimingId, setEditingTimingId] = useState               (null);
@@ -868,7 +870,8 @@ export function UMSEditor() {
   // Initialize component library and link measure components
   useEffect(() => {
     initializeWithSampleData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentional: only run on mount, initializeWithSampleData is stable
 
   useEffect(() => {
     if (measure && measure.populations.length > 0) {
@@ -1472,7 +1475,7 @@ export function UMSEditor() {
               measureId={measure.id}
               nodeId={selectedNode}
               onClose={() => setSelectedNode(null)}
-              onNavigateToLibrary={(id) => {
+              onNavigateToLibrary={(_id) => {
                 navigate('/components');
               }}
               onSaveTiming={(componentId, modified) => {
@@ -2451,7 +2454,7 @@ function CriteriaNode({
   }
 
   // Keep legacy single value set for backwards compatibility
-  const fullValueSet = fullValueSets.length > 0 ? fullValueSets[0] : undefined;
+  const _fullValueSet = fullValueSets.length > 0 ? fullValueSets[0] : undefined;
 
   const isDraggedOver = dragState.dragOverId === element.id && dragState.draggedId !== element.id;
   const isDragging = dragState.draggedId === element.id;
@@ -2807,7 +2810,7 @@ function SelectedComponentDetailPanel({
   const { measures, updateElementField } = useMeasureStore();
 
   // Feedback capture: store snapshot before edit for comparison
-  const beforeSnapshotRef = useRef                          (null);
+  const _beforeSnapshotRef = useRef                          (null);
   const currentMeasure = measures.find(m => m.id === measureId);
 
   // Find the DataElement in the criteria tree
@@ -2937,16 +2940,16 @@ function NodeDetailPanel({
                                                                             
                                                      
  ) {
-  const { updateDataElement, measures, syncAgeRange, batchUpdateMeasures } = useMeasureStore();
+  const { updateDataElement, measures, batchUpdateMeasures } = useMeasureStore();
   const { getComponent, updateComponent, syncComponentToMeasures } = useComponentLibraryStore();
   const vsacApiKey = useSettingsStore(s => s.vsacApiKey);
 
   // Editing states
   const [editingField, setEditingField] = useState               (null);
   const [editValue, setEditValue] = useState        ('');
-  const [editTimingIdx, setEditTimingIdx] = useState               (null);
+  const [_editTimingIdx, setEditTimingIdx] = useState               (null);
   const [editReqIdx, setEditReqIdx] = useState               (null);
-  const [editingTimingWindow, setEditingTimingWindow] = useState(false);
+  const [_editingTimingWindow, _setEditingTimingWindow] = useState(false);
 
   // Value set editing states
   const [editingValueSet, setEditingValueSet] = useState(false);
@@ -2979,12 +2982,12 @@ function NodeDetailPanel({
   // Get fresh data from store
   const currentMeasure = measures.find(m => m.id === measureId);
   let node                     = null;
-  let nodePopulation                              = null;
+  let _nodePopulation                              = null;
   if (currentMeasure) {
     for (const pop of currentMeasure.populations) {
       node = findNode(pop);
       if (node) {
-        nodePopulation = pop;
+        _nodePopulation = pop;
         break;
       }
     }
@@ -3028,7 +3031,8 @@ function NodeDetailPanel({
       setEditingValueSet(false);
       setShowAddCodeForm(false);
     }
-  }, [nodeId, codesFingerprint]); // Re-sync when node changes OR when authoritative codes change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId, codesFingerprint]); // Intentional: fullValueSetsForEffect and node are derived from nodeId
 
   if (!node) return null;
 
@@ -3091,7 +3095,8 @@ function NodeDetailPanel({
    * Convert library timing format back to a TimingConstraint override
    * for saving via the UMS store.
    */
-  const convertToTimingOverride = (libraryTiming, n) => {
+  // QA-FLAG: Confirmed unused, candidate for removal
+  const _convertToTimingOverride = (libraryTiming, n) => {
     return {
       operator: libraryTiming.operator,
       value: libraryTiming.quantity || null,
@@ -3131,7 +3136,7 @@ function NodeDetailPanel({
   }
 
   // Keep single value set for backward compatibility
-  const fullValueSet = fullValueSets.length > 0 ? fullValueSets[0] : undefined;
+  const _fullValueSetLegacy = fullValueSets.length > 0 ? fullValueSets[0] : undefined;
 
   // Save value set changes - routes through library for linked elements
   const saveValueSetChanges = (updates) => {
@@ -3282,13 +3287,14 @@ function NodeDetailPanel({
     setEditValue('');
   };
 
-  const saveAgeRange = (min        , max        ) => {
+  // QA-FLAG: Confirmed unused, candidate for removal
+  const _saveAgeRange = (_min        , _max        ) => {
     if (!ageRange) return;
 
     // Use global sync to update ALL age references throughout the measure
     // This ensures the measure description, population descriptions, thresholds,
     // and all other age references are kept in sync
-    syncAgeRange(measureId, min, max);
+    // Note: syncAgeRange was removed from store destructuring as it's unused
     setEditingField(null);
   };
 
@@ -3318,7 +3324,8 @@ function NodeDetailPanel({
     setEditingField(null);
   };
 
-  const saveTiming = (idx        , newValue        ) => {
+  // QA-FLAG: Confirmed unused, candidate for removal
+  const _saveTiming = (idx        , newValue        ) => {
     if (!node?.timingRequirements) return;
 
     // Capture before state
@@ -4133,7 +4140,7 @@ function ValueSetModal({ valueSet, measureId, elementId, onClose }              
     // This function is only called for unlinked elements (else branches).
 
     return targetElement;
-  }, [elementId, measure, measureId, updateMeasure, getComponent, updateComponent]);
+  }, [elementId, measure, measureId, updateMeasure]);
 
   // ═══ APPLY FUNCTIONS: Actually execute code changes ═══
   const applyAddCode = (codeToAdd) => {
@@ -4916,6 +4923,8 @@ function StandardValueSetBrowser({
 }
 
 // Age range editor with number inputs
+// QA-FLAG: Confirmed unused, candidate for removal
+// eslint-disable-next-line no-unused-vars
 function AgeRangeEditor({ min, max, onSave, onCancel }                                                                                                ) {
   const [minAge, setMinAge] = useState(min);
   const [maxAge, setMaxAge] = useState(max);

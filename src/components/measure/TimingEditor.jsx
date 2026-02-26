@@ -384,7 +384,7 @@ export function TimingWindowLabel({
   );
 }
 
-function BoundaryEditor({ boundary, onChange, label }                     ) {
+function BoundaryEditor({ boundary, onChange, label: _label }                     ) {
   const hasOffset = boundary.offsetValue !== null;
 
   const handleAnchorChange = (anchor              ) => {

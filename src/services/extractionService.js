@@ -16,7 +16,7 @@ import { post } from '../api/client';
                
                   
                       
-import { parseHtmlSpec,                          } from './htmlSpecParser';
+import {                          } from './htmlSpecParser';
 import { findStandardValueSetByName } from '../constants/standardValueSets';
 import { hydrateCodesFromCache } from '../data/vsacCodeCache';
 ;                                                 
@@ -635,7 +635,7 @@ function convertToUMS(extractedData               )                       {
   }
 
   // Build value sets array - preserve codes from LLM extraction
-  const valueSets                      = (extractedData.valueSets || []).map((vs, idx) => ({
+  const valueSets                      = (extractedData.valueSets || []).map((vs, _idx) => ({
     id: `vs-${uniqueId()}`,
     oid: vs.oid || '',
     name: vs.name || 'Unnamed Value Set',
@@ -725,7 +725,7 @@ function convertCriteria(criteria                    )                {
   };
 
   if (Array.isArray(criteria.children)) {
-    clause.children = criteria.children.map((child, idx) => {
+    clause.children = criteria.children.map((child, _idx) => {
       // Check if it's a nested clause (has operator property)
       if ('operator' in child) {
         return convertCriteria(child                     );

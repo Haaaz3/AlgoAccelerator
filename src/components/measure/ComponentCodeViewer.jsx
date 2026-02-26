@@ -8,7 +8,7 @@
  * - Integrates with component library and UMS editor
  */
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Code2,
   Edit3,
@@ -20,7 +20,6 @@ import {
   Copy,
   Check,
   CheckCircle,
-  XCircle,
   GitCompare,
 } from 'lucide-react';
 import { diffLines } from 'diff';
@@ -245,6 +244,7 @@ export const ComponentCodeViewer = ({
       setSyntaxValidation(null);
       setShowSyntaxWarnings(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing]);
 
   // Debounced syntax validation as user types (for CQL only)

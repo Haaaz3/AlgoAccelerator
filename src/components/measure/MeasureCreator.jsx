@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Plus, FileText, Copy, ChevronRight, ChevronLeft, Check, Users, Target, AlertTriangle, Minus, Sparkles, ArrowRight, Info, Save, Wand2, Loader2, AlertCircle, Brain, Upload, File, Trash2 } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
@@ -29,7 +29,7 @@ const STEPS                                                                     
 export function MeasureCreator({ isOpen, onClose }                     ) {
   const navigate = useNavigate();
   const { measures, addMeasure, importMeasure, setActiveMeasure } = useMeasureStore();
-  const { selectedProvider, selectedModel, apiKeys, getActiveApiKey, getCustomLlmConfig } = useSettingsStore();
+  const { selectedProvider, getActiveApiKey } = useSettingsStore();
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState            ('start');
@@ -90,7 +90,7 @@ export function MeasureCreator({ isOpen, onClose }                     ) {
   });
 
   // Generated CQL for each population (updated in background)
-  const [generatedCql, setGeneratedCql] = useState({ initialPop: '', denominator: '', numerator: '', exclusions: '' });
+  const [_generatedCql, setGeneratedCql] = useState({ initialPop: '', denominator: '', numerator: '', exclusions: '' });
 
   // Unsaved changes tracking
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -265,7 +265,7 @@ export function MeasureCreator({ isOpen, onClose }                     ) {
   }, [getActiveApiKey]);
 
   // Match value sets from AI extraction against existing value sets
-  const matchValueSets = useCallback((suggestedName        , suggestedOid         )                  => {
+  const _matchValueSets = useCallback((suggestedName        , suggestedOid         )                  => {
     // Try exact OID match first (high confidence)
     if (suggestedOid) {
       const oidMatch = availableValueSets.find(v => v.valueSet.oid === suggestedOid);
@@ -320,7 +320,7 @@ export function MeasureCreator({ isOpen, onClose }                     ) {
   }, [availableValueSets]);
 
   // Convert AI extracted data to CriteriaBlocks
-  const convertToCriteriaBlocks = useCallback((criteria                        )                  => {
+  const _convertToCriteriaBlocks = useCallback((criteria                        )                  => {
     return criteria.map((crit, idx) => {
       const block                = {
         id: `ai-block-${Date.now()}-${idx}`,
@@ -580,8 +580,8 @@ export function MeasureCreator({ isOpen, onClose }                     ) {
   };
 
   // State for import progress
-  const [isImporting, setIsImporting] = useState(false);
-  const [importError, setImportError] = useState               (null);
+  const [_isImporting, setIsImporting] = useState(false);
+  const [_importError, setImportError] = useState               (null);
 
   const handleCreate = async () => {
     const now = new Date().toISOString();

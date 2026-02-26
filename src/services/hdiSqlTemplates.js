@@ -25,7 +25,6 @@ import {
   HDI_TABLES,
   HDI_COLUMN_MAPPINGS,
   DEFAULT_VALUESET_CONFIG,
-                           
 } from './hdiSchemaBinding';
 
 // ============================================================================
@@ -285,7 +284,7 @@ ${alias} as (
 
 export function generateDemographicsPredicateCTE(
   predicate                       ,
-  config                     
+  _config
 )         {
   const conditions           = [];
   const needsIndexJoin = !!(predicate.age?.indexEvent);
@@ -382,7 +381,7 @@ export function generateDemographicsPredicateCTE(
     ? `-- ${predicate.description}\n`
     : '';
 
-  const tableAlias = needsIndexJoin ? 'D' : '';
+  const _tableAlias = needsIndexJoin ? 'D' : '';
   const fromClause = needsIndexJoin
     ? `DEMOG D
   inner join ${predicate.age .indexEvent .cteAlias} I
