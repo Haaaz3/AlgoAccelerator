@@ -40,22 +40,7 @@ export function MeasureCreator({ isOpen, onClose }                     ) {
   const [aiProcessing, setAiProcessing] = useState(false);
   const [aiError, setAiError] = useState               (null);
   const [aiProgress, setAiProgress] = useState        ('');
-  const [aiExtractedData, setAiExtractedData] = useState  
-                
-                         
-                     
-                           
-                       
-                           
-                                                
-      
-                   
-                   
-                          
-                                       
-        
-                                  
-           (null);
+  const [aiExtractedData, setAiExtractedData] = useState(null);
 
   // Extracted UMS from backend extraction service (used directly in handleCreate)
   const [extractedUMS, setExtractedUMS] = useState                             (null);
@@ -105,12 +90,7 @@ export function MeasureCreator({ isOpen, onClose }                     ) {
   });
 
   // Generated CQL for each population (updated in background)
-  const [generatedCql, setGeneratedCql] = useState  
-                       
-                        
-                      
-                       
-    ({ initialPop: '', denominator: '', numerator: '', exclusions: '' });
+  const [generatedCql, setGeneratedCql] = useState({ initialPop: '', denominator: '', numerator: '', exclusions: '' });
 
   // Unsaved changes tracking
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, Fragment, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, HelpCircle, X, Code, Sparkles, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine, Square, CheckSquare, Database, ArrowLeftRight } from 'lucide-react';
+import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, X, Sparkles, ExternalLink, Plus, Trash2, Download, History, Edit3, Save, XCircle, Settings2, ArrowUp, ArrowDown, Search, Library as LibraryIcon, Import, FileText, Link, ShieldCheck, GripVertical, Loader2, Combine, Square, CheckSquare, Database, ArrowLeftRight } from 'lucide-react';
 import { InlineErrorBanner, InlineSuccessBanner } from '../shared/ErrorBoundary';
 import { validateReferentialIntegrity, formatMismatches } from '../../utils/integrityCheck';
 import { useMeasureStore } from '../../stores/measureStore';
@@ -10,13 +10,11 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { ComponentBuilder } from './ComponentBuilder';
 import { ComponentDetailPanel } from './ComponentDetailPanel';
 import { getOperatorBetween } from '../../types/ums';
-import { MeasurePeriodBar, TimingBadge, TimingEditorPanel, TimingWindowLabel, TimingWindowEditor } from './TimingEditor';
+import { MeasurePeriodBar, TimingBadge, TimingEditorPanel } from './TimingEditor';
 import { TimingSection, deriveDueDateDays } from '../shared/TimingSection';
 import { getEffectiveWindow, getEffectiveTiming } from '../../types/ums';
-import { parseTimingText } from '../../utils/timingResolver';
-import { getComplexityColor, getComplexityDots, getComplexityLevel, calculateDataElementComplexity, calculatePopulationComplexity, calculateMeasureComplexity } from '../../services/complexityCalculator';
+import { calculateDataElementComplexity, calculatePopulationComplexity, calculateMeasureComplexity } from '../../services/complexityCalculator';
 import { getAllStandardValueSets, searchStandardValueSets } from '../../constants/standardValueSets';
-import { handleAIAssistantRequest, buildAssistantContext, applyAIChanges, formatChangesForDisplay } from '../../services/aiAssistant';
 import SharedEditWarning from '../library/SharedEditWarning';
 import AddComponentModal from '../library/AddComponentModal';
 import {
@@ -296,6 +294,7 @@ export function UMSEditor() {
     initializeWithSampleData,
     getComponent,
     addComponent,
+    updateComponent,
     rebuildUsageIndex,
     syncComponentToMeasures,
     mergeComponents,
@@ -336,13 +335,7 @@ export function UMSEditor() {
 
   // Shared edit warning state
   const [showSharedEditWarning, setShowSharedEditWarning] = useState(false);
-  const [pendingEdit, setPendingEdit] = useState  
-                        
-                      
-                                                                                                     
-                                                                         
-                                       
-           (null);
+  const [pendingEdit, setPendingEdit] = useState(null);
 
   // Listen for inspectingComponentId from CodeGeneration's "View in UMS Editor" button
   const inspectingComponentId = useComponentCodeStore((state) => state.inspectingComponentId);
@@ -897,6 +890,36 @@ export function UMSEditor() {
     forceUpdate({});
   }, [measures]);
 
+  // Resizable panel state (must be before early return to satisfy React hooks rules)
+  const [detailPanelWidth, setDetailPanelWidth] = useState(450);
+  const isResizing = useRef(false);
+  const containerRef = useRef(null);
+
+  const handleResizeStart = useCallback((e) => {
+    isResizing.current = true;
+    e.preventDefault();
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing.current || !containerRef.current) return;
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newWidth = containerRect.right - e.clientX;
+      setDetailPanelWidth(Math.min(Math.max(newWidth, 300), 700));
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
   if (!measure) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
@@ -971,36 +994,6 @@ export function UMSEditor() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
-
-  // Resizable panel state
-  const [detailPanelWidth, setDetailPanelWidth] = useState(450);
-  const isResizing = useRef(false);
-  const containerRef = useRef                (null);
-
-  const handleResizeStart = useCallback((e                  ) => {
-    isResizing.current = true;
-    e.preventDefault();
-  }, []);
-
-  useEffect(() => {
-    const handleMouseMove = (e            ) => {
-      if (!isResizing.current || !containerRef.current) return;
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const newWidth = containerRect.right - e.clientX;
-      setDetailPanelWidth(Math.min(Math.max(newWidth, 300), 700));
-    };
-
-    const handleMouseUp = () => {
-      isResizing.current = false;
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, []);
 
   return (
     <div ref={containerRef} className="flex-1 flex overflow-hidden">
@@ -3279,8 +3272,8 @@ function NodeDetailPanel({
 
       // Record feedback after edit (use setTimeout to allow state update)
       setTimeout(() => {
-        if (element) {
-          const afterSnapshot = snapshotFromDataElement(element);
+        if (node) {
+          const afterSnapshot = snapshotFromDataElement(node);
           recordComponentFeedback(nodeId, measureId, beforeSnapshot, afterSnapshot);
         }
       }, 100);
@@ -3316,8 +3309,8 @@ function NodeDetailPanel({
 
     // Record feedback after edit
     setTimeout(() => {
-      if (element) {
-        const afterSnapshot = snapshotFromDataElement(element);
+      if (node) {
+        const afterSnapshot = snapshotFromDataElement(node);
         recordComponentFeedback(nodeId, measureId, beforeSnapshot, afterSnapshot);
       }
     }, 100);
@@ -3337,8 +3330,8 @@ function NodeDetailPanel({
 
     // Record feedback after edit
     setTimeout(() => {
-      if (element) {
-        const afterSnapshot = snapshotFromDataElement(element);
+      if (node) {
+        const afterSnapshot = snapshotFromDataElement(node);
         recordComponentFeedback(nodeId, measureId, beforeSnapshot, afterSnapshot);
       }
     }, 100);
@@ -3359,8 +3352,8 @@ function NodeDetailPanel({
 
     // Record feedback after edit
     setTimeout(() => {
-      if (element) {
-        const afterSnapshot = snapshotFromDataElement(element);
+      if (node) {
+        const afterSnapshot = snapshotFromDataElement(node);
         recordComponentFeedback(nodeId, measureId, beforeSnapshot, afterSnapshot);
       }
     }, 100);

@@ -136,15 +136,7 @@ function HistoryEntryDiff({ codeBefore, codeAfter }) {
     return diffLines(codeBefore, codeAfter);
   }, [codeBefore, codeAfter]);
 
-  if (!codeBefore || !codeAfter) {
-    return (
-      <div className="text-xs text-[var(--text-dim)] italic p-2">
-        Diff not available for this edit
-      </div>
-    );
-  }
-
-  // Count additions and removals
+  // Count additions and removals (must be before early return for React hooks rules)
   const stats = useMemo(() => {
     let added = 0, removed = 0;
     diff.forEach(part => {
@@ -154,6 +146,14 @@ function HistoryEntryDiff({ codeBefore, codeAfter }) {
     });
     return { added, removed };
   }, [diff]);
+
+  if (!codeBefore || !codeAfter) {
+    return (
+      <div className="text-xs text-[var(--text-dim)] italic p-2">
+        Diff not available for this edit
+      </div>
+    );
+  }
 
   return (
     <div className="mt-3 border border-[var(--border)] rounded-lg overflow-hidden">

@@ -104,16 +104,10 @@ This report compares the following generator pairs:
 
 | Aspect | TypeScript | Java | Status |
 |--------|------------|------|--------|
-| Gender to FHIR concept | `male` -> `['FHIR Male', 'FHIR Male Gender Identity']` | `mapGenderToFhirConcept('male')` -> `'FHIR Male'` | **DIFF** |
-| Include array | Returns array with 2 values | Returns single value | **DIFF** |
+| Gender to FHIR concept | `male` -> `['FHIR Male', 'FHIR Male Gender Identity']` | `mapGenderToFhirConcepts('male')` -> `['FHIR Male', 'FHIR Male Gender Identity']` | **MATCH** |
+| Include array | Returns array with 2 values | Returns List with 2 values | **MATCH** |
 
-**Difference Detail:**
-- TypeScript includes both `'FHIR Male'` AND `'FHIR Male Gender Identity'` in the gender filter
-- Java only maps to single value `'FHIR Male'`
-
-**Impact:** Minor - Java implementation is simpler but may miss gender identity codes.
-
-**Recommendation:** Update Java `mapGenderToFhirConcept()` to return a list matching TypeScript behavior, or document as intentional simplification.
+**Fix Applied (Feb 2026):** Updated Java `mapGenderToFhirConcept()` to `mapGenderToFhirConcepts()` returning a List that matches TypeScript behavior.
 
 ### Population Combination Logic
 
@@ -144,10 +138,8 @@ This report compares the following generator pairs:
 
 ### Potential Bugs
 
-1. **Gender Identity Mapping in SQL**
-   - TypeScript includes both `'FHIR Male'` and `'FHIR Male Gender Identity'`
-   - Java only returns `'FHIR Male'`
-   - **Recommendation:** Consider updating Java to match TypeScript for completeness
+1. ~~**Gender Identity Mapping in SQL** (FIXED Feb 2026)~~
+   - Java now returns both `'FHIR Male'` and `'FHIR Male Gender Identity'` matching TypeScript
 
 ### Verified Matches
 
@@ -166,7 +158,7 @@ This report compares the following generator pairs:
 
 ## Recommendations
 
-1. **High Priority:** Verify the gender identity mapping difference is acceptable for the target HDI platform. If gender identity codes should be included, update `HdiSqlGeneratorService.mapGenderToFhirConcept()`.
+1. ~~**High Priority:** Gender identity mapping~~ **(COMPLETED Feb 2026)** - `HdiSqlGeneratorService.mapGenderToFhirConcepts()` now returns a list matching TypeScript behavior.
 
 2. **Low Priority:** Consider making the TypeScript measurement period default dynamic like Java (using browser date).
 

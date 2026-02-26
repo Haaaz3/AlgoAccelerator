@@ -181,7 +181,7 @@ public class HdiSqlGeneratorService {
                     null,
                     gc.getAgeMin(),
                     gc.getAgeMax(),
-                    gc.getGender() != null ? List.of(mapGenderToFhirConcept(gc.getGender().getValue())) : null,
+                    gc.getGender() != null ? mapGenderToFhirConcepts(gc.getGender().getValue()) : null,
                     null,
                     null,
                     null
@@ -359,7 +359,7 @@ public class HdiSqlGeneratorService {
                 Integer ageMin = element.getThresholds() != null ? element.getThresholds().getAgeMin() : null;
                 Integer ageMax = element.getThresholds() != null ? element.getThresholds().getAgeMax() : null;
                 List<String> genderInclude = element.getGenderValue() != null ?
-                    List.of(mapGenderToFhirConcept(element.getGenderValue().getValue())) : null;
+                    mapGenderToFhirConcepts(element.getGenderValue().getValue()) : null;
 
                 yield new PredicateInfo(
                     "demographics",
@@ -706,11 +706,15 @@ public class HdiSqlGeneratorService {
         return "high";
     }
 
-    private String mapGenderToFhirConcept(String gender) {
+    /**
+     * Map gender string to FHIR concepts including both Administrative Gender and Gender Identity.
+     * This matches the frontend TypeScript behavior in hdiSqlGenerator.ts.
+     */
+    private List<String> mapGenderToFhirConcepts(String gender) {
         return switch (gender.toLowerCase()) {
-            case "male" -> "FHIR Male";
-            case "female" -> "FHIR Female";
-            default -> gender;
+            case "male" -> List.of("FHIR Male", "FHIR Male Gender Identity");
+            case "female" -> List.of("FHIR Female", "FHIR Female Gender Identity");
+            default -> List.of(gender);
         };
     }
 

@@ -606,57 +606,64 @@ function evaluateDataElement(
       }
       break;
 
-    case 'diagnosis':
+    case 'diagnosis': {
       const dxResult = evaluateDiagnosis(patient, element, measure, mpStart, mpEnd);
       met = dxResult.met;
       incomplete = dxResult.incomplete || false;
       facts.push(...dxResult.facts);
       break;
+    }
 
-    case 'encounter':
+    case 'encounter': {
       const encResult = evaluateEncounter(patient, element, measure, mpStart, mpEnd);
       met = encResult.met;
       incomplete = encResult.incomplete || false;
       facts.push(...encResult.facts);
       break;
+    }
 
-    case 'procedure':
+    case 'procedure': {
       const procResult = evaluateProcedure(patient, element, measure, mpStart, mpEnd);
       met = procResult.met;
       incomplete = procResult.incomplete || false;
       facts.push(...procResult.facts);
       // NO fallback to immunization — if it's typed as procedure, evaluate as procedure
       break;
+    }
 
-    case 'observation':
+    case 'observation': {
       const obsResult = evaluateObservation(patient, element, measure, mpStart, mpEnd);
       met = obsResult.met;
       incomplete = obsResult.incomplete || false;
       facts.push(...obsResult.facts);
       break;
+    }
 
-    case 'medication':
+    case 'medication': {
       const medResult = evaluateMedication(patient, element, measure, mpStart, mpEnd);
       met = medResult.met;
       incomplete = medResult.incomplete || false;
       facts.push(...medResult.facts);
       break;
+    }
 
-    case 'immunization':
+    case 'immunization': {
       const immResult2 = evaluateImmunization(patient, element, measure, mpStart, mpEnd);
       met = immResult2.met;
       incomplete = immResult2.incomplete || false;
       facts.push(...immResult2.facts);
       break;
+    }
 
     case 'assessment':
-    default:
+    default: {
       // Generic assessment - check if any matching data exists
       const assessResult = evaluateAssessment(patient, element, measure, mpStart, mpEnd);
       met = assessResult.met;
       incomplete = assessResult.incomplete || false;
       facts.push(...assessResult.facts);
       break;
+    }
   }
 
   // Determine status: incomplete takes priority over pass/fail

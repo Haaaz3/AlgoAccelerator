@@ -1432,20 +1432,23 @@ export function ValidationTraceViewer() {
         case 'name':
           comparison = (a.patientName || '').localeCompare(b.patientName || '');
           break;
-        case 'age':
+        case 'age': {
           const ageA = patientA ? calculateAge(patientA.demographics.birthDate) : 0;
           const ageB = patientB ? calculateAge(patientB.demographics.birthDate) : 0;
           comparison = ageA - ageB;
           break;
-        case 'sex':
+        }
+        case 'sex': {
           const genderA = patientA?.demographics.gender || '';
           const genderB = patientB?.demographics.gender || '';
           comparison = genderA.localeCompare(genderB);
           break;
-        case 'outcome':
+        }
+        case 'outcome': {
           const outcomeOrder = { in_numerator: 0, not_in_numerator: 1, excluded: 2, not_in_population: 3 };
           comparison = outcomeOrder[a.finalOutcome] - outcomeOrder[b.finalOutcome];
           break;
+        }
       }
 
       return sortDirection === 'asc' ? comparison : -comparison;

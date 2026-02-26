@@ -8,11 +8,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
  * HTTP error with status code and response body.
  */
 export class ApiError extends Error {
-  status        ;
-  statusText        ;
-  body          ;
-
-  constructor(status        , statusText        , body          ) {
+  constructor(status, statusText, body) {
     super(`API Error ${status}: ${statusText}`);
     this.name = 'ApiError';
     this.status = status;
@@ -25,9 +21,7 @@ export class ApiError extends Error {
  * Network error when backend is unreachable.
  */
 export class NetworkError extends Error {
-  cause        ;
-
-  constructor(message        , cause        ) {
+  constructor(message, cause) {
     super(message);
     this.name = 'NetworkError';
     this.cause = cause;
@@ -37,18 +31,15 @@ export class NetworkError extends Error {
 /**
  * Make an API request with automatic JSON handling.
  */
-async function request   (
-  endpoint        ,
-  options              = {}
-)             {
+async function request(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
 
-  const headers              = {
+  const headers = {
     'Content-Type': 'application/json',
     ...options.headers,
   };
 
-  let response          ;
+  let response;
   try {
     response = await fetch(url, {
       ...options,
@@ -67,7 +58,7 @@ async function request   (
 
   if (!response.ok) {
     // Try to parse as JSON for structured error, fall back to raw text
-    let body         ;
+    let body;
     try {
       body = text ? JSON.parse(text) : undefined;
     } catch {
@@ -87,12 +78,12 @@ async function request   (
 
   // Handle empty responses
   if (!text) {
-    return undefined     ;
+    return undefined;
   }
 
   // Parse JSON
   try {
-    return JSON.parse(text)     ;
+    return JSON.parse(text);
   } catch {
     throw new ApiError(500, 'Invalid JSON response', text.substring(0, 200));
   }
@@ -101,20 +92,20 @@ async function request   (
 /**
  * GET request.
  */
-export async function get   (endpoint        , params                         )             {
+export async function get(endpoint, params) {
   let url = endpoint;
   if (params) {
     const searchParams = new URLSearchParams(params);
     url = `${endpoint}?${searchParams.toString()}`;
   }
-  return request   (url, { method: 'GET' });
+  return request(url, { method: 'GET' });
 }
 
 /**
  * POST request.
  */
-export async function post   (endpoint        , body          )             {
-  return request   (endpoint, {
+export async function post(endpoint, body) {
+  return request(endpoint, {
     method: 'POST',
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -123,8 +114,8 @@ export async function post   (endpoint        , body          )             {
 /**
  * PUT request.
  */
-export async function put   (endpoint        , body          )             {
-  return request   (endpoint, {
+export async function put(endpoint, body) {
+  return request(endpoint, {
     method: 'PUT',
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -133,8 +124,8 @@ export async function put   (endpoint        , body          )             {
 /**
  * DELETE request.
  */
-export async function del   (endpoint        )             {
-  return request   (endpoint, { method: 'DELETE' });
+export async function del(endpoint) {
+  return request(endpoint, { method: 'DELETE' });
 }
 
 export default {
