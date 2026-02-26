@@ -108,24 +108,23 @@ import {
 // ============================================================================
 
 export const sampleAtomics                                        = [
-  // Demographics - Age component (Low complexity)
+  // Demographics - Parameterized Age Requirement component
   {
     type: 'atomic',
-    id: 'age-45-75-at-start-mp',
-    name: 'Age 45-75 at Start of MP',
-    description: 'Patient age between 45 and 75 years at the start of the measurement period',
-    // Age component detection fields
-    thresholds: { ageMin: 45, ageMax: 75 },
-    ageEvaluatedAt: 'start-of-mp',
+    id: 'comp-demographic-age-requirement',
+    name: 'Age Requirement',
+    description: 'Configurable patient age range during the measurement period',
+    subtype: 'age',
+    // No hardcoded thresholds — these live on the measure instance
+    // The component is a template; each measure configures its own range
+    thresholds: null,
     valueSet: {
       oid: 'N/A',
       version: 'N/A',
       name: 'Demographic Constraint',
     },
     timing: {
-      operator: 'as of',
-      reference: 'Measurement Period Start',
-      displayExpression: 'as of start of Measurement Period',
+      referencePoint: 'end_of_measurement_period', // default, user can change
     },
     negation: false,
     dueDateDays: null, // Demographics - not applicable
@@ -138,7 +137,7 @@ export const sampleAtomics                                        = [
           status: 'approved',
           createdAt: '2024-01-15T10:00:00Z',
           createdBy: 'system',
-          changeDescription: 'Initial version',
+          changeDescription: 'Initial version - parameterized age requirement',
         },
       ],
       status: 'approved',
@@ -155,7 +154,7 @@ export const sampleAtomics                                        = [
       updatedAt: '2024-01-15T10:00:00Z',
       updatedBy: 'system',
       category: 'demographics',
-      tags: ['age', 'standard'],
+      tags: ['age', 'standard', 'configurable'],
       source: { origin: 'ecqi' },
     },
   },
@@ -809,7 +808,7 @@ export const sampleCategories                  = [
   {
     category: 'demographics',
     displayName: 'Demographics',
-    componentIds: ['age-45-75-at-start-mp', 'patient-sex-female', 'patient-sex-male'],
+    componentIds: ['comp-demographic-age-requirement', 'patient-sex-female', 'patient-sex-male'],
     sortOrder: 1,
   },
   {

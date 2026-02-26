@@ -46,6 +46,169 @@ function cleanDescription(desc                    )         {
     .trim();
 }
 
+/** Format age thresholds for display in criteria tree */
+function formatAgeRange(thresholds) {
+  if (!thresholds) return '(not configured)';
+  const { ageMin, ageMax } = thresholds;
+  if (ageMin !== undefined && ageMax !== undefined) return `${ageMin}–${ageMax} years`;
+  if (ageMin !== undefined) return `${ageMin}+ years`;
+  if (ageMax !== undefined) return `≤${ageMax} years`;
+  return '(not configured)';
+}
+
+/** Compact number stepper for age input */
+function NumberStepper({ value, min, max, onChange }) {
+  return (
+    <div className="inline-flex items-center border border-[var(--border)] rounded-md bg-[var(--bg-secondary)]">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onChange(Math.max(min, value - 1));
+        }}
+        className="px-1.5 py-0.5 text-[var(--text-dim)] hover:bg-[var(--bg-tertiary)] rounded-l-md"
+      >▼</button>
+      <input
+        type="number"
+        value={value}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          const v = parseInt(e.target.value, 10);
+          if (!isNaN(v) && v >= min && v <= max) onChange(v);
+        }}
+        className="w-12 text-center text-sm font-medium bg-transparent border-x border-[var(--border)]"
+        min={min}
+        max={max}
+      />
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onChange(Math.min(max, value + 1));
+        }}
+        className="px-1.5 py-0.5 text-[var(--text-dim)] hover:bg-[var(--bg-tertiary)] rounded-r-md"
+      >▲</button>
+    </div>
+  );
+}
+
+/** Inline age requirement configuration panel */
+function AgeRequirementConfig({ element, onUpdate }) {
+  const thresholds = element.thresholds || {};
+  const [noMin, setNoMin] = useState(thresholds.ageMin === undefined);
+  const [noMax, setNoMax] = useState(thresholds.ageMax === undefined);
+
+  const updateThreshold = (updates) => {
+    onUpdate(element.id, {
+      ...element,
+      thresholds: { ...thresholds, ...updates }
+    });
+  };
+
+  const handleNoMinChange = (checked) => {
+    setNoMin(checked);
+    if (checked) {
+      const { ageMin, ...rest } = thresholds;
+      onUpdate(element.id, { ...element, thresholds: rest });
+    } else {
+      updateThreshold({ ageMin: 18 });
+    }
+  };
+
+  const handleNoMaxChange = (checked) => {
+    setNoMax(checked);
+    if (checked) {
+      const { ageMax, ...rest } = thresholds;
+      onUpdate(element.id, { ...element, thresholds: rest });
+    } else {
+      updateThreshold({ ageMax: 64 });
+    }
+  };
+
+  return (
+    <div
+      className="mt-3 p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] space-y-3"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Age range sentence builder */}
+      <div className="flex items-center gap-2 text-sm flex-wrap">
+        <span className="text-[var(--text-dim)]">Patient is</span>
+
+        {!noMin && (
+          <NumberStepper
+            value={thresholds.ageMin ?? 18}
+            min={0}
+            max={120}
+            onChange={(v) => updateThreshold({ ageMin: v })}
+          />
+        )}
+
+        {!noMin && !noMax && (
+          <span className="text-[var(--text-dim)]">to</span>
+        )}
+
+        {!noMax && (
+          <NumberStepper
+            value={thresholds.ageMax ?? 64}
+            min={0}
+            max={120}
+            onChange={(v) => updateThreshold({ ageMax: v })}
+          />
+        )}
+
+        <span className="text-[var(--text-dim)]">
+          {noMax && !noMin ? 'years or older' : noMin && !noMax ? 'years or younger' : 'years old'}
+        </span>
+      </div>
+
+      {/* Checkboxes for no min/max */}
+      <div className="flex items-center gap-4 text-xs">
+        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--text-muted)]">
+          <input
+            type="checkbox"
+            checked={noMin}
+            onChange={(e) => handleNoMinChange(e.target.checked)}
+            className="rounded border-[var(--border)]"
+          />
+          No minimum
+        </label>
+        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--text-muted)]">
+          <input
+            type="checkbox"
+            checked={noMax}
+            onChange={(e) => handleNoMaxChange(e.target.checked)}
+            className="rounded border-[var(--border)]"
+          />
+          No maximum
+        </label>
+      </div>
+
+      {/* Reference point selection */}
+      <div className="flex items-center gap-3 text-xs">
+        <span className="text-[var(--text-dim)]">Calculated at:</span>
+        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--text-muted)]">
+          <input
+            type="radio"
+            name={`age-ref-${element.id}`}
+            checked={thresholds.referencePoint !== 'start_of_measurement_period'}
+            onChange={() => updateThreshold({ referencePoint: 'end_of_measurement_period' })}
+            className="text-[var(--accent)]"
+          />
+          End of MP
+        </label>
+        <label className="flex items-center gap-1.5 cursor-pointer text-[var(--text-muted)]">
+          <input
+            type="radio"
+            name={`age-ref-${element.id}`}
+            checked={thresholds.referencePoint === 'start_of_measurement_period'}
+            onChange={() => updateThreshold({ referencePoint: 'start_of_measurement_period' })}
+            className="text-[var(--accent)]"
+          />
+          Start of MP
+        </label>
+      </div>
+    </div>
+  );
+}
+
 export function UMSEditor() {
   const navigate = useNavigate();
   const { getActiveMeasure, updateReviewStatus, approveAllLowComplexity, measures, exportCorrections, getCorrections, addComponentToPopulation, addValueSet, toggleLogicalOperator, reorderComponent, moveComponentToIndex, setOperatorBetweenSiblings, deleteComponent, syncAgeRange, updateTimingOverride, updateTimingWindow, updateMeasurementPeriod, updateDataElement } = useMeasureStore();
@@ -1103,6 +1266,7 @@ export function UMSEditor() {
                 }}
                 selectedForMerge={selectedForMerge}
                 onToggleMergeSelection={toggleMergeSelection}
+                onUpdateElement={(elementId, updates) => updateDataElement(measure.id, elementId, updates)}
               />
             ))}
           </div>
@@ -1693,37 +1857,39 @@ function PopulationSection({
   onResetTiming,
   selectedForMerge,
   onToggleMergeSelection,
-}   
-                                   
-                    
-                      
-                       
-                              
-                                            
-                                                    
-                             
-               
-                
-                                                                                                             
-                                    
-                    
-                                               
-                                                                                   
-                                                   
-                                                                                                              
-                                                                                                                            
-                                    
-                        
-                                                                           
-                                                                                                                                 
-                  
-                
-                                 
-                                            
-                                                                          
-                                               
-                                
-                                                        
+  onUpdateElement,
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
  ) {
   // Compute effective status based on children's status
   const computeEffectiveStatus = (pop                      )               => {
@@ -1818,6 +1984,7 @@ function PopulationSection({
               onResetTiming={onResetTiming}
               selectedForMerge={selectedForMerge}
               onToggleMergeSelection={onToggleMergeSelection}
+              onUpdateElement={onUpdateElement}
             />
           )}
 
@@ -1931,6 +2098,7 @@ function CriteriaNode({
   onResetTiming,
   selectedForMerge,
   onToggleMergeSelection,
+  onUpdateElement,
 }   
                                     
                           
@@ -2074,6 +2242,7 @@ function CriteriaNode({
                   onResetTiming={onResetTiming}
                   selectedForMerge={selectedForMerge}
                   onToggleMergeSelection={onToggleMergeSelection}
+                  onUpdateElement={onUpdateElement}
                 />
               </div>
             </Fragment>
@@ -2261,25 +2430,32 @@ function CriteriaNode({
             );
           })()}
 
-          {/* Thresholds for demographics (age) and observations */}
-          {element.thresholds && (element.thresholds.ageMin !== undefined || element.thresholds.valueMin !== undefined) && (
+          {/* Age Requirement - show formatted range and config panel when selected */}
+          {(element.type === 'demographic' || element.subtype === 'age' || element.componentId?.includes('age')) &&
+           !element.genderValue && (
+            <div className="mt-2">
+              <span className="text-xs px-2 py-1 bg-[var(--success-light)] text-[var(--success)] rounded-lg inline-flex items-center gap-1">
+                <span className="font-medium">Age:</span>
+                <span className="font-bold">{formatAgeRange(element.thresholds)}</span>
+              </span>
+              {/* Inline age config panel when selected in deep mode */}
+              {isSelected && deepMode && onUpdateElement && (
+                <AgeRequirementConfig
+                  element={element}
+                  onUpdate={onUpdateElement}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Thresholds for observations (non-age) */}
+          {element.thresholds && element.thresholds.valueMin !== undefined && (
             <div className="mt-2 flex items-center gap-2">
-              {element.thresholds.ageMin !== undefined && (
-                <span className="text-xs px-2 py-1 bg-[var(--success-light)] text-[var(--success)] rounded-lg flex items-center gap-1">
-                  <span className="font-medium">Age:</span>
-                  <span className="font-bold">{element.thresholds.ageMin}</span>
-                  <span>-</span>
-                  <span className="font-bold">{element.thresholds.ageMax ?? 150}</span>
-                  <span>years</span>
-                </span>
-              )}
-              {element.thresholds.valueMin !== undefined && (
-                <span className="text-xs px-2 py-1 bg-[var(--warning-light)] text-[var(--warning)] rounded-lg">
-                  {element.thresholds.comparator || '>='} {element.thresholds.valueMin}
-                  {element.thresholds.valueMax !== undefined && ` - ${element.thresholds.valueMax}`}
-                  {element.thresholds.unit && ` ${element.thresholds.unit}`}
-                </span>
-              )}
+              <span className="text-xs px-2 py-1 bg-[var(--warning-light)] text-[var(--warning)] rounded-lg">
+                {element.thresholds.comparator || '>='} {element.thresholds.valueMin}
+                {element.thresholds.valueMax !== undefined && ` - ${element.thresholds.valueMax}`}
+                {element.thresholds.unit && ` ${element.thresholds.unit}`}
+              </span>
             </div>
           )}
 

@@ -45,6 +45,58 @@ import { getComponents, getComponent } from '../api/components';
 import { transformComponentDto, transformComponentSummary } from '../api/transformers';
 
 // ============================================================================
+// Age Component Migration
+// ============================================================================
+
+// Map old individual age component IDs to parameterized Age Requirement thresholds
+const OLD_AGE_COMPONENT_MAP = {
+  'comp-age-12-and-older': { ageMin: 12, ageMax: undefined },
+  'comp-age-18-and-older': { ageMin: 18, ageMax: undefined },
+  'comp-age-18-64': { ageMin: 18, ageMax: 64 },
+  'comp-age-18-75': { ageMin: 18, ageMax: 75 },
+  'comp-age-18-85': { ageMin: 18, ageMax: 85 },
+  'comp-age-21-64': { ageMin: 21, ageMax: 64 },
+  'comp-age-45-75-start': { ageMin: 45, ageMax: 75, referencePoint: 'start_of_measurement_period' },
+  'comp-age-45-75': { ageMin: 45, ageMax: 75 },
+  'comp-age-52-74': { ageMin: 52, ageMax: 74 },
+  'comp-age-65-and-older': { ageMin: 65, ageMax: undefined },
+  // Backend SQL IDs (without 'comp-' prefix)
+  'age-12-plus': { ageMin: 12, ageMax: undefined },
+  'age-18-plus': { ageMin: 18, ageMax: undefined },
+  'age-18-64': { ageMin: 18, ageMax: 64 },
+  'age-18-75': { ageMin: 18, ageMax: 75 },
+  'age-18-85': { ageMin: 18, ageMax: 85 },
+  'age-21-64': { ageMin: 21, ageMax: 64 },
+  'age-45-75': { ageMin: 45, ageMax: 75 },
+  'age-52-74': { ageMin: 52, ageMax: 74 },
+  'age-65-plus': { ageMin: 65, ageMax: undefined },
+  // Frontend sample data ID
+  'age-45-75-at-start-mp': { ageMin: 45, ageMax: 75, referencePoint: 'start_of_measurement_period' },
+};
+
+/**
+ * Migrate old individual age components to parameterized Age Requirement.
+ * This function updates the element's componentId and thresholds.
+ */
+function migrateAgeComponent(element) {
+  const componentId = element.componentId || element.libraryComponentId;
+  if (componentId && OLD_AGE_COMPONENT_MAP[componentId]) {
+    const config = OLD_AGE_COMPONENT_MAP[componentId];
+    console.log(`[migrateAgeComponent] Migrating "${componentId}" to parameterized Age Requirement with thresholds:`, config);
+    return {
+      ...element,
+      componentId: 'comp-demographic-age-requirement',
+      libraryComponentId: 'comp-demographic-age-requirement',
+      thresholds: { ...config },
+      timing: config.referencePoint
+        ? { referencePoint: config.referencePoint }
+        : element.timing
+    };
+  }
+  return element;
+}
+
+// ============================================================================
 // State Interface
 // ============================================================================
 
@@ -707,13 +759,16 @@ export const useComponentLibraryStore = create                       ()(
           }
         }
 
+        // Migrate old individual age components to parameterized Age Requirement
+        const migratedElements = allElements.map(migrateAgeComponent);
+
         const newComponents                     = [];
         const updatedComponents                     = [];
 
-        console.log('[linkMeasureComponents] Found', allElements.length, 'data elements to process');
+        console.log('[linkMeasureComponents] Found', migratedElements.length, 'data elements to process');
 
         // Step 1: Match individual data elements (atomics) - prioritize approved components
-        for (const element of allElements) {
+        for (const element of migratedElements) {
           console.log('[linkMeasureComponents] Processing element:', {
             id: element.id,
             description: element.description,
