@@ -756,6 +756,34 @@ function generateDemographicComponentCode(component                 )           
     return { cql, sql, success: true };
   }
 
+  // Handle age requirement component
+  // If thresholds are set (measure-level data element), generate actual code
+  // If no thresholds (library component), show template
+  const isAgeComponent = component.subtype === 'age' ||
+    component.id === 'comp-demographic-age-requirement' ||
+    component.name?.toLowerCase().includes('age requirement');
+
+  if (isAgeComponent) {
+    // Check if we have actual thresholds configured
+    if (component.thresholds?.ageMin !== undefined || component.thresholds?.ageMax !== undefined) {
+      const min = component.thresholds.ageMin ?? 0;
+      const max = component.thresholds.ageMax ?? 150;
+      const cql = `AgeInYearsAt(date from end of "Measurement Period") in Interval[${min}, ${max}]`;
+      const sql = `-- Age ${min}-${max}\nSELECT patient_id FROM DEMOG WHERE age_in_years >= ${min} AND age_in_years <= ${max}`;
+      return { cql, sql, success: true };
+    }
+
+    // Library component without thresholds - show template
+    const cql = `// Age Requirement — thresholds configured per measure
+// Generated CQL will include:
+//   AgeInYearsAt(date from end of "Measurement Period") >= {minAge}
+//   and AgeInYearsAt(date from end of "Measurement Period") <= {maxAge}`;
+    const sql = `-- Age Requirement — thresholds configured per measure
+-- Generated SQL will include:
+--   SELECT patient_id FROM DEMOG WHERE age_in_years >= {minAge} AND age_in_years <= {maxAge}`;
+    return { cql, sql, success: true };
+  }
+
   // Default demographic placeholder
   const cql = '"Patient Age Valid"';
   const sql = `-- Demographic: ${component.name}\nSELECT patient_id FROM DEMOG`;
