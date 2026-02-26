@@ -202,7 +202,8 @@ export function LibraryBrowser() {
     });
   }, [selectedCategory, setFilters]);
 
-  const filteredComponents = useMemo(() => getFilteredComponents(), [getFilteredComponents]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- components and filters trigger re-computation even though getFilteredComponents reads them internally
+  const filteredComponents = useMemo(() => getFilteredComponents(), [components, filters, getFilteredComponents]);
 
   const handleSearchChange = (e                                     ) => {
     setFilters({ searchQuery: e.target.value });
