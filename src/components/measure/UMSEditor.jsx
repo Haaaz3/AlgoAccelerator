@@ -93,14 +93,54 @@ function isAgeRequirementComponent(component) {
 
 /** Compact number stepper for age input */
 function NumberStepper({ value, min, max, onChange }) {
+  const intervalRef = useRef(null);
+  const timeoutRef = useRef(null);
+  const valueRef = useRef(value);
+
+  // Keep valueRef in sync
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  const startHold = (delta) => {
+    // Immediate first change
+    const newVal = Math.max(min, Math.min(max, valueRef.current + delta));
+    onChange(newVal);
+    valueRef.current = newVal;
+    // Start repeating after a short delay
+    timeoutRef.current = setTimeout(() => {
+      intervalRef.current = setInterval(() => {
+        const next = Math.max(min, Math.min(max, valueRef.current + delta));
+        if (next !== valueRef.current) {
+          onChange(next);
+          valueRef.current = next;
+        }
+      }, 75);
+    }, 300);
+  };
+
+  const stopHold = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    timeoutRef.current = null;
+    intervalRef.current = null;
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopHold();
+  }, []);
+
   return (
     <div className="inline-flex items-center border border-[var(--border)] rounded-md bg-[var(--bg-secondary)]">
       <button
-        onClick={(e) => {
+        onMouseDown={(e) => {
           e.stopPropagation();
-          onChange(Math.max(min, value - 1));
+          startHold(-1);
         }}
-        className="px-1.5 py-0.5 text-[var(--text-dim)] hover:bg-[var(--bg-tertiary)] rounded-l-md"
+        onMouseUp={stopHold}
+        onMouseLeave={stopHold}
+        className="px-1.5 py-0.5 text-[var(--text-dim)] hover:bg-[var(--bg-tertiary)] rounded-l-md select-none"
       >▼</button>
       <input
         type="number"
@@ -115,11 +155,13 @@ function NumberStepper({ value, min, max, onChange }) {
         max={max}
       />
       <button
-        onClick={(e) => {
+        onMouseDown={(e) => {
           e.stopPropagation();
-          onChange(Math.min(max, value + 1));
+          startHold(1);
         }}
-        className="px-1.5 py-0.5 text-[var(--text-dim)] hover:bg-[var(--bg-tertiary)] rounded-r-md"
+        onMouseUp={stopHold}
+        onMouseLeave={stopHold}
+        className="px-1.5 py-0.5 text-[var(--text-dim)] hover:bg-[var(--bg-tertiary)] rounded-r-md select-none"
       >▲</button>
     </div>
   );
