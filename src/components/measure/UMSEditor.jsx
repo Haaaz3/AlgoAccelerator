@@ -46,6 +46,22 @@ function cleanDescription(desc                    )         {
     .trim();
 }
 
+/** Map component category to element type for display badge */
+function categoryToElementType(category) {
+  if (!category) return 'observation';
+  const cat = category.toLowerCase();
+  if (cat === 'demographics') return 'demographic';
+  if (cat === 'encounters') return 'encounter';
+  if (cat === 'procedures') return 'procedure';
+  if (cat === 'conditions') return 'diagnosis';
+  if (cat === 'medications') return 'medication';
+  if (cat === 'immunizations') return 'immunization';
+  if (cat === 'assessments') return 'assessment';
+  if (cat === 'exclusions') return 'exclusion';
+  if (cat.includes('observation')) return 'observation';
+  return 'observation';
+}
+
 /** Format age thresholds for display in criteria tree */
 function formatAgeRange(thresholds) {
   if (!thresholds) return '(not configured)';
@@ -1431,17 +1447,31 @@ export function UMSEditor() {
           targetSection={addComponentTarget.populationType || 'Population'}
           onClose={() => setAddComponentTarget(null)}
           onAdd={(libraryComponent) => {
+            // Derive element type from category
+            const category = libraryComponent.metadata?.category || libraryComponent.category || 'observation';
+            const elementType = categoryToElementType(category);
+
             // Create a component reference from the library component
             const component = {
               id: `comp-${Date.now()}`,
-              type: 'DataElement',
+              type: elementType,
+              subtype: libraryComponent.subtype,
               name: libraryComponent.name,
               description: libraryComponent.description,
+              valueSet: libraryComponent.valueSet,
               valueSetRef: libraryComponent.valueSet?.id,
               libraryRef: libraryComponent.id,
+              libraryComponentId: libraryComponent.id,
               timing: libraryComponent.timing || {},
               negation: libraryComponent.negation || false,
-              category: libraryComponent.category,
+              category: category,
+              // Copy demographic fields
+              genderValue: libraryComponent.genderValue,
+              resourceType: libraryComponent.resourceType,
+              // Default thresholds for age requirement (user can configure)
+              thresholds: libraryComponent.subtype === 'age' ? { ageMin: 18, ageMax: 64 } : libraryComponent.thresholds,
+              confidence: 'high',
+              reviewStatus: 'pending',
             };
             // Add component to population with AND logic by default
             addComponentToPopulation(measure.id, addComponentTarget.populationId, component, 'and');
