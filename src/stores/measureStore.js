@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useFeedbackStore } from './feedbackStore';
 ;            
                        
                
@@ -596,7 +597,7 @@ export const useMeasureStore = create              ()(
       revertMeasureCodeOverride: (measureId, format) => {
         const key = `${measureId}::${format}`;
         set((state) => {
-          const { [key]: removed, ...rest } = state.measureCodeOverrides;
+          const { [key]: _removed, ...rest } = state.measureCodeOverrides;
           return { measureCodeOverrides: rest };
         });
       },
@@ -907,6 +908,54 @@ export const useMeasureStore = create              ()(
               program: measure.metadata.program,
             },
           };
+
+          // Record to feedback store for analytics (compare to original extraction)
+          try {
+            const feedbackStore = useFeedbackStore.getState();
+            if (feedbackStore.feedbackEnabled && measure._originalExtraction) {
+              // Find original extraction value for this element
+              const findOriginalElement = (nodes, targetId) => {
+                if (!nodes) return null;
+                for (const node of nodes) {
+                  if (node?.id === targetId) return node;
+                  if (node?.criteria) {
+                    const found = findOriginalElement([node.criteria], targetId);
+                    if (found) return found;
+                  }
+                  if (node?.children) {
+                    const found = findOriginalElement(node.children, targetId);
+                    if (found) return found;
+                  }
+                }
+                return null;
+              };
+
+              const originalElement = findOriginalElement(measure._originalExtraction, componentId);
+
+              // Record corrections for each field that changed from original extraction
+              Object.entries(updates).forEach(([fieldKey, newValue]) => {
+                const origVal = originalElement?.[fieldKey];
+                // Only record if we have an original extraction value and it differs
+                if (originalElement && origVal !== undefined && JSON.stringify(origVal) !== JSON.stringify(newValue)) {
+                  feedbackStore.recordCorrection({
+                    measureId: measure.id,
+                    measureTitle: measure.metadata?.title || 'Unknown Measure',
+                    catalogueType: measure.metadata?.catalogueType || 'unknown',
+                    extractionTimestamp: measure.metadata?.extractedAt,
+                    fieldPath: `${componentId}.${fieldKey}`,
+                    originalValue: origVal,
+                    correctedValue: newValue,
+                    dataElementName: originalValue?.description || originalValue?.name || '',
+                    populationName: componentPath.match(/populations\[(\d+)\]/)?.[1] ? `Population ${parseInt(componentPath.match(/populations\[(\d+)\]/)[1]) + 1}` : '',
+                    userNote: userNotes || '',
+                  });
+                }
+              });
+            }
+          } catch (feedbackError) {
+            // Never let feedback capture block the actual edit
+            console.error('[measureStore] Feedback capture error:', feedbackError);
+          }
 
           const updateComponent = (obj     )      => {
             if (!obj) return obj;
@@ -1468,7 +1517,7 @@ export const useMeasureStore = create              ()(
 // The store's loadFromApi already reads from localStorage as an overlay,
 // so saving here ensures edits survive page refresh.
 let _prevMeasureIds = '';
-let _backendSaveTimer = null;
+let _backendSaveTimer                            = null;
 
 useMeasureStore.subscribe((state) => {
   // Quick fingerprint to detect actual measure changes
@@ -1482,7 +1531,7 @@ useMeasureStore.subscribe((state) => {
     if (!key) continue;
     try {
       localStorage.setItem(`measure-local-${key}`, JSON.stringify(measure));
-    } catch (e) {
+    } catch {
       // localStorage full or unavailable — skip silently
     }
   }

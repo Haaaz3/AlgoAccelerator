@@ -7,7 +7,7 @@
  * 3. Build UMS from extracted data
  */
 
-import { extractFromFiles,                       } from './documentLoader';
+import { extractFromFiles } from './documentLoader';
 import { extractMeasureWithAI } from './aiExtractor';
 import {
   extractMeasure as extractMeasureViaBackend,
@@ -15,10 +15,12 @@ import {
   enrichDataElementsWithCqlCodes,
   enrichDataElementsFromParsedSources,
 } from './extractionService';
-import { parseMeasureSpec } from '../utils/specParser';
+import { detectCatalogueType } from './catalogueDetector';
+// QA-FLAG: parseMeasureSpec may be used in future measure ingestion workflows
+import { parseMeasureSpec as _parseMeasureSpec } from '../utils/specParser';
 ;                                                                                    
 ;                                                 
-import { parseHtmlSpec,                          } from './htmlSpecParser';
+import { parseHtmlSpec } from './htmlSpecParser';
 import { VALUE_SET_BY_OID, getCodesForOids } from '../data/valuesets';
 
 /**
@@ -32,7 +34,7 @@ function truncateForLLM(content        , maxChars        )         {
   const fileMarkerRegex = /\n?=== FILE: ([^\n]+) ===/g;
   const sections                                                                 = [];
 
-  let lastIndex = 0;
+  let _lastIndex = 0;
   let match;
   const matches                                             = [];
 
@@ -644,6 +646,14 @@ export async function ingestMeasureFiles(
 
     // Update source documents
     aiResult.ums.metadata.sourceDocuments = files.map(f => f.name);
+
+    // Add extraction metadata for feedback loop
+    aiResult.ums.metadata.extractedAt = new Date().toISOString();
+    aiResult.ums.metadata.catalogueType = detectCatalogueType(aiResult.ums.metadata);
+
+    // Store the original extraction for diffing later (feedback loop)
+    // This preserves what the LLM originally extracted before any user corrections
+    aiResult.ums._originalExtraction = JSON.parse(JSON.stringify(aiResult.ums.populations));
 
     return {
       success: true,
