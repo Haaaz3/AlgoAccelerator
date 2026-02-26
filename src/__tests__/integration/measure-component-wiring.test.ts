@@ -89,7 +89,7 @@ describe('Measure-Component Wiring', () => {
       }
     });
 
-    it('deleting a measure and calling rebuildUsageIndex removes usage references from all components', () => {
+    it('deleting a measure and calling rebuildUsageIndex removes usage references from all components', async () => {
       // Create test data
       const { measure, components } = createTestMeasure({ withComponents: true });
 
@@ -99,16 +99,16 @@ describe('Measure-Component Wiring', () => {
           ...comp,
           usage: {
             ...comp.usage,
-            measureIds: [measure.metadata.measureId],
+            measureIds: [measure.id], // Use measure.id to match rebuildUsageIndex
             usageCount: 1,
           },
         };
         useComponentLibraryStore.getState().addComponent(withUsage);
       }
 
-      // Add then delete measure
+      // Add then delete measure (await the async delete)
       useMeasureStore.getState().addMeasure(measure);
-      useMeasureStore.getState().deleteMeasure(measure.id);
+      await useMeasureStore.getState().deleteMeasure(measure.id);
 
       // Rebuild usage index with empty measures
       const measures = useMeasureStore.getState().measures;

@@ -818,9 +818,10 @@ export function buildCQLLibrary(builder                   )         {
   // Value sets
   parts.push(valueSetDeclarationsTemplate(builder.valueSets));
 
-  // Parameters (measurement period is standard)
-  const mpStart = '2025-01-01';
-  const mpEnd = '2025-12-31';
+  // Parameters (measurement period is standard - use current year as default)
+  const currentYear = new Date().getFullYear();
+  const mpStart = `${currentYear}-01-01`;
+  const mpEnd = `${currentYear}-12-31`;
   parts.push(parametersTemplate([
     {
       name: 'Measurement Period',

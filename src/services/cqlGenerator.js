@@ -283,8 +283,9 @@ function generateValueSetDeclarations(valueSets                     , warnings  
  * Generate parameters section
  */
 function generateParameters(measure                      )         {
-  const mpStart = measure.metadata.measurementPeriod?.start || '2025-01-01';
-  const mpEnd = measure.metadata.measurementPeriod?.end || '2025-12-31';
+  const currentYear = new Date().getFullYear();
+  const mpStart = measure.metadata.measurementPeriod?.start || `${currentYear}-01-01`;
+  const mpEnd = measure.metadata.measurementPeriod?.end || `${currentYear}-12-31`;
 
   return parametersTemplate([
     {
