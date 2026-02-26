@@ -97,14 +97,18 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### CodeGeneration.tsx
-**File:** `src/components/measure/CodeGeneration.tsx`
+#### CodeGeneration.jsx
+**File:** `src/components/measure/CodeGeneration.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
-| measureStore | `measures`, `selectedMeasureId`, `selectedCodeFormat`, `measureCodeOverrides` | `setSelectedCodeFormat`, `setLastGeneratedCode`, `saveMeasureCodeOverride`, `revertMeasureCodeOverride`, `getMeasureCodeOverride` |
+| measureStore | `measures`, `activeMeasureId`, `selectedCodeFormat`, `measureCodeOverrides` | `setSelectedCodeFormat`, `setLastGeneratedCode`, `saveMeasureCodeOverride`, `revertMeasureCodeOverride`, `getMeasureCodeOverride` |
+| componentLibraryStore | `components` | - |
+| componentCodeStore | `codeStates` | - |
 
 **Total Actions:** 5
+
+**Reactivity:** Subscribes to `componentLibraryStore.components` and `componentCodeStore.codeStates` to trigger re-generation when library components are edited or code overrides are saved.
 
 ---
 
