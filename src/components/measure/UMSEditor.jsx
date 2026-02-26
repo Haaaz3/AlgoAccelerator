@@ -64,12 +64,31 @@ function categoryToElementType(category) {
 
 /** Format age thresholds for display in criteria tree */
 function formatAgeRange(thresholds) {
-  if (!thresholds) return '(not configured)';
+  if (!thresholds) return '18–65 years'; // Default range
   const { ageMin, ageMax } = thresholds;
   if (ageMin !== undefined && ageMax !== undefined) return `${ageMin}–${ageMax} years`;
   if (ageMin !== undefined) return `${ageMin}+ years`;
   if (ageMax !== undefined) return `≤${ageMax} years`;
-  return '(not configured)';
+  return '18–65 years'; // Default range
+}
+
+/** Robust check for Age Requirement component across multiple identifiers */
+function isAgeRequirementComponent(component) {
+  if (!component) return false;
+  // Check subtype
+  if (component.subtype === 'age') return true;
+  // Check component IDs
+  if (component.id === 'comp-demographic-age-requirement') return true;
+  if (component.libraryComponentId === 'comp-demographic-age-requirement') return true;
+  if (component.libraryRef === 'comp-demographic-age-requirement') return true;
+  if (component.componentId === 'comp-demographic-age-requirement') return true;
+  // Check name
+  if (component.name === 'Age Requirement') return true;
+  if (component.name?.toLowerCase().includes('age requirement')) return true;
+  // Check category + name pattern for demographics with "age" in name
+  const category = component.metadata?.category || component.category || '';
+  if (category.toLowerCase() === 'demographics' && component.name?.toLowerCase().includes('age')) return true;
+  return false;
 }
 
 /** Compact number stepper for age input */
@@ -1447,15 +1466,18 @@ export function UMSEditor() {
           targetSection={addComponentTarget.populationType || 'Population'}
           onClose={() => setAddComponentTarget(null)}
           onAdd={(libraryComponent) => {
-            // Derive element type from category
+            // Check if this is an Age Requirement component using robust detection
+            const isAgeReq = isAgeRequirementComponent(libraryComponent);
+
+            // Derive element type from category, but force 'demographic' for Age Requirement
             const category = libraryComponent.metadata?.category || libraryComponent.category || 'observation';
-            const elementType = categoryToElementType(category);
+            const elementType = isAgeReq ? 'demographic' : categoryToElementType(category);
 
             // Create a component reference from the library component
             const component = {
               id: `comp-${Date.now()}`,
               type: elementType,
-              subtype: libraryComponent.subtype,
+              subtype: isAgeReq ? 'age' : libraryComponent.subtype,
               name: libraryComponent.name,
               description: libraryComponent.description,
               valueSet: libraryComponent.valueSet,
@@ -1468,8 +1490,8 @@ export function UMSEditor() {
               // Copy demographic fields
               genderValue: libraryComponent.genderValue,
               resourceType: libraryComponent.resourceType,
-              // Default thresholds for age requirement (user can configure)
-              thresholds: libraryComponent.subtype === 'age' ? { ageMin: 18, ageMax: 65 } : libraryComponent.thresholds,
+              // Force default thresholds for Age Requirement (user can configure)
+              thresholds: isAgeReq ? { ageMin: 18, ageMax: 65 } : libraryComponent.thresholds,
               confidence: 'high',
               reviewStatus: 'pending',
             };
@@ -2413,7 +2435,7 @@ function CriteriaNode({
             <ComplexityBadge level={calculateDataElementComplexity(element)} size="sm" />
           </div>
           {/* For age requirement, show formatted range instead of template description */}
-          {(element.subtype === 'age' || (element.type === 'demographic' && element.thresholds?.ageMin !== undefined && !element.genderValue)) ? (
+          {(isAgeRequirementComponent(element) && !element.genderValue) ? (
             <p className="text-sm text-[var(--text)]">Age Requirement: {formatAgeRange(element.thresholds)}</p>
           ) : (
             <p className="text-sm text-[var(--text)]">{cleanDescription(element.description)}</p>
@@ -2428,7 +2450,7 @@ function CriteriaNode({
           {(() => {
             // Skip demographics
             if (element.genderValue) return null;
-            if (element.thresholds?.ageMin != null) return null;
+            if (isAgeRequirementComponent(element)) return null;
             if (element.type === 'demographic') return null;
             if (element.category === 'demographics') return null;
 
@@ -2466,8 +2488,7 @@ function CriteriaNode({
           })()}
 
           {/* Age Requirement - show formatted range label only (editing happens in right panel) */}
-          {(element.type === 'demographic' || element.subtype === 'age' || element.componentId?.includes('age')) &&
-           !element.genderValue && (
+          {isAgeRequirementComponent(element) && !element.genderValue && (
             <div className="mt-2">
               <span className="text-xs px-2 py-1 bg-[var(--success-light)] text-[var(--success)] rounded-lg inline-flex items-center gap-1">
                 <span className="font-medium">Age:</span>
@@ -3111,6 +3132,12 @@ function NodeDetailPanel({
       }
     }
 
+    // If this is an Age Requirement component, return defaults even without thresholds
+    // This ensures the AGE RANGE fieldset is always shown for Age Requirement
+    if (isAgeRequirementComponent(node)) {
+      return { min: 18, max: 65, source: 'default' };
+    }
+
     return null;
   };
 
@@ -3252,7 +3279,7 @@ function NodeDetailPanel({
         </div>
 
         {/* Editable Description - hide for age requirement components */}
-        {!(node.subtype === 'age' || (node.type === 'demographic' && node.thresholds?.ageMin !== undefined && !node.genderValue)) && (
+        {!(isAgeRequirementComponent(node) && !node.genderValue) && (
           <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Description</h4>
@@ -3391,7 +3418,7 @@ function NodeDetailPanel({
         {/* ═══ VALUE SET & CLINICAL CODES ═══ */}
         {(() => {
           // Skip demographics — they don't have value sets
-          const isDemographic = node.genderValue != null || node.thresholds?.ageMin != null
+          const isDemographic = node.genderValue != null || isAgeRequirementComponent(node)
             || node.type === 'demographic' || node.metadata?.category === 'demographics';
           if (isDemographic) return null;
 
