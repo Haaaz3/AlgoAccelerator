@@ -434,7 +434,7 @@ function FeedbackTab() {
 
   return (
     <div className="p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="space-y-6">
         {/* Toggle and Summary */}
         <div className="flex flex-col gap-3 p-4 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-xl">
           <div className="flex items-center justify-between">
@@ -515,7 +515,7 @@ function FeedbackTab() {
                   : 0;
                 return (
                   <div key={stat.pattern} className="flex items-center gap-3">
-                    <div className="w-32 text-sm text-[var(--text)] truncate">
+                    <div className="w-44 text-sm text-[var(--text)]">
                       {PATTERN_LABELS[stat.pattern] || stat.pattern}
                     </div>
                     <div className="flex-1 h-5 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
