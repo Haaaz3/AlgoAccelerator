@@ -55,7 +55,7 @@ Insight Forge automates this process:
 - Syntax highlighting and validation
 - **Intuitive Code Editor** with visual diffs and edit history
 
-### AND/OR_ai Co-Pilot
+### AND/OR.ai Co-Pilot
 - Floating chat panel with full measure context
 - Ask questions about measure logic, value sets, timing
 - **Propose edits** with visual diff preview

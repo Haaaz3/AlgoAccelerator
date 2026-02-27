@@ -382,7 +382,7 @@ Matches measure data elements to library components.
 - Confidence scoring
 
 ### copilotService.ts
-AI AND/OR_ai Co-Pilot context building and message handling.
+AI AND/OR.ai Co-Pilot context building and message handling.
 
 **Functions:**
 - `buildCopilotContext(params)` - Build context from measure, components, generated code
@@ -396,7 +396,7 @@ AI AND/OR_ai Co-Pilot context building and message handling.
 - Active tab and UI state
 
 ### copilotProviders.ts
-Modular LLM provider architecture for AND/OR_ai Co-Pilot.
+Modular LLM provider architecture for AND/OR.ai Co-Pilot.
 
 **Providers:**
 - Anthropic Claude (default)
@@ -583,7 +583,7 @@ Code generation interface.
 - Edit history with visual diffs
 
 ### CopilotPanel.jsx
-Floating AI AND/OR_ai Co-Pilot chat interface.
+Floating AI AND/OR.ai Co-Pilot chat interface.
 
 **Features:**
 - Measure-aware context

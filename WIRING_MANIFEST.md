@@ -270,7 +270,7 @@ A comprehensive map of how components, stores, and services connect and communic
 | `testPatientGenerator.js` | Test patient creation | `generateTestPatients`, `generatePatientBundle` |
 | `measureEvaluator.js` | Measure evaluation | `evaluateMeasure`, `evaluatePopulation` |
 | `complexityCalculator.js` | Complexity scoring | `calculateDataElementComplexity`, `calculateCompositeComplexity` |
-| `copilotService.js` | AI AND/OR_ai Co-Pilot context & messaging | `buildCopilotContext`, `buildCopilotSystemPrompt`, `sendCopilotMessage` |
+| `copilotService.js` | AI AND/OR.ai Co-Pilot context & messaging | `buildCopilotContext`, `buildCopilotSystemPrompt`, `sendCopilotMessage` |
 | `copilotProviders.js` | Modular LLM provider architecture | `AnthropicProvider`, `OpenAIProvider`, `getProvider` |
 | `vsacService.js` | VSAC API integration | `fetchValueSetExpansion` |
 | `vsacCodeCache.js` | Local VSAC code cache | `getCodesForOid`, `hasCodesForOid` |
@@ -425,7 +425,7 @@ A comprehensive map of how components, stores, and services connect and communic
 │                   │                                                          │
 │                   └──▶ measureStore.saveMeasureCodeOverride()                │
 │                             │                                                │
-│                             └──▶ Logs to edit history with "AND/OR_ai Co-Pilot fix:"   │
+│                             └──▶ Logs to edit history with "AND/OR.ai Co-Pilot fix:"   │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -438,7 +438,7 @@ A comprehensive map of how components, stores, and services connect and communic
 │         ├──▶ Generate CQL/SQL                                                │
 │         │         │                                                          │
 │         │         └──▶ measureStore.setLastGeneratedCode()                   │
-│         │                   (stores for AND/OR_ai Co-Pilot context)                    │
+│         │                   (stores for AND/OR.ai Co-Pilot context)                    │
 │         │                                                                    │
 │         └──▶ MeasureCodeEditor.jsx                                           │
 │                   │                                                          │
@@ -813,10 +813,10 @@ UI: Panel closes, badge shows warning color, reset button appears
 
 ---
 
-### Flow 11: Ask AND/OR_ai Co-Pilot a Question
+### Flow 11: Ask AND/OR.ai Co-Pilot a Question
 
 ```
-User Action: Opens AND/OR_ai Co-Pilot panel → Types question → Send
+User Action: Opens AND/OR.ai Co-Pilot panel → Types question → Send
     │
     ▼
 CopilotPanel.jsx (lines 180-220)
@@ -855,7 +855,7 @@ UI: Response displays, may include ProposalCard if structured proposal
 
 ---
 
-### Flow 12: Apply AND/OR_ai Co-Pilot Code Fix Proposal
+### Flow 12: Apply AND/OR.ai Co-Pilot Code Fix Proposal
 
 ```
 User Action: Clicks "Apply" on ProposalCard
@@ -870,7 +870,7 @@ CopilotPanel.jsx::handleApplyProposal(messageId, proposal)
     ▼
 measureStore.saveMeasureCodeOverride(measureId, format, code, note, originalCode)
     │
-    ├──▶ Creates note entry with "AND/OR_ai Co-Pilot fix: {description}"
+    ├──▶ Creates note entry with "AND/OR.ai Co-Pilot fix: {description}"
     ├──▶ Stores codeBefore (original) and codeAfter (fixed)
     └──▶ Appends to measureCodeOverrides[key].notes[]
     │
@@ -1469,7 +1469,7 @@ CodeGeneration.jsx
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | Feb 2026 | AI-assisted | Initial manifest creation |
-| 1.1 | Feb 2026 | AI-assisted | Added AND/OR_ai Co-Pilot pipeline, MeasureCodeEditor, code customization flows |
+| 1.1 | Feb 2026 | AI-assisted | Added AND/OR.ai Co-Pilot pipeline, MeasureCodeEditor, code customization flows |
 | 1.2 | Feb 2026 | AI-assisted | Added vsacService, vsacCodeCache to services; Sidebar category submenu; NodeDetailPanel value set editing flows (15-17); AddComponentModal flow (18) |
 | 1.3 | Feb 2026 | AI-assisted | Added feedbackStore, extraction feedback pipeline, feedback capture flows (19-20), updated cross-store dependencies |
 | 1.4 | Feb 2026 | AI-assisted | Added sync status tracking (pendingSync, retryPendingSync), Flow 21 for sync retry |

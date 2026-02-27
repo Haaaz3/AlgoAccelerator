@@ -30,11 +30,11 @@ This document captures the current implementation state as of February 2026.
 | **Backend Persistence** | Complete | Measures, components, test patients |
 | **AI Extraction Pipeline** | Complete | Direct API + backend proxy |
 | **Auto-Component Creation** | Complete | Backend creates components from data elements |
-| **AND/OR_ai Co-Pilot** | Complete | Floating chat with measure context, proposal system |
-| **AND/OR_ai Co-Pilot Proposals** | Complete | Visual diffs, apply/dismiss, logged to history |
+| **AND/OR.ai Co-Pilot** | Complete | Floating chat with measure context, proposal system |
+| **AND/OR.ai Co-Pilot Proposals** | Complete | Visual diffs, apply/dismiss, logged to history |
 | **Measure Code Editor** | Complete | Intuitive editing with notes, diffs, history |
 | **Clickable Edit History** | Complete | Per-edit diffs, expandable entries |
-| **AND/OR_ai Co-Pilot Edit Logging** | Complete | Applied proposals logged to edit history |
+| **AND/OR.ai Co-Pilot Edit Logging** | Complete | Applied proposals logged to edit history |
 
 ### Recent Fixes (Current Session)
 
@@ -94,7 +94,7 @@ backend/src/main/java/com/algoaccel/
 - `selectedMeasureId` - Currently editing measure
 - `activeTab` - Current navigation tab
 - `validationTraces{}` - Cached validation results
-- `lastGeneratedCode{}` - Current CQL/SQL for AND/OR_ai Co-Pilot context
+- `lastGeneratedCode{}` - Current CQL/SQL for AND/OR.ai Co-Pilot context
 - `measureCodeOverrides{}` - Per-measure code customizations with edit history
 - `isLoadingFromApi` - Backend fetch in progress
 - `apiError` - Last API error message

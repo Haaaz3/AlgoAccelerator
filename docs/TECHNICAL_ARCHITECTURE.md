@@ -15,7 +15,7 @@ src/
 ├── components/                # React UI components
 │   ├── layout/               # App shell
 │   │   └── Sidebar.tsx       # Navigation sidebar
-│   ├── copilot/              # AND/OR_ai Co-Pilot
+│   ├── copilot/              # AND/OR.ai Co-Pilot
 │   │   └── CopilotPanel.jsx  # Floating chat interface with proposals
 │   ├── library/              # Component Library UI
 │   │   ├── LibraryBrowser.tsx
@@ -54,7 +54,7 @@ src/
 │   ├── componentLibraryService.ts  # Component CRUD
 │   ├── componentMatcher.ts   # Library matching logic
 │   ├── complexityCalculator.ts    # Complexity scoring
-│   ├── copilotService.ts     # AI AND/OR_ai Co-Pilot context and messaging
+│   ├── copilotService.ts     # AI AND/OR.ai Co-Pilot context and messaging
 │   ├── copilotProviders.ts   # Modular LLM provider architecture
 │   ├── documentLoader.ts     # PDF/document parsing
 │   ├── measureIngestion.ts   # Document → UMS pipeline
@@ -128,7 +128,7 @@ interface MeasureState {
 - `updateTimingOverride` - Timing modifications
 - `toggleLogicalOperator` - AND/OR toggling
 - `approveElement/flagElement` - Review workflow
-- `setLastGeneratedCode(cql, sql, measureId)` - Store generated code for AND/OR_ai Co-Pilot
+- `setLastGeneratedCode(cql, sql, measureId)` - Store generated code for AND/OR.ai Co-Pilot
 - `saveMeasureCodeOverride(measureId, format, code, note)` - Save code customization
 - `revertMeasureCodeOverride(measureId, format)` - Revert to generated code
 

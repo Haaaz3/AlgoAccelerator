@@ -310,13 +310,13 @@ When you navigate to the **Validation** tab with a measure selected, test patien
 - **Yellow warnings** - Potential issues
 - **Trace details** - Click to expand evaluation steps
 
-### 7. AND/OR_ai Co-Pilot
+### 7. AND/OR.ai Co-Pilot
 
-The AND/OR_ai Co-Pilot is an intelligent assistant that understands your measure context and can help answer questions and propose edits.
+The AND/OR.ai Co-Pilot is an intelligent assistant that understands your measure context and can help answer questions and propose edits.
 
-#### Opening the AND/OR_ai Co-Pilot
+#### Opening the AND/OR.ai Co-Pilot
 
-1. Click the floating **"AND/OR_ai Co-Pilot"** button in the bottom-right corner
+1. Click the floating **"AND/OR.ai Co-Pilot"** button in the bottom-right corner
 2. The panel expands showing the chat interface
 3. The active measure context is automatically loaded
 
@@ -329,16 +329,16 @@ The AND/OR_ai Co-Pilot is an intelligent assistant that understands your measure
 
 #### Proposing Changes
 
-When you ask the AND/OR_ai Co-Pilot to make a change:
+When you ask the AND/OR.ai Co-Pilot to make a change:
 
 1. It responds with an explanation and a **Proposed Change** card
 2. The card shows a **visual diff** highlighting what will change
 3. Click **Apply** to accept the change, or **Dismiss** to reject
-4. Applied changes are logged to the Edit History with "AND/OR_ai Co-Pilot fix:" prefix
+4. Applied changes are logged to the Edit History with "AND/OR.ai Co-Pilot fix:" prefix
 
-#### AND/OR_ai Co-Pilot Context
+#### AND/OR.ai Co-Pilot Context
 
-The AND/OR_ai Co-Pilot has access to:
+The AND/OR.ai Co-Pilot has access to:
 - Current measure structure and populations
 - All value sets and codes
 - Generated CQL and SQL code
@@ -446,7 +446,7 @@ When prompt injection is enabled, the system builds guidance from your correctio
 
 #### LLM Provider
 
-Configure the AI provider for document ingestion and AND/OR_ai Co-Pilot:
+Configure the AI provider for document ingestion and AND/OR.ai Co-Pilot:
 - **Anthropic (Claude)** - Recommended for best extraction quality
 - **OpenAI (GPT-4)** - Alternative provider
 - **Google (Gemini)** - Alternative provider
@@ -563,7 +563,7 @@ For self-hosted models (Ollama, LM Studio, vLLM, etc.):
 | 1.0 | Feb 2026 | Initial release with core features |
 | 1.1 | Feb 2026 | Added component merge functionality |
 | 1.2 | Feb 2026 | Multiple value sets support, per-sibling operators |
-| 1.3 | Feb 2026 | AND/OR_ai Co-Pilot with proposal system, intuitive code editor with visual diffs and edit history |
+| 1.3 | Feb 2026 | AND/OR.ai Co-Pilot with proposal system, intuitive code editor with visual diffs and edit history |
 | 1.4 | Feb 2026 | Documentation accuracy review: removed unimplemented features (theme, FHIR export, patient config) |
 | 1.5 | Feb 2026 | Timing redesign with smart presets, Due Date (T-Days), VSAC code cache for offline hydration |
 | 1.6 | Feb 2026 | Create Component Wizard with 4-step guided flow, library-first Add Component modal |
