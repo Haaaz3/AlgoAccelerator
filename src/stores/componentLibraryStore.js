@@ -251,6 +251,10 @@ export const useComponentLibraryStore = create                       ()(
       selectedForMerge: new Set(),
       selectedCategory: 'all',
 
+      // Sync status tracking - tracks components that failed to sync to backend
+      pendingSync: new Map(), // Map<componentId, { operation: 'create'|'update'|'delete', retryCount: number, lastError: string }>
+      isSyncing: false,
+
       // Category selection (shared between Sidebar and LibraryBrowser)
       setSelectedCategory: (category) => set({ selectedCategory: category }),
 
@@ -273,6 +277,123 @@ export const useComponentLibraryStore = create                       ()(
       },
       clearMergeSelection: () => {
         set({ selectedForMerge: new Set() });
+      },
+
+      // ========================================================================
+      // Sync Status Tracking
+      // ========================================================================
+
+      // Get current sync status
+      getSyncStatus: () => {
+        const state = get();
+        const pendingCount = state.pendingSync.size;
+        return {
+          isSynced: pendingCount === 0,
+          pendingCount,
+          pendingIds: Array.from(state.pendingSync.keys()),
+          isSyncing: state.isSyncing,
+        };
+      },
+
+      // Mark a component as pending sync (failed to sync to backend)
+      markPendingSync: (componentId, operation, error) => {
+        set((state) => {
+          const newPending = new Map(state.pendingSync);
+          const existing = newPending.get(componentId);
+          newPending.set(componentId, {
+            operation,
+            retryCount: existing ? existing.retryCount + 1 : 0,
+            lastError: error,
+            timestamp: new Date().toISOString(),
+          });
+          return { pendingSync: newPending };
+        });
+      },
+
+      // Clear pending sync status for a component (successful sync)
+      clearPendingSync: (componentId) => {
+        set((state) => {
+          const newPending = new Map(state.pendingSync);
+          newPending.delete(componentId);
+          return { pendingSync: newPending };
+        });
+      },
+
+      // Retry all pending sync operations
+      retryPendingSync: async () => {
+        const state = get();
+        if (state.isSyncing || state.pendingSync.size === 0) return;
+
+        set({ isSyncing: true });
+        const results = { succeeded: 0, failed: 0 };
+
+        for (const [componentId, syncInfo] of state.pendingSync) {
+          // Skip if too many retries (max 3)
+          if (syncInfo.retryCount >= 3) {
+            console.warn(`[retryPendingSync] Skipping ${componentId} - max retries exceeded`);
+            continue;
+          }
+
+          const component = state.components.find(c => c.id === componentId);
+          if (!component && syncInfo.operation !== 'delete') {
+            // Component no longer exists locally, clear pending status
+            get().clearPendingSync(componentId);
+            continue;
+          }
+
+          try {
+            if (syncInfo.operation === 'create' && component?.type === 'atomic') {
+              const { createAtomicComponent } = await import('../api/components');
+              await createAtomicComponent({
+                id: component.id,
+                name: component.name,
+                description: component.description || '',
+                valueSetOid: component.valueSet?.oid || component.name || 'unknown',
+                valueSetName: component.valueSet?.name || component.name || 'Unknown',
+                valueSetVersion: component.valueSet?.version || undefined,
+                codes: component.valueSet?.codes?.map(c => ({
+                  code: c.code,
+                  system: c.system,
+                  display: c.display || undefined,
+                })),
+                timing: component.timing,
+                negation: component.negation || false,
+                category: component.metadata?.category || 'uncategorized',
+              });
+            } else if (syncInfo.operation === 'update' && component?.type === 'atomic') {
+              const { updateComponent: updateComponentApi } = await import('../api/components');
+              await updateComponentApi(component.id, {
+                name: component.name,
+                description: component.description || '',
+                valueSetOid: component.valueSet?.oid,
+                valueSetName: component.valueSet?.name,
+                codes: component.valueSet?.codes?.map(c => ({
+                  code: c.code,
+                  system: c.system,
+                  display: c.display || undefined,
+                })),
+                timing: component.timing,
+                category: component.metadata?.category,
+              });
+            } else if (syncInfo.operation === 'delete') {
+              const { deleteComponent: deleteComponentApi } = await import('../api/components');
+              await deleteComponentApi(componentId);
+            }
+
+            get().clearPendingSync(componentId);
+            results.succeeded++;
+            console.log(`[retryPendingSync] Successfully synced ${componentId}`);
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            get().markPendingSync(componentId, syncInfo.operation, errorMsg);
+            results.failed++;
+            console.warn(`[retryPendingSync] Failed to sync ${componentId}:`, error);
+          }
+        }
+
+        set({ isSyncing: false });
+        console.log(`[retryPendingSync] Completed: ${results.succeeded} succeeded, ${results.failed} failed`);
+        return results;
       },
 
       // Load components from backend API
@@ -434,10 +555,14 @@ export const useComponentLibraryStore = create                       ()(
               tags: atomicComp.metadata?.tags || undefined,
             });
             console.log(`Component ${component.id} persisted to backend`);
+            // Clear any pending sync status on success
+            get().clearPendingSync(component.id);
           }
         } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Failed to persist';
           console.warn('Failed to persist component to backend:', error);
-          // Keep local state even if backend fails
+          // Mark as pending sync for retry
+          get().markPendingSync(component.id, 'create', errorMsg);
         }
       },
 
@@ -536,11 +661,18 @@ export const useComponentLibraryStore = create                       ()(
             try {
               await updateComponentApi(id, requestBody);
               console.log(`[updateComponent] Persisted component ${id} to backend`);
+              // Clear any pending sync status on success
+              get().clearPendingSync(id);
             } catch (err) {
+              const errorMsg = err instanceof Error ? err.message : 'Failed to update';
               console.warn(`[updateComponent] Failed to persist component ${id} to backend:`, err);
+              // Mark as pending sync for retry
+              get().markPendingSync(id, 'update', errorMsg);
             }
           }).catch(err => {
+            const errorMsg = err instanceof Error ? err.message : 'Failed to load API';
             console.warn(`[updateComponent] Failed to load API module:`, err);
+            get().markPendingSync(id, 'update', errorMsg);
           });
         }
       },
@@ -565,14 +697,22 @@ export const useComponentLibraryStore = create                       ()(
         }
 
         // Delete from backend first
+        let backendDeleted = false;
         try {
           const { deleteComponent: deleteComponentApi } = await import('../api/components');
           await deleteComponentApi(id);
           console.log(`Deleted component ${id} from backend`);
+          backendDeleted = true;
+          // Clear any pending sync status
+          get().clearPendingSync(id);
         } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Failed to delete';
           console.error('Failed to delete component from backend:', error);
-          // Continue with local delete even if backend fails
+          // Mark as pending delete for retry - but still delete locally
+          // On next API load, if it still exists on backend, it will reappear
+          get().markPendingSync(id, 'delete', errorMsg);
         }
+
         // Update local state
         set((state) => ({
           components: state.components.filter((c) => c.id !== id),
@@ -580,7 +720,7 @@ export const useComponentLibraryStore = create                       ()(
           editingComponentId: state.editingComponentId === id ? null : state.editingComponentId,
         }));
 
-        return { success: true };
+        return { success: true, backendDeleted };
       },
 
       // UI State
