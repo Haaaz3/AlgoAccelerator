@@ -35,6 +35,11 @@ import { hydrateCodesFromCache } from '../data/vsacCodeCache';
 
 let idCounter = 0;
 
+/**
+ * Generate a unique component ID.
+ * Atomic components use 'comp' prefix, composite components use 'composite' prefix.
+ * The component.type field is the authoritative source for type distinction.
+ */
 function generateId(prefix        )              {
   idCounter++;
   return `${prefix}-${Date.now()}-${idCounter}`;
@@ -106,7 +111,7 @@ export function buildOIDValidationStatus(oid        , name         )            
 
 export function createAtomicComponent(params                    )                  {
   const now = new Date().toISOString();
-  const id = generateId('atomic');
+  const id = generateId('comp');
 
   // Combine all value sets if additional ones provided
   const allValueSets = params.additionalValueSets
