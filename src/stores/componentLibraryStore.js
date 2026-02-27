@@ -546,6 +546,24 @@ export const useComponentLibraryStore = create                       ()(
       },
 
       deleteComponent: async (id) => {
+        // Check if component exists and is not in use
+        const state = get();
+        const component = state.components.find((c) => c.id === id);
+        if (!component) {
+          return { success: false, error: `Component ${id} not found` };
+        }
+
+        // Block deletion if component is in use by measures
+        if (component.usage.measureIds.length > 0 || component.usage.usageCount > 0) {
+          const measureCount = component.usage.measureIds.length || component.usage.usageCount;
+          console.warn(`[deleteComponent] Blocked: component ${id} is used by ${measureCount} measure(s)`);
+          return {
+            success: false,
+            error: `Cannot delete component "${component.name}" — it is used by ${measureCount} measure(s). Remove it from all measures first, or archive it instead.`,
+            measureIds: component.usage.measureIds,
+          };
+        }
+
         // Delete from backend first
         try {
           const { deleteComponent: deleteComponentApi } = await import('../api/components');
@@ -561,6 +579,8 @@ export const useComponentLibraryStore = create                       ()(
           selectedComponentId: state.selectedComponentId === id ? null : state.selectedComponentId,
           editingComponentId: state.editingComponentId === id ? null : state.editingComponentId,
         }));
+
+        return { success: true };
       },
 
       // UI State
@@ -587,12 +607,30 @@ export const useComponentLibraryStore = create                       ()(
         }),
 
       archiveComponentVersion: (id, supersededBy) => {
-        set((state) => {
-          const component = state.components.find((c) => c.id === id);
-          if (!component) return state;
-          const archived = archiveVersion(component, supersededBy);
+        // Check if component exists and is not in use
+        const state = get();
+        const component = state.components.find((c) => c.id === id);
+        if (!component) {
+          return { success: false, error: `Component ${id} not found` };
+        }
+
+        // Block archiving if component is in use by measures
+        if (component.usage.measureIds.length > 0 || component.usage.usageCount > 0) {
+          const measureCount = component.usage.measureIds.length || component.usage.usageCount;
+          console.warn(`[archiveComponentVersion] Blocked: component ${id} is used by ${measureCount} measure(s)`);
           return {
-            components: state.components.map((c) => (c.id === id ? archived : c)),
+            success: false,
+            error: `Cannot archive component "${component.name}" — it is used by ${measureCount} measure(s). Remove it from all measures first.`,
+            measureIds: component.usage.measureIds,
+          };
+        }
+
+        set((s) => {
+          const comp = s.components.find((c) => c.id === id);
+          if (!comp) return s;
+          const archived = archiveVersion(comp, supersededBy);
+          return {
+            components: s.components.map((c) => (c.id === id ? archived : c)),
           };
         });
 
@@ -605,6 +643,8 @@ export const useComponentLibraryStore = create                       ()(
             console.warn(`[archiveComponentVersion] Failed to persist archive status for ${id}:`, err);
           }
         });
+
+        return { success: true };
       },
 
       approve: (id, approvedBy) => {
