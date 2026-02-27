@@ -6,20 +6,10 @@
  */
 
 import { post } from '../api/client';
-;            
-                       
-                       
-                
-              
-                    
-                  
-               
-                  
-                      
+import { useFeedbackStore } from '../stores/feedbackStore';
 import {                          } from './htmlSpecParser';
 import { findStandardValueSetByName } from '../constants/standardValueSets';
 import { hydrateCodesFromCache } from '../data/vsacCodeCache';
-;                                                 
 
 // ============================================================================
 // Types
@@ -289,8 +279,14 @@ export async function extractMeasure(
     // Phase 2: Full extraction
     onProgress?.('extraction', 'Extracting populations and criteria...');
 
+    // Inject feedback guidance into the prompt if available
+    const catalogueType = skeleton.metadata?.program?.toLowerCase() || 'unknown';
+    const feedbackStore = useFeedbackStore.getState();
+    const feedbackGuidance = feedbackStore.generateExtractionGuidance(catalogueType);
+    const enhancedSystemPrompt = EXTRACTION_SYSTEM_PROMPT + feedbackGuidance;
+
     const fullResult = await callLlmExtract({
-      systemPrompt: EXTRACTION_SYSTEM_PROMPT,
+      systemPrompt: enhancedSystemPrompt,
       userPrompt: `Extract complete measure data from this specification:\n\n${documentText}`,
       provider,
       model,
@@ -412,8 +408,14 @@ export async function extractMeasureMultiPass(
 
     onProgress?.('skeleton_complete', `Found ${populationTypes.length} population types`);
 
+    // Inject feedback guidance into the prompt if available
+    const catalogueType = skeleton.metadata?.program?.toLowerCase() || 'unknown';
+    const feedbackStore = useFeedbackStore.getState();
+    const feedbackGuidance = feedbackStore.generateExtractionGuidance(catalogueType);
+    const enhancedPopulationPrompt = POPULATION_DETAIL_PROMPT + feedbackGuidance;
+
     // Phase 2: Extract each population in detail
-    const populations                        = [];
+    const populations = [];
     let totalTokens = skeletonResult.tokensUsed || 0;
 
     for (let i = 0; i < populationTypes.length; i++) {
@@ -421,7 +423,7 @@ export async function extractMeasureMultiPass(
       onProgress?.('population', `Extracting ${formatPopulationType(popType)} (${i + 1}/${populationTypes.length})...`);
 
       const popResult = await callLlmExtract({
-        systemPrompt: POPULATION_DETAIL_PROMPT,
+        systemPrompt: enhancedPopulationPrompt,
         userPrompt: `Population type: ${popType}\n\nMeasure specification:\n${documentText}`,
         provider,
         model,

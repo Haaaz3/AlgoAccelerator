@@ -1085,17 +1085,14 @@ export const useMeasureStore = create              ()(
       // Component builder: add a new component to a population's criteria
       // Always adds directly to the root criteria children (no "Additional Criteria" wrapper)
       addComponentToPopulation: (measureId, populationId, component, logicOperator) => {
-        console.log('[feedback] addComponentToPopulation called:', { measureId, populationId, componentId: component?.id });
         // Get measure to check if this is a new component (not in original extraction)
         const measure = get().measures.find((m) => m.id === measureId);
-        console.log('[feedback] measure found:', !!measure, 'has _originalExtraction:', !!measure?._originalExtraction);
         const population = measure?.populations.find((p) => p.id === populationId);
 
         // Record addition to feedback store if component wasn't in original extraction
         if (measure && component) {
           try {
             const feedbackStore = useFeedbackStore.getState();
-            console.log('[feedback] feedbackEnabled:', feedbackStore.feedbackEnabled);
             if (feedbackStore.feedbackEnabled && measure._originalExtraction) {
               // Check if this component existed in the original extraction
               const findOriginalElement = (nodes, targetId) => {
@@ -1115,10 +1112,9 @@ export const useMeasureStore = create              ()(
               };
 
               const originalElement = findOriginalElement(measure._originalExtraction, component.id);
-              console.log('[feedback] component exists in original extraction:', !!originalElement);
               if (!originalElement) {
                 // This component was NOT in the original extraction - LLM missed it
-                console.log('[feedback] Capturing addition:', component.id, component.description || component.name);
+                console.log('[feedback] Captured addition:', component.id, component.description || component.name);
                 feedbackStore.recordCorrection({
                   measureId: measure.id,
                   measureTitle: measure.metadata?.title || measure.title || 'Unknown',
@@ -1484,10 +1480,8 @@ export const useMeasureStore = create              ()(
 
       // Delete a component from anywhere in the tree
       deleteComponent: (measureId, componentId) => {
-        console.log('[feedback] deleteComponent called:', { measureId, componentId });
         // Capture the element before deletion for feedback
         const measure = get().measures.find((m) => m.id === measureId);
-        console.log('[feedback] measure found:', !!measure, 'has _originalExtraction:', !!measure?._originalExtraction);
         let deletedElement = null;
         let populationName = '';
 
@@ -1519,12 +1513,9 @@ export const useMeasureStore = create              ()(
           }
 
           // Record deletion to feedback store
-          console.log('[feedback] deletedElement found:', !!deletedElement, deletedElement?.id, deletedElement?.description);
           if (deletedElement) {
             try {
               const feedbackStore = useFeedbackStore.getState();
-              console.log('[feedback] feedbackEnabled:', feedbackStore.feedbackEnabled);
-              console.log('[feedback] has _originalExtraction:', !!measure._originalExtraction);
               if (feedbackStore.feedbackEnabled && measure._originalExtraction) {
                 // Check if this element existed in the original extraction
                 const findOriginalElement = (nodes, targetId) => {
@@ -1544,10 +1535,9 @@ export const useMeasureStore = create              ()(
                 };
 
                 const originalElement = findOriginalElement(measure._originalExtraction, componentId);
-                console.log('[feedback] originalElement found in extraction:', !!originalElement);
                 if (originalElement) {
                   // This element was in the original extraction - record as hallucination
-                  console.log('[feedback] Capturing deletion:', componentId, originalElement.description || originalElement.name);
+                  console.log('[feedback] Captured deletion:', componentId, originalElement.description || originalElement.name);
                   feedbackStore.recordCorrection({
                     measureId: measure.id,
                     measureTitle: measure.metadata?.title || measure.title || 'Unknown',

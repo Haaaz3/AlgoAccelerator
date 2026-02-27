@@ -105,6 +105,7 @@ export const useFeedbackStore = create()(
 
       // Configuration
       feedbackEnabled: true,
+      feedbackInjectionEnabled: true,
       autoClassify: true,
 
       // Version for future migrations
@@ -205,6 +206,13 @@ export const useFeedbackStore = create()(
        */
       setFeedbackEnabled: (enabled) => {
         set({ feedbackEnabled: enabled });
+      },
+
+      /**
+       * Toggle feedback injection into extraction prompts
+       */
+      setFeedbackInjectionEnabled: (enabled) => {
+        set({ feedbackInjectionEnabled: enabled });
       },
 
       /**
@@ -346,6 +354,120 @@ export const useFeedbackStore = create()(
         const stats = get().getPatternStats();
         return stats.length > 0 ? stats[0] : null;
       },
+
+      /**
+       * Generate extraction guidance from past corrections.
+       * This is injected into LLM prompts to avoid repeating mistakes.
+       *
+       * @param {string} catalogueType - e.g., 'ecqm', 'hedis', 'cms_core'
+       * @returns {string} Formatted guidance text to inject into prompt
+       */
+      generateExtractionGuidance: (catalogueType) => {
+        const state = get();
+        if (!state.feedbackInjectionEnabled) return '';
+
+        const corrections = state.corrections || [];
+        if (corrections.length === 0) return '';
+
+        // Filter to relevant corrections and prioritize
+        // Currently includes all corrections; cross-catalogue patterns are valuable
+        const relevant = prioritizeCorrections(corrections, catalogueType, 15);
+
+        if (relevant.length === 0) return '';
+
+        // Group by pattern
+        const patterns = {};
+        for (const c of relevant) {
+          const pattern = c.correctionPattern || 'other';
+          if (!patterns[pattern]) patterns[pattern] = [];
+          patterns[pattern].push(c);
+        }
+
+        // Build guidance sections
+        const sections = [];
+
+        // Hallucinated components (high value — LLM invented things that don't exist)
+        if (patterns.component_hallucination?.length > 0) {
+          const examples = patterns.component_hallucination.slice(0, 5);
+          sections.push(
+            `IMPORTANT - DO NOT HALLUCINATE COMPONENTS: In previous extractions, the following components were incorrectly included and had to be removed by reviewers:\n` +
+            examples.map(c => `  - "${c.originalValue?.name || c.dataElementName}" was hallucinated in ${c.measureTitle || 'a measure'}`).join('\n') +
+            `\nOnly include components that are EXPLICITLY stated in the measure specification. If you are uncertain whether a component belongs, do NOT include it.`
+          );
+        }
+
+        // Missing components (high value — LLM missed things that should be there)
+        if (patterns.component_missing?.length > 0) {
+          const examples = patterns.component_missing.slice(0, 5);
+          sections.push(
+            `IMPORTANT - DO NOT MISS COMPONENTS: In previous extractions, the following types of components were missed and had to be manually added by reviewers:\n` +
+            examples.map(c => `  - "${c.correctedValue?.name || c.dataElementName}" was missing from ${c.measureTitle || 'a measure'}`).join('\n') +
+            `\nCarefully check for ALL components mentioned in the specification, including edge cases and exclusion criteria.`
+          );
+        }
+
+        // Value set errors
+        if (patterns.value_set_error?.length > 0) {
+          const examples = patterns.value_set_error.slice(0, 3);
+          sections.push(
+            `VALUE SET ACCURACY: Previous extractions had incorrect value set assignments:\n` +
+            examples.map(c => `  - "${c.dataElementName}": was "${c.originalValue}" but should be "${c.correctedValue}"`).join('\n') +
+            `\nDouble-check all value set OIDs and names against the specification.`
+          );
+        }
+
+        // Naming errors / description inaccuracies
+        if (patterns.naming_error?.length > 0) {
+          sections.push(
+            `DESCRIPTION ACCURACY: ${patterns.naming_error.length} descriptions were corrected in previous extractions. Use precise language from the measure specification rather than paraphrasing.`
+          );
+        }
+
+        // Timing errors
+        if (patterns.timing_interpretation_error?.length > 0) {
+          const examples = patterns.timing_interpretation_error.slice(0, 3);
+          sections.push(
+            `TIMING ACCURACY: Previous extractions had timing errors:\n` +
+            examples.map(c => `  - "${c.dataElementName}": timing was "${JSON.stringify(c.originalValue)}" but should be "${JSON.stringify(c.correctedValue)}"`).join('\n') +
+            `\nPay close attention to measurement period references, "prior to", "during", and specific month counts.`
+          );
+        }
+
+        // Resource type errors
+        if (patterns.resource_type_misclassification?.length > 0) {
+          sections.push(
+            `DATA TYPE ACCURACY: ${patterns.resource_type_misclassification.length} resource/data types were corrected. Ensure you use the correct FHIR resource type for each data element (e.g., Condition vs Observation vs Procedure).`
+          );
+        }
+
+        // Logical operator errors
+        if (patterns.logical_operator_error?.length > 0) {
+          sections.push(
+            `LOGICAL OPERATORS: ${patterns.logical_operator_error.length} logical operator errors were corrected. Pay attention to AND vs OR vs NOT relationships between criteria.`
+          );
+        }
+
+        if (sections.length === 0) return '';
+
+        // Assemble final guidance block (limit to ~2000 chars)
+        const header = `\n\n--- EXTRACTION QUALITY GUIDANCE (based on ${relevant.length} corrections from previous extractions) ---\n`;
+        const footer = `\n--- END EXTRACTION GUIDANCE ---\n`;
+        let guidance = header + sections.join('\n\n') + footer;
+
+        // Truncate if too long
+        if (guidance.length > 2000) {
+          guidance = guidance.substring(0, 1950) + '\n[... truncated for brevity ...]\n' + footer;
+        }
+
+        console.log('[feedback] Injection guidance:', {
+          catalogueType,
+          correctionsCount: relevant.length,
+          guidanceLength: guidance.length,
+          patterns: Object.keys(patterns),
+        });
+
+        return guidance;
+      },
     }),
     {
       name: 'feedback-storage',
@@ -353,11 +475,35 @@ export const useFeedbackStore = create()(
       partialize: (state) => ({
         corrections: state.corrections,
         feedbackEnabled: state.feedbackEnabled,
+        feedbackInjectionEnabled: state.feedbackInjectionEnabled,
         autoClassify: state.autoClassify,
       }),
     }
   )
 );
+
+/**
+ * Prioritize corrections for guidance injection
+ */
+function prioritizeCorrections(corrections, catalogueType, maxCount = 15) {
+  return corrections
+    .sort((a, b) => {
+      // Same catalogue type first
+      if (catalogueType) {
+        const aMatch = a.catalogueType === catalogueType ? 0 : 1;
+        const bMatch = b.catalogueType === catalogueType ? 0 : 1;
+        if (aMatch !== bMatch) return aMatch - bMatch;
+      }
+      // High severity first
+      const severityOrder = { high: 0, medium: 1, low: 2 };
+      const aSev = severityOrder[a.severity] ?? 1;
+      const bSev = severityOrder[b.severity] ?? 1;
+      if (aSev !== bSev) return aSev - bSev;
+      // Recent first
+      return new Date(b.correctionTimestamp) - new Date(a.correctionTimestamp);
+    })
+    .slice(0, maxCount);
+}
 
 // Export classification helpers for use in other modules
 export { classifyCorrectionPattern, classifySeverity, getFieldLabel };

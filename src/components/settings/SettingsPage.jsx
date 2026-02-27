@@ -360,6 +360,8 @@ function FeedbackTab() {
     corrections,
     feedbackEnabled,
     setFeedbackEnabled,
+    feedbackInjectionEnabled,
+    setFeedbackInjectionEnabled,
     getFilteredCorrections,
     getPatternStats,
     getAccuracyMetrics,
@@ -434,24 +436,46 @@ function FeedbackTab() {
     <div className="p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Toggle and Summary */}
-        <div className="flex items-center justify-between p-4 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-xl">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setFeedbackEnabled(!feedbackEnabled)}
-              className="flex items-center gap-2 text-sm font-medium"
-            >
-              {feedbackEnabled ? (
-                <ToggleRight className="w-8 h-8 text-[var(--success)]" />
-              ) : (
-                <ToggleLeft className="w-8 h-8 text-[var(--text-dim)]" />
-              )}
-              <span className={feedbackEnabled ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}>
-                Feedback Capture {feedbackEnabled ? 'Enabled' : 'Disabled'}
-              </span>
-            </button>
+        <div className="flex flex-col gap-3 p-4 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setFeedbackEnabled(!feedbackEnabled)}
+                className="flex items-center gap-2 text-sm font-medium"
+              >
+                {feedbackEnabled ? (
+                  <ToggleRight className="w-8 h-8 text-[var(--success)]" />
+                ) : (
+                  <ToggleLeft className="w-8 h-8 text-[var(--text-dim)]" />
+                )}
+                <span className={feedbackEnabled ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}>
+                  Feedback Capture {feedbackEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </button>
+            </div>
+            <div className="text-sm text-[var(--text-muted)]">
+              {corrections.length} corrections recorded
+            </div>
           </div>
-          <div className="text-sm text-[var(--text-muted)]">
-            {corrections.length} corrections recorded
+          <div className="flex items-center justify-between border-t border-[var(--border)] pt-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setFeedbackInjectionEnabled(!feedbackInjectionEnabled)}
+                className="flex items-center gap-2 text-sm font-medium"
+              >
+                {feedbackInjectionEnabled ? (
+                  <ToggleRight className="w-8 h-8 text-[var(--accent)]" />
+                ) : (
+                  <ToggleLeft className="w-8 h-8 text-[var(--text-dim)]" />
+                )}
+                <span className={feedbackInjectionEnabled ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}>
+                  Prompt Injection {feedbackInjectionEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </button>
+            </div>
+            <div className="text-xs text-[var(--text-dim)] max-w-xs text-right">
+              Inject correction patterns into extraction prompts to avoid repeating mistakes
+            </div>
           </div>
         </div>
 
