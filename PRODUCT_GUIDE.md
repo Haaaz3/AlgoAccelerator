@@ -400,7 +400,49 @@ Below the code preview, the **Code Editor** allows you to customize generated co
 - When custom code is active, a "Custom Override" badge appears
 - View **Changes** tab to see line-by-line diff from generated code
 
-### 9. Settings & Configuration
+### 9. Extraction Feedback System
+
+The Extraction Feedback system learns from your corrections to improve future AI extractions.
+
+#### How It Works
+
+When you edit, add, or delete components in the UMS Editor, the system automatically captures these corrections and uses them to improve subsequent measure extractions.
+
+**Captured Actions:**
+- Inline field edits (descriptions, value sets, timing)
+- Component additions (records as "missing component" pattern)
+- Component deletions (records as "hallucination" pattern)
+- Logical operator changes (AND/OR toggles)
+- Timing modifications
+- Code additions/removals from value sets
+
+#### Viewing Feedback Data
+
+1. Navigate to **Settings** tab
+2. Select the **Extraction Feedback** section
+3. View the dashboard showing:
+   - Total corrections captured
+   - Measures reviewed count
+   - Average corrections per measure
+   - Top correction pattern
+   - Pattern breakdown chart
+
+#### Filtering Corrections
+
+Use the filter controls to narrow the correction log:
+- **Catalogue Type**: MIPS, HEDIS, eCQM, etc.
+- **Pattern**: Hallucination, Missing Component, Value Set Error, etc.
+- **Severity**: High, Medium, Low
+- **Search**: Find specific corrections by text
+
+#### Toggles
+
+- **Feedback Capture**: Enable/disable correction tracking (default: enabled)
+- **Prompt Injection**: Enable/disable injecting past corrections into extraction prompts (default: enabled)
+
+When prompt injection is enabled, the system builds guidance from your correction history and includes it in the LLM prompt during measure extraction. This helps the AI avoid repeating past mistakes.
+
+### 10. Settings & Configuration
 
 #### LLM Provider
 
@@ -527,3 +569,4 @@ For self-hosted models (Ollama, LM Studio, vLLM, etc.):
 | 1.6 | Feb 2026 | Create Component Wizard with 4-step guided flow, library-first Add Component modal |
 | 1.7 | Feb 2026 | Component Library sidebar navigation, category submenu, removed legacy AI chat panel |
 | 1.8 | Feb 2026 | UMS Editor parity: full value set editing (OID, name, add/delete codes, inline VSAC fetch) |
+| 1.9 | Feb 2026 | Extraction Feedback System: correction capture, prompt injection, feedback dashboard |

@@ -101,6 +101,56 @@ interface SettingsState {
 }
 ```
 
+#### feedbackStore.js
+Extraction feedback capture and prompt injection system.
+
+```typescript
+interface FeedbackState {
+  corrections: Correction[];
+  feedbackEnabled: boolean;
+  feedbackInjectionEnabled: boolean;
+}
+
+interface Correction {
+  id: string;
+  timestamp: string;
+  measureId: string;
+  measureContext: { measureId: string; measureType: string; program: string };
+  fieldPath: string;
+  originalValue: any;
+  correctedValue: any;
+  correctionType: CorrectionType;
+  pattern: PatternType;
+  severity: 'high' | 'medium' | 'low';
+}
+```
+
+**Pattern Types:**
+- `component_hallucination` - LLM extracted component that doesn't belong
+- `component_missing` - User added component LLM missed
+- `value_set_wrong` - Incorrect value set OID or codes
+- `description_inaccurate` - Description text was wrong
+- `timing_wrong` - Timing expression incorrect
+- `resource_type_wrong` - Wrong QI-Core resource type
+- `logical_operator_error` - AND/OR logic incorrect
+- `code_wrong` - Individual codes added/removed
+- `naming_error` - Component naming issues
+
+**Key Actions:**
+- `recordCorrection(correction)` - Capture a user correction with auto-classification
+- `generateExtractionGuidance(catalogueType)` - Build prompt injection text from past corrections
+- `getFilteredCorrections(filters)` - Query corrections with filters
+- `getPatternStats()` - Get correction breakdown by pattern
+- `getAccuracyMetrics()` - Calculate extraction accuracy stats
+
+**Prompt Injection:**
+The `generateExtractionGuidance()` function:
+1. Filters corrections by catalogue type (e.g., MIPS, HEDIS)
+2. Prioritizes by severity and recency
+3. Groups by pattern type
+4. Builds actionable guidance sections
+5. Caps output at ~2000 characters to avoid prompt bloat
+
 ## Data Models
 
 ### Universal Measure Spec (UMS)
@@ -259,6 +309,19 @@ AI-powered extraction of measure logic from natural language specifications.
 - Timing requirement parsing
 - Confidence scoring
 
+### extractionService.js
+Orchestrates measure extraction with feedback integration.
+
+**Feedback Integration:**
+- Imports `useFeedbackStore` to access correction history
+- Calls `generateExtractionGuidance(catalogueType)` before extraction
+- Injects guidance into system prompt: `EXTRACTION_SYSTEM_PROMPT + feedbackGuidance`
+- Catalogue type derived from `skeleton.metadata.program`
+
+**Key Functions:**
+- `extractMeasure(skeleton, documentText, settings)` - Single-pass extraction with feedback injection
+- `extractMeasureMultiPass(skeleton, documentText, settings)` - Multi-pass extraction with feedback injection
+
 ### cqlGenerator.ts
 Generates Clinical Quality Language (CQL) from UMS.
 
@@ -349,11 +412,21 @@ Modular LLM provider architecture for co-pilot.
 CRUD operations for library components.
 
 **Functions:**
-- `createAtomicComponent(params)` - Create new atomic
-- `createCompositeComponent(params)` - Create composite
+- `createAtomicComponent(params)` - Create new atomic (generates `comp-` prefixed ID)
+- `createCompositeComponent(params)` - Create composite (generates `composite-` prefixed ID)
 - `createNewVersion(component, changes)` - Version management
 - `approveComponent(component, approvedBy)` - Approval workflow
 - `searchComponents(components, filters)` - Query library
+
+**ID Generation:**
+- New atomic components use `comp-` prefix (e.g., `comp-1772138703824-1`)
+- Composite components use `composite-` prefix
+- The `component.type` field (`'atomic'` or `'composite'`) is the authoritative type indicator
+- Existing `atomic-` prefixed IDs remain unchanged for backwards compatibility
+
+**Integrity Safeguards:**
+- `deleteComponent(id)` - Blocks deletion if component is in use by measures; returns `{ success: false, error, measureIds }` if blocked
+- `archiveComponentVersion(id)` - Blocks archiving if component is in use; returns error with affected measure list
 
 ### vsacService.ts
 VSAC API integration for value set fetching.
@@ -576,6 +649,7 @@ All data is persisted to browser localStorage using Zustand's persist middleware
 - `measure-storage` - Measures and corrections
 - `component-library-storage` - Library components
 - `settings-storage` - User preferences
+- `feedback-storage` - Extraction corrections and feedback settings
 
 **Storage Considerations:**
 - ~5MB localStorage limit per origin
@@ -636,3 +710,4 @@ Application navigation with nested category support.
 6. **Audit logging** - Track changes and approvals
 7. **Export formats** - MAT XML, HQMF, additional SQL dialects
 8. ~~**Due Date tracking**~~ - ✅ Implemented: T-Days calculation for patient outreach
+9. ~~**Extraction feedback loop**~~ - ✅ Implemented: Correction capture and prompt injection

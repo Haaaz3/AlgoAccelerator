@@ -24,6 +24,7 @@ A comprehensive map of how components, stores, and services connect and communic
 | componentLibraryStore | `src/stores/componentLibraryStore.js` | Reusable components | `component-library-storage` |
 | settingsStore | `src/stores/settingsStore.js` | User preferences, API keys | `settings-storage` |
 | componentCodeStore | `src/stores/componentCodeStore.js` | Code generation state | `component-code-storage` |
+| feedbackStore | `src/stores/feedbackStore.js` | Extraction corrections, feedback settings | `feedback-storage` |
 
 ---
 
@@ -34,12 +35,20 @@ A comprehensive map of how components, stores, and services connect and communic
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
-| measureStore | `measures`, `selectedMeasureId`, `activeTab`, `corrections` | `updateMeasure`, `setActiveTab`, `addCodeToValueSet`, `removeCodeFromValueSet`, `saveTimingOverride`, `toggleLogicalOperator`, `setOperatorBetweenSiblings`, `approveElement`, `flagElement`, `clearReviewStatus`, `addCorrection`, `clearCorrections`, `updateDataElement`, `syncAgeRange`, `updateTimingWindow` |
+| measureStore | `measures`, `selectedMeasureId`, `activeTab`, `corrections` | `updateMeasure`, `setActiveTab`, `addCodeToValueSet`, `removeCodeFromValueSet`, `saveTimingOverride`, `toggleLogicalOperator`, `setOperatorBetweenSiblings`, `approveElement`, `flagElement`, `clearReviewStatus`, `addCorrection`, `clearCorrections`, `updateDataElement`, `syncAgeRange`, `updateTimingWindow`, `deleteComponent`, `addComponentToPopulation` |
 | componentLibraryStore | `components`, `selectedComponentId` | `getComponent`, `linkMeasureComponents`, `mergeComponents`, `syncComponentToMeasures`, `recalculateUsage`, `addComponent`, `updateComponent` |
 | componentCodeStore | `codeStates` | `getCodeState`, `setCodeFormat`, `addOverride`, `addEditNote` |
 | settingsStore | `apiKeys`, `aiProvider`, `vsacApiKey` | - |
 
-**Total Actions:** 25
+**Total Actions:** 27
+
+**Feedback Capture Points (via measureStore actions):**
+- `updateDataElement` → captures inline field edits
+- `deleteComponent` → captures `component_hallucination` pattern
+- `addComponentToPopulation` → captures `component_missing` pattern
+- `toggleLogicalOperator` → captures `logical_operator_error` pattern
+- `setOperatorBetweenSiblings` → captures operator changes
+- `addCodeToValueSet` / `removeCodeFromValueSet` → captures `code_wrong` pattern
 
 **NodeDetailPanel Sub-component:**
 - Uses `updateComponent` for bidirectional library sync
@@ -182,14 +191,22 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ---
 
-#### Settings.jsx
-**File:** `src/components/settings/Settings.jsx`
+#### SettingsPage.jsx
+**File:** `src/components/settings/SettingsPage.jsx`
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
 | settingsStore | `theme`, `codeGenTarget`, `aiProvider`, `apiKeys` | `setTheme`, `setCodeGenTarget`, `setAIProvider`, `setApiKey` |
+| feedbackStore | `feedbackEnabled`, `feedbackInjectionEnabled`, `corrections` | `setFeedbackEnabled`, `setFeedbackInjectionEnabled`, `getFilteredCorrections`, `getPatternStats`, `getAccuracyMetrics`, `clearCorrections` |
 
-**Total Actions:** 4
+**Total Actions:** 10
+
+**Extraction Feedback Tab Features:**
+- Toggle for feedback capture (feedbackEnabled)
+- Toggle for prompt injection (feedbackInjectionEnabled)
+- Stats dashboard: total corrections, measures reviewed, avg per measure
+- Pattern breakdown chart (bar chart by pattern type)
+- Filterable correction log with severity badges and strikethrough diffs
 
 ---
 
@@ -225,8 +242,9 @@ A comprehensive map of how components, stores, and services connect and communic
 
 | Store | Total Actions | Used By Components |
 |-------|---------------|-------------------|
-| measureStore | 23 actions | 12 components |
+| measureStore | 25 actions | 12 components |
 | componentLibraryStore | 15 actions | 6 components |
+| feedbackStore | 8 actions | 3 components |
 | componentCodeStore | 6 actions | 3 components |
 | settingsStore | 4 actions | 3 components |
 
@@ -240,6 +258,7 @@ A comprehensive map of how components, stores, and services connect and communic
 |---------|-----------------|-------------|
 | `measureIngestion.js` | Document parsing & measure creation | `ingestMeasureFiles`, `parsePDFDocument` |
 | `aiExtractor.js` | AI-powered data extraction | `extractMeasureWithAI`, `extractPopulations` |
+| `extractionService.js` | Extraction orchestration with feedback | `extractMeasure`, `extractMeasureMultiPass` |
 | `documentLoader.js` | File loading & text extraction | `extractFromFiles`, `extractFromPDF` |
 | `cqlGenerator.js` | CQL code generation | `generateCQL`, `validateCQL` |
 | `hdiSqlGenerator.js` | HDI SQL generation | `generateHDISQL`, `validateHDISQLDetailed` |
@@ -278,6 +297,33 @@ A comprehensive map of how components, stores, and services connect and communic
 │                   ├──▶ extractPopulations()                                  │
 │                   ├──▶ extractValueSets()                                    │
 │                   └──▶ api.js::callLLM() ──▶ Anthropic/OpenAI API            │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      EXTRACTION FEEDBACK PIPELINE                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  extractionService.js::extractMeasure()                                      │
+│         │                                                                    │
+│         ├──▶ feedbackStore.generateExtractionGuidance(catalogueType)         │
+│         │         │                                                          │
+│         │         ├──▶ Filter corrections by catalogue type                  │
+│         │         ├──▶ Prioritize by severity + recency                      │
+│         │         ├──▶ Group by pattern type                                 │
+│         │         └──▶ Build guidance text (max ~2000 chars)                 │
+│         │                                                                    │
+│         └──▶ Inject into system prompt: EXTRACTION_PROMPT + feedbackGuidance │
+│                   │                                                          │
+│                   └──▶ LLM API call with enhanced prompt                     │
+│                                                                              │
+│  Feedback Capture (triggered by user edits in UMSEditor):                    │
+│         │                                                                    │
+│         ├──▶ measureStore.updateDataElement() → feedbackStore.recordCorrection()
+│         ├──▶ measureStore.deleteComponent() → records 'component_hallucination'
+│         ├──▶ measureStore.addComponentToPopulation() → records 'component_missing'
+│         ├──▶ measureStore.toggleLogicalOperator() → records 'logical_operator_error'
+│         └──▶ measureStore.addCodeToValueSet() → records 'code_wrong'         │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -428,6 +474,9 @@ A comprehensive map of how components, stores, and services connect and communic
 | copilotService | componentLibraryStore | Component context |
 | CopilotPanel | copilotService | Message handling |
 | CopilotPanel | measureStore | Apply proposals |
+| extractionService | feedbackStore | Prompt injection guidance |
+| measureStore | feedbackStore | Correction capture on edits |
+| SettingsPage | feedbackStore | Feedback dashboard display |
 
 ---
 
@@ -1035,6 +1084,80 @@ UI: Component appears in population tree, linked to library
 
 ---
 
+### Flow 19: Capture Feedback on Component Deletion
+
+```
+User Action: Delete component in UMS Editor (Deep Edit mode)
+    │
+    ▼
+UMSEditor.jsx::handleDeleteComponent()
+    │
+    ▼
+measureStore.deleteComponent(measureId, componentId)
+    │ (src/stores/measureStore.js)
+    │
+    ├──▶ Find element in population tree
+    ├──▶ Compare with _originalExtraction snapshot
+    ├──▶ If element existed in original extraction:
+    │         │
+    │         └──▶ feedbackStore.recordCorrection({
+    │                   correctionType: 'element_deleted',
+    │                   pattern: 'component_hallucination',
+    │                   originalValue: deleted element data,
+    │                   correctedValue: null,
+    │                   severity: 'high'
+    │               })
+    │
+    └──▶ Remove element from population criteria
+    │
+    ▼
+State Changes:
+    • population.criteria.children: element removed
+    • feedbackStore.corrections: [..., newCorrection]
+    │
+    ▼
+UI: Component removed from tree, feedback captured silently
+```
+
+---
+
+### Flow 20: Inject Feedback into Extraction
+
+```
+Trigger: User imports new measure document
+    │
+    ▼
+MeasureCreator.jsx / MeasureLibrary.jsx
+    │
+    ▼
+extractionService.js::extractMeasure(skeleton, text, settings)
+    │
+    ├──▶ const catalogueType = skeleton.metadata?.program?.toLowerCase()
+    │
+    ├──▶ feedbackStore.generateExtractionGuidance(catalogueType)
+    │         │
+    │         ├──▶ Filter: corrections for same catalogue (MIPS, HEDIS, etc.)
+    │         ├──▶ Sort: high severity first, then recent
+    │         ├──▶ Group by pattern type
+    │         ├──▶ Build sections:
+    │         │       "COMMON EXTRACTION ERRORS TO AVOID:"
+    │         │       "- Hallucinations: [examples from corrections]"
+    │         │       "- Missing Components: [examples]"
+    │         │       "- Value Set Errors: [examples]"
+    │         └──▶ Truncate to ~2000 chars
+    │
+    ├──▶ const enhancedPrompt = EXTRACTION_SYSTEM_PROMPT + feedbackGuidance
+    │
+    └──▶ LLM API call with enhancedPrompt
+              │
+              └──▶ Returns improved extraction based on past mistakes
+    │
+    ▼
+Result: Extraction quality improves over time as corrections accumulate
+```
+
+---
+
 ## 4. Orphan Report
 
 ### Summary
@@ -1159,13 +1282,15 @@ Internal `get()` calls within measureStore:
 
 | Component | Stores Used | Integration Point |
 |-----------|-------------|-------------------|
-| UMSEditor.jsx | 4 stores | Links measures to library, syncs components |
+| UMSEditor.jsx | 4 stores | Links measures to library, syncs components, captures feedback |
 | ComponentEditor.jsx | 2 stores | Updates measures when components change |
 | LibraryBrowser.jsx | 2 stores | Recalculates usage from measures |
 | MeasureLibrary.jsx | 3 stores | Links components on import |
 | ComponentDetail.jsx | 2 stores | Displays code state for components |
 | CopilotPanel.jsx | 3 stores | Builds context, applies proposals to measures |
 | CodeGeneration.jsx | 1 store | Generates code, manages overrides |
+| SettingsPage.jsx | 2 stores | Settings + feedback dashboard |
+| extractionService.js | 1 store | Reads feedbackStore for prompt injection |
 
 ---
 
@@ -1252,6 +1377,23 @@ CodeGeneration.jsx
 │ • overrides         │                      │ • aiProvider            │
 │ • editNotes         │                      │ • apiKeys               │
 └─────────────────────┘                      └─────────────────────────┘
+         │                                              │
+         │                                              │
+         ▼                                              ▼
+┌─────────────────────┐                      ┌─────────────────────────┐
+│    feedbackStore    │◄─────────────────────│   extractionService     │
+│                     │  generates guidance  │                         │
+│ • corrections[]     │                      │ • injects feedback into │
+│ • feedbackEnabled   │                      │   extraction prompts    │
+│ • injectionEnabled  │                      │                         │
+└─────────────────────┘                      └─────────────────────────┘
+         ▲
+         │ records corrections
+         │
+┌─────────────────────┐
+│    measureStore     │
+│  (edit actions)     │
+└─────────────────────┘
 
                     ┌─────────────────────────────┐
                     │   Components that bridge    │
@@ -1289,3 +1431,4 @@ CodeGeneration.jsx
 | 1.0 | Feb 2026 | AI-assisted | Initial manifest creation |
 | 1.1 | Feb 2026 | AI-assisted | Added AI Co-pilot pipeline, MeasureCodeEditor, code customization flows |
 | 1.2 | Feb 2026 | AI-assisted | Added vsacService, vsacCodeCache to services; Sidebar category submenu; NodeDetailPanel value set editing flows (15-17); AddComponentModal flow (18) |
+| 1.3 | Feb 2026 | AI-assisted | Added feedbackStore, extraction feedback pipeline, feedback capture flows (19-20), updated cross-store dependencies |
