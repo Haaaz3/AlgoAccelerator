@@ -428,6 +428,21 @@ CRUD operations for library components.
 - `deleteComponent(id)` - Blocks deletion if component is in use by measures; returns `{ success: false, error, measureIds }` if blocked
 - `archiveComponentVersion(id)` - Blocks archiving if component is in use; returns error with affected measure list
 
+**Sync Status Tracking:**
+The store tracks components that fail to sync to the backend, preventing ghost components and providing visibility into sync state.
+
+State:
+- `pendingSync: Map<componentId, { operation, retryCount, lastError, timestamp }>` - Failed operations
+- `isSyncing: boolean` - Retry in progress indicator
+
+Actions:
+- `getSyncStatus()` - Returns `{ isSynced, pendingCount, pendingIds, isSyncing }`
+- `markPendingSync(id, operation, error)` - Mark component as failed to sync
+- `clearPendingSync(id)` - Clear on successful sync
+- `retryPendingSync()` - Retry all pending operations (max 3 retries per component)
+
+All CRUD operations (`addComponent`, `updateComponent`, `deleteComponent`) automatically track sync failures and clear status on success.
+
 ### vsacService.ts
 VSAC API integration for value set fetching.
 

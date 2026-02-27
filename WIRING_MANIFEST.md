@@ -75,10 +75,12 @@ A comprehensive map of how components, stores, and services connect and communic
 
 | Store | State Values Read | Actions Called |
 |-------|-------------------|----------------|
-| componentLibraryStore | `components`, `selectedComponentId`, `editingComponentId`, `filters` | `setSelectedComponent`, `setEditingComponent`, `setFilters`, `deleteComponent`, `recalculateUsage`, `initializeWithSampleData` |
+| componentLibraryStore | `components`, `selectedComponentId`, `editingComponentId`, `filters`, `pendingSync`, `isSyncing` | `setSelectedComponent`, `setEditingComponent`, `setFilters`, `deleteComponent`, `recalculateUsage`, `initializeWithSampleData`, `getSyncStatus`, `retryPendingSync` |
 | measureStore | `measures` | - |
 
-**Total Actions:** 6
+**Total Actions:** 8
+
+**Sync Status:** Can display pending sync indicator and trigger retry via `getSyncStatus()` and `retryPendingSync()`
 
 ---
 
@@ -243,7 +245,7 @@ A comprehensive map of how components, stores, and services connect and communic
 | Store | Total Actions | Used By Components |
 |-------|---------------|-------------------|
 | measureStore | 25 actions | 12 components |
-| componentLibraryStore | 15 actions | 6 components |
+| componentLibraryStore | 19 actions | 6 components |
 | feedbackStore | 8 actions | 3 components |
 | componentCodeStore | 6 actions | 3 components |
 | settingsStore | 4 actions | 3 components |
@@ -1084,6 +1086,44 @@ UI: Component appears in population tree, linked to library
 
 ---
 
+### Flow 21: Retry Pending Backend Sync
+
+```
+Trigger: User clicks "Retry Sync" or app calls retryPendingSync()
+    │
+    ▼
+componentLibraryStore.retryPendingSync()
+    │
+    ├──▶ Check if already syncing (isSyncing) → return early if true
+    ├──▶ Check if pendingSync.size === 0 → return early if nothing to sync
+    │
+    ├──▶ set({ isSyncing: true })
+    │
+    └──▶ For each [componentId, syncInfo] in pendingSync:
+              │
+              ├──▶ Skip if retryCount >= 3 (max retries exceeded)
+              │
+              ├──▶ If operation === 'create':
+              │         └──▶ api/components::createAtomicComponent()
+              │
+              ├──▶ If operation === 'update':
+              │         └──▶ api/components::updateComponent()
+              │
+              └──▶ If operation === 'delete':
+                        └──▶ api/components::deleteComponent()
+              │
+              ├──▶ On success: clearPendingSync(componentId)
+              └──▶ On failure: markPendingSync() with incremented retryCount
+    │
+    ▼
+set({ isSyncing: false })
+    │
+    ▼
+Return: { succeeded: N, failed: M }
+```
+
+---
+
 ### Flow 19: Capture Feedback on Component Deletion
 
 ```
@@ -1432,3 +1472,4 @@ CodeGeneration.jsx
 | 1.1 | Feb 2026 | AI-assisted | Added AI Co-pilot pipeline, MeasureCodeEditor, code customization flows |
 | 1.2 | Feb 2026 | AI-assisted | Added vsacService, vsacCodeCache to services; Sidebar category submenu; NodeDetailPanel value set editing flows (15-17); AddComponentModal flow (18) |
 | 1.3 | Feb 2026 | AI-assisted | Added feedbackStore, extraction feedback pipeline, feedback capture flows (19-20), updated cross-store dependencies |
+| 1.4 | Feb 2026 | AI-assisted | Added sync status tracking (pendingSync, retryPendingSync), Flow 21 for sync retry |
