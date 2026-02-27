@@ -191,17 +191,19 @@ export default function AddComponentModal({
 
   const isReplaceMode = mode === 'replace';
 
-  // Get category from a component using inferCategory utility
+  // Get category from a component - use stored metadata.category for consistency
+  // with LibraryBrowser, falling back to inferCategory only if not set
   const getComponentCategory = useCallback((c) => {
-    return inferCategory(c);
+    return c.metadata?.category || inferCategory(c);
   }, []);
 
   // Get category counts for all active components
+  // Use stored metadata.category for consistency with LibraryBrowser
   const { categoryCounts, totalCount } = useMemo(() => {
     const activeComponents = components.filter(c => c.versionInfo?.status !== 'archived');
     const counts = {};
     activeComponents.forEach(c => {
-      const cat = inferCategory(c);
+      const cat = c.metadata?.category || inferCategory(c);
       counts[cat] = (counts[cat] || 0) + 1;
     });
     return { categoryCounts: counts, totalCount: activeComponents.length };
