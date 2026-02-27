@@ -1,7 +1,7 @@
 /**
  * Co-pilot Provider Implementations
  *
- * To swap the co-pilot to a different LLM (e.g. Oracle OCI Generative AI,
+ * To swap the Co-Pilot to a different LLM (e.g. Oracle OCI Generative AI,
  * an internal proxy, or any other approved provider):
  *
  *   1. Implement a new provider function (see Oracle example below)
@@ -97,7 +97,7 @@ function createDefaultProvider(settings) {
 // =============================================================================
 
 /**
- * Returns the active co-pilot provider.
+ * Returns the active Co-Pilot provider.
  *
  * To switch providers, change the return value here:
  *   - Default:        return createDefaultProvider(settings);

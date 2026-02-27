@@ -1,4 +1,4 @@
-# AlgoAccelerator: TypeScript vs Java Code Generator Parity Report
+# Insight Forge: TypeScript vs Java Code Generator Parity Report
 
 **Generated:** 2026-02-13
 **Purpose:** Document differences between TypeScript (frontend) and Java (backend) code generators to ensure consistent output.
@@ -185,4 +185,4 @@ curl -s http://localhost:8080/api/measures/{ID}/sql > /tmp/java-sql.txt
 
 ---
 
-*Report generated as part of post-migration validation for AlgoAccelerator Phase 3.*
+*Report generated as part of post-migration validation for Insight Forge Phase 3.*

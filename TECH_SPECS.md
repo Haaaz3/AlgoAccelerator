@@ -1,8 +1,8 @@
-# AlgoAccelerator Technical Specifications
+# Insight Forge Technical Specifications
 
 ## Overview
 
-AlgoAccelerator is a comprehensive clinical quality measure development platform built with React, TypeScript, and Vite. It enables healthcare organizations to accelerate the creation, validation, and deployment of clinical quality measures (CQMs) through AI-assisted workflows, reusable component libraries, and multi-format code generation.
+Insight Forge is a comprehensive clinical quality measure development platform built with React, TypeScript, and Vite. It enables healthcare organizations to accelerate the creation, validation, and deployment of clinical quality measures (CQMs) through AI-assisted workflows, reusable component libraries, and multi-format code generation.
 
 ## Technology Stack
 
@@ -382,7 +382,7 @@ Matches measure data elements to library components.
 - Confidence scoring
 
 ### copilotService.ts
-AI co-pilot context building and message handling.
+AI AND/OR_ai Co-Pilot context building and message handling.
 
 **Functions:**
 - `buildCopilotContext(params)` - Build context from measure, components, generated code
@@ -396,7 +396,7 @@ AI co-pilot context building and message handling.
 - Active tab and UI state
 
 ### copilotProviders.ts
-Modular LLM provider architecture for co-pilot.
+Modular LLM provider architecture for AND/OR_ai Co-Pilot.
 
 **Providers:**
 - Anthropic Claude (default)
@@ -583,7 +583,7 @@ Code generation interface.
 - Edit history with visual diffs
 
 ### CopilotPanel.jsx
-Floating AI co-pilot chat interface.
+Floating AI AND/OR_ai Co-Pilot chat interface.
 
 **Features:**
 - Measure-aware context

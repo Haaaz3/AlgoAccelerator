@@ -1,8 +1,8 @@
-# AlgoAccelerator - Product Overview
+# Insight Forge - Product Overview
 
-## What is AlgoAccelerator?
+## What is Insight Forge?
 
-AlgoAccelerator is a comprehensive platform for developing, validating, and deploying clinical quality measures (CQMs). It transforms the traditionally labor-intensive process of measure implementation by leveraging AI-assisted workflows, reusable component libraries, and multi-format code generation.
+Insight Forge is a comprehensive platform for developing, validating, and deploying clinical quality measures (CQMs). It transforms the traditionally labor-intensive process of measure implementation by leveraging AI-assisted workflows, reusable component libraries, and multi-format code generation.
 
 ## The Problem
 
@@ -15,7 +15,7 @@ Healthcare quality measures (e.g., "% of diabetic patients with controlled blood
 
 ## The Solution
 
-AlgoAccelerator automates this process:
+Insight Forge automates this process:
 
 1. **Upload** a measure specification (PDF, HTML, Excel)
 2. **AI extracts** clinical logic, codes, and requirements
@@ -55,7 +55,7 @@ AlgoAccelerator automates this process:
 - Syntax highlighting and validation
 - **Intuitive Code Editor** with visual diffs and edit history
 
-### AI Co-pilot
+### AND/OR_ai Co-Pilot
 - Floating chat panel with full measure context
 - Ask questions about measure logic, value sets, timing
 - **Propose edits** with visual diff preview

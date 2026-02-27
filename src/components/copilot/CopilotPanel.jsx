@@ -10,7 +10,7 @@ import { buildCopilotContext, sendCopilotMessage } from '../../services/copilotS
 const WELCOME_MESSAGE = {
   id: 'welcome',
   role: 'assistant',
-  content: `Hi! I'm your AlgoAccelerator co-pilot. I have full context of the measure you're working on.\n\nYou can ask me things like:\n- "What does the denominator exclusion logic mean?"\n- "Why does this encounter component filter to 'finished' status?"\n- "What value set should I use for colorectal cancer screening?"\n- "Change the encounter status to finished"\n\nWhat can I help you with?`,
+  content: `Hi! I'm your AND/OR_ai Co-Pilot — starting a fresh session. I don't have memory of any prior conversations, but I do have full context of the measure you're currently working on.\n\nYou can ask me things like:\n- "What does the denominator exclusion logic mean?"\n- "Why does this encounter component filter to 'finished' status?"\n- "What value set should I use for colorectal cancer screening?"\n- "Change the encounter status to finished"\n\nWhat can I help you with?`,
   timestamp: Date.now(),
 };
 
@@ -450,7 +450,7 @@ export function CopilotPanel() {
             element.id,
             { [proposal.field]: proposal.proposedValue },
             'field_update',
-            `Co-pilot: ${proposal.explanation}`
+            `AND/OR_ai Co-Pilot: ${proposal.explanation}`
           );
         }
       }
@@ -473,7 +473,7 @@ export function CopilotPanel() {
           setLastGeneratedCode(patchedCql, lastGeneratedCode.sql, lastGeneratedCode.measureId);
 
           // Log to edit history with co-pilot attribution
-          const noteContent = `Co-pilot fix: ${proposal.description || proposal.explanation || 'Applied suggested code change'}`;
+          const noteContent = `AND/OR_ai Co-Pilot fix: ${proposal.description || proposal.explanation || 'Applied suggested code change'}`;
           saveMeasureCodeOverride(
             activeMeasureId,
             formatKey,
@@ -495,7 +495,7 @@ export function CopilotPanel() {
           setLastGeneratedCode(lastGeneratedCode.cql, patchedSql, lastGeneratedCode.measureId);
 
           // Log to edit history with co-pilot attribution
-          const noteContent = `Co-pilot fix: ${proposal.description || proposal.explanation || 'Applied suggested code change'}`;
+          const noteContent = `AND/OR_ai Co-Pilot fix: ${proposal.description || proposal.explanation || 'Applied suggested code change'}`;
           saveMeasureCodeOverride(
             activeMeasureId,
             'synapse-sql',
@@ -537,7 +537,7 @@ export function CopilotPanel() {
           >
             <div className="flex items-center gap-2">
               <Sparkles size={15} style={{ color: 'var(--accent)' }} />
-              <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Co-pilot</span>
+              <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>AND/OR_ai Co-Pilot</span>
               {activeMeasure ? (
                 <span
                   className="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -646,7 +646,7 @@ export function CopilotPanel() {
         }}
       >
         <Sparkles size={15} />
-        Co-pilot
+        AND/OR_ai Co-Pilot
         {activeMeasure && (
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.55)' }} />
         )}

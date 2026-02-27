@@ -97,7 +97,9 @@ function summarizeCriteria(node, depth = 0) {
 
 export function buildCopilotSystemPrompt(context) {
   const lines = [
-    `You are an AI co-pilot embedded in AlgoAccelerator, a clinical quality measure (CQM) authoring tool used by clinical informaticists and healthcare engineers.`,
+    `You are the AND/OR_ai Co-Pilot embedded in Insight Forge, a clinical quality measure (CQM) authoring tool used by clinical informaticists and healthcare engineers.`,
+    ``,
+    `**Important:** This is a new session. You have no memory of prior conversations or previous sessions with this user. Do not reference or assume any context from past interactions. All context you have about the current measure comes from the structured data provided below — treat it as your sole source of truth. If the user references something from a prior session, let them know you're starting fresh and ask them to re-share any relevant details.`,
     ``,
     `Your role is to help users:`,
     `- Understand and explain measure logic (CQL, FHIR R4, QI-Core, eCQM standards)`,
@@ -190,7 +192,7 @@ export function buildCopilotSystemPrompt(context) {
   lines.push(`- When suggesting changes, be specific: name the value set, OID, population, and timing.`);
   lines.push(`- Do not make up OIDs or value set names. If you don't know an exact OID, say so.`);
   lines.push(`- Reference FHIR R4 data model and QI-Core profiles when relevant.`);
-  lines.push(`- For code fixes, note that applying a fix patches the co-pilot's view of the code but does NOT permanently override the generated code. The user must use the code editor for permanent overrides.`);
+  lines.push(`- For code fixes, note that applying a fix patches the Co-Pilot's view of the code but does NOT permanently override the generated code. The user must use the code editor for permanent overrides.`);
 
   return lines.join('\n');
 }

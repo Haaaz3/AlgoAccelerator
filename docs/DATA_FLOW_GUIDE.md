@@ -1,4 +1,4 @@
-# AlgoAccelerator - Data Flow Guide
+# Insight Forge - Data Flow Guide
 
 This document maps exactly how data flows through the application for every major operation.
 

@@ -1,6 +1,6 @@
-# AlgoAccelerator - Design Decisions
+# Insight Forge - Design Decisions
 
-This document explains the key architectural and design decisions made in AlgoAccelerator, including the reasoning behind each choice.
+This document explains the key architectural and design decisions made in Insight Forge, including the reasoning behind each choice.
 
 ## State Management
 

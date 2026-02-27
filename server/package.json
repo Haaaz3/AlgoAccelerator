@@ -1,7 +1,7 @@
 {
-  "name": "algo-accelerator-api",
+  "name": "insight-forge-api",
   "version": "1.0.0",
-  "description": "Backend API for Algo Accelerator",
+  "description": "Backend API for Insight Forge",
   "main": "index.js",
   "type": "module",
   "scripts": {

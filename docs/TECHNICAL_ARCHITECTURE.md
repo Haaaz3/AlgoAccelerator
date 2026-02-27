@@ -1,8 +1,8 @@
-# AlgoAccelerator - Technical Architecture
+# Insight Forge - Technical Architecture
 
 ## Overview
 
-AlgoAccelerator is a full-stack application with a React frontend and Spring Boot backend. It uses a hybrid persistence architecture: primary data storage in a PostgreSQL/H2 database with client-side caching in localStorage for performance and offline capability.
+Insight Forge is a full-stack application with a React frontend and Spring Boot backend. It uses a hybrid persistence architecture: primary data storage in a PostgreSQL/H2 database with client-side caching in localStorage for performance and offline capability.
 
 ## Directory Structure
 
@@ -15,7 +15,7 @@ src/
 ├── components/                # React UI components
 │   ├── layout/               # App shell
 │   │   └── Sidebar.tsx       # Navigation sidebar
-│   ├── copilot/              # AI Co-pilot
+│   ├── copilot/              # AND/OR_ai Co-Pilot
 │   │   └── CopilotPanel.jsx  # Floating chat interface with proposals
 │   ├── library/              # Component Library UI
 │   │   ├── LibraryBrowser.tsx
@@ -54,7 +54,7 @@ src/
 │   ├── componentLibraryService.ts  # Component CRUD
 │   ├── componentMatcher.ts   # Library matching logic
 │   ├── complexityCalculator.ts    # Complexity scoring
-│   ├── copilotService.ts     # AI co-pilot context and messaging
+│   ├── copilotService.ts     # AI AND/OR_ai Co-Pilot context and messaging
 │   ├── copilotProviders.ts   # Modular LLM provider architecture
 │   ├── documentLoader.ts     # PDF/document parsing
 │   ├── measureIngestion.ts   # Document → UMS pipeline
@@ -105,7 +105,7 @@ src/
 The application uses four Zustand stores with hybrid persistence (localStorage + backend API):
 
 #### measureStore.ts
-**Persistence Key:** `algo-accelerator-storage`
+**Persistence Key:** `insight-forge-storage`
 
 Primary store for measure data and application state.
 
@@ -128,12 +128,12 @@ interface MeasureState {
 - `updateTimingOverride` - Timing modifications
 - `toggleLogicalOperator` - AND/OR toggling
 - `approveElement/flagElement` - Review workflow
-- `setLastGeneratedCode(cql, sql, measureId)` - Store generated code for co-pilot
+- `setLastGeneratedCode(cql, sql, measureId)` - Store generated code for AND/OR_ai Co-Pilot
 - `saveMeasureCodeOverride(measureId, format, code, note)` - Save code customization
 - `revertMeasureCodeOverride(measureId, format)` - Revert to generated code
 
 #### componentLibraryStore.ts
-**Persistence Key:** `algo-accelerator-component-library`
+**Persistence Key:** `insight-forge-component-library`
 
 Stores reusable component library with backend sync.
 
@@ -184,7 +184,7 @@ interface ComponentCodeState {
 - `clearOverride` - Revert to generated
 
 #### settingsStore.ts
-**Persistence Key:** `algo-accelerator-settings`
+**Persistence Key:** `insight-forge-settings`
 
 User preferences and API configuration.
 

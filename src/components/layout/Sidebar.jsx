@@ -70,7 +70,7 @@ export function Sidebar() {
       <div className="h-[77px] px-4 pt-3 border-b border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] flex items-end">
         <img
           src="/logo.png"
-          alt="Algo Accelerator"
+          alt="Insight Forge"
           className="w-full h-auto max-h-[62px] object-contain mix-blend-multiply"
         />
       </div>

@@ -1,4 +1,4 @@
-# AlgoAccelerator - Current State
+# Insight Forge - Current State
 
 This document captures the current implementation state as of February 2026.
 
@@ -30,11 +30,11 @@ This document captures the current implementation state as of February 2026.
 | **Backend Persistence** | Complete | Measures, components, test patients |
 | **AI Extraction Pipeline** | Complete | Direct API + backend proxy |
 | **Auto-Component Creation** | Complete | Backend creates components from data elements |
-| **AI Co-pilot** | Complete | Floating chat with measure context, proposal system |
-| **Co-pilot Proposals** | Complete | Visual diffs, apply/dismiss, logged to history |
+| **AND/OR_ai Co-Pilot** | Complete | Floating chat with measure context, proposal system |
+| **AND/OR_ai Co-Pilot Proposals** | Complete | Visual diffs, apply/dismiss, logged to history |
 | **Measure Code Editor** | Complete | Intuitive editing with notes, diffs, history |
 | **Clickable Edit History** | Complete | Per-edit diffs, expandable entries |
-| **Co-pilot Edit Logging** | Complete | Applied proposals logged to edit history |
+| **AND/OR_ai Co-Pilot Edit Logging** | Complete | Applied proposals logged to edit history |
 
 ### Recent Fixes (Current Session)
 
@@ -94,11 +94,11 @@ backend/src/main/java/com/algoaccel/
 - `selectedMeasureId` - Currently editing measure
 - `activeTab` - Current navigation tab
 - `validationTraces{}` - Cached validation results
-- `lastGeneratedCode{}` - Current CQL/SQL for co-pilot context
+- `lastGeneratedCode{}` - Current CQL/SQL for AND/OR_ai Co-Pilot context
 - `measureCodeOverrides{}` - Per-measure code customizations with edit history
 - `isLoadingFromApi` - Backend fetch in progress
 - `apiError` - Last API error message
-- Persistence key: `algo-accelerator-storage`
+- Persistence key: `insight-forge-storage`
 - **API**: `loadFromApi()` fetches from backend, replaces local
 
 ### componentLibraryStore
@@ -108,7 +108,7 @@ backend/src/main/java/com/algoaccel/
 - `filters` - Library browser filters
 - `isLoadingFromApi` - Backend fetch in progress
 - `lastLoadedAt` - Timestamp of last API sync
-- Persistence key: `algo-accelerator-component-library`
+- Persistence key: `insight-forge-component-library`
 - **API**: `loadFromApi()` fetches from backend, **merges** with local (preserves local-only)
 
 ### componentCodeStore
@@ -121,7 +121,7 @@ backend/src/main/java/com/algoaccel/
 - `selectedModel` - Model name
 - `apiKeys{}` - API keys by provider
 - `useBackendApi` - Whether to use server proxy
-- Persistence key: `algo-accelerator-settings`
+- Persistence key: `insight-forge-settings`
 
 ## Critical Code Paths
 

@@ -203,7 +203,7 @@ function generateHeader(
     ` * Description: ${measure.metadata.description || 'No description provided'}`,
     ` *`,
     ` * Generated: ${new Date().toISOString()}`,
-    ` * Generator: AlgoAccelerator CQL Generator v1.0`,
+    ` * Generator: Insight Forge CQL Generator v1.0`,
     ' */',
     '',
   ];

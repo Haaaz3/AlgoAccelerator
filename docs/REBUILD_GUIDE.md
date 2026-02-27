@@ -1,6 +1,6 @@
-# AlgoAccelerator - Rebuild Guide
+# Insight Forge - Rebuild Guide
 
-This guide provides step-by-step instructions for rebuilding AlgoAccelerator from scratch, useful for new developers or major refactoring.
+This guide provides step-by-step instructions for rebuilding Insight Forge from scratch, useful for new developers or major refactoring.
 
 ## Prerequisites
 
@@ -21,8 +21,8 @@ This guide provides step-by-step instructions for rebuilding AlgoAccelerator fro
 ### Initialize Vite + React + TypeScript
 
 ```bash
-npm create vite@latest algoaccelerator -- --template react-ts
-cd algoaccelerator
+npm create vite@latest insight-forge -- --template react-ts
+cd insight-forge
 npm install
 ```
 
