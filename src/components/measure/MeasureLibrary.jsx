@@ -63,6 +63,9 @@ export function MeasureLibrary() {
   // Track import queue item IDs for status reporting (maps batch index to queue item ID)
   const queueItemIdsRef = useRef          ([]);
 
+  // Track cancelled item IDs - checked at natural breakpoints in the pipeline
+  const cancelledItemsRef = useRef                  (new Set());
+
   // Filtering and sorting state
   const [statusTab, setStatusTab] = useState           ('all');
   const [selectedPrograms, setSelectedPrograms] = useState                     (new Set());
@@ -162,8 +165,24 @@ export function MeasureLibrary() {
       const result = await ingestMeasureFiles(files, activeApiKey, wrappedSetProgress, selectedProvider, selectedModel, customConfig);
       console.log('[processNext] ingestMeasureFiles returned:', { success: result.success, hasUms: !!result.ums, error: result.error });
 
+      // Check if cancelled after LLM extraction (natural breakpoint)
+      if (currentQueueItemId && cancelledItemsRef.current.has(currentQueueItemId)) {
+        console.log('[processNext] Import cancelled, skipping remaining steps');
+        setProgress({ stage: 'cancelled', message: 'Import cancelled', progress: 0 });
+        setTimeout(() => processNext(), 500);
+        return;
+      }
+
       if (result.success && result.ums) {
         const measureWithStatus = { ...result.ums, status: 'in_progress'                  };
+
+        // Check if cancelled before backend import (natural breakpoint)
+        if (currentQueueItemId && cancelledItemsRef.current.has(currentQueueItemId)) {
+          console.log('[processNext] Import cancelled before save');
+          setProgress({ stage: 'cancelled', message: 'Import cancelled', progress: 0 });
+          setTimeout(() => processNext(), 500);
+          return;
+        }
 
         // Import to backend for persistence (falls back to local if backend fails)
         const importResult = await importMeasure(measureWithStatus);
@@ -394,11 +413,59 @@ export function MeasureLibrary() {
   }, [isFileSupported]);
 
   const removeFromQueue = useCallback((index        ) => {
+    // Get the queue item ID before removing (offset by current index since processed items are removed)
+    const queueItemId = queueItemIdsRef.current[batchCounterRef.current.index + index];
+
     batchQueueRef.current = batchQueueRef.current.filter((_, i) => i !== index);
     setBatchQueue([...batchQueueRef.current]);
     batchCounterRef.current.total = Math.max(batchCounterRef.current.total - 1, 0);
     setBatchTotal(batchCounterRef.current.total);
+
+    // Also update importQueueStore
+    if (queueItemId) {
+      try {
+        useImportQueueStore.getState().reportCancelled(queueItemId);
+      } catch (e) { /* ignore */ }
+    }
   }, []);
+
+  // Cancel the currently active import
+  const cancelActiveImport = useCallback(() => {
+    const currentIndex = batchCounterRef.current.index;
+    const currentQueueItemId = queueItemIdsRef.current[currentIndex - 1];
+
+    if (currentQueueItemId) {
+      // Mark as cancelled - pipeline will check this at breakpoints
+      cancelledItemsRef.current.add(currentQueueItemId);
+
+      // Update store immediately to show cancelled state
+      try {
+        useImportQueueStore.getState().reportCancelled(currentQueueItemId);
+      } catch (e) { /* ignore */ }
+    }
+  }, []);
+
+  // Cancel all imports (active + queued)
+  const cancelAllImports = useCallback(() => {
+    // Cancel active import
+    cancelActiveImport();
+
+    // Clear the queue
+    const currentIndex = batchCounterRef.current.index;
+    queueItemIdsRef.current.slice(currentIndex).forEach((itemId) => {
+      if (itemId) {
+        cancelledItemsRef.current.add(itemId);
+        try {
+          useImportQueueStore.getState().reportCancelled(itemId);
+        } catch (e) { /* ignore */ }
+      }
+    });
+
+    batchQueueRef.current = [];
+    setBatchQueue([]);
+    batchCounterRef.current.total = batchCounterRef.current.index;
+    setBatchTotal(batchCounterRef.current.index);
+  }, [cancelActiveImport]);
 
   const getConfidenceColor = (confidence        ) => {
     switch (confidence) {
@@ -731,6 +798,8 @@ export function MeasureLibrary() {
           batchIndex={batchIndex}
           batchTotal={batchTotal}
           onRemoveFromQueue={removeFromQueue}
+          onCancelActive={cancelActiveImport}
+          onCancelAll={cancelAllImports}
         />
 
         {/* Error display */}

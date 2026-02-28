@@ -15,10 +15,15 @@
  * - batchIndex: number - current item being processed (1-based)
  * - batchTotal: number - total items in this batch
  * - onRemoveFromQueue: (index) => void - callback to remove item from queue
+ * - onCancelActive: () => void - callback to cancel the active import
+ * - onCancelAll: () => void - callback to cancel all imports
  */
 
-import { CheckCircle, X, Brain, Zap, FileText, Loader2 } from 'lucide-react';
+import { CheckCircle, X, Brain, Zap, FileText, Loader2, XCircle } from 'lucide-react';
 import { useImportQueueStore } from '../../stores/importQueueStore';
+
+// 30 minutes in milliseconds - items older than this are considered stale
+const STALE_THRESHOLD_MS = 30 * 60 * 1000;
 
 export function ImportQueuePanel({
   isProcessing = false,
@@ -27,23 +32,32 @@ export function ImportQueuePanel({
   batchIndex = 0,
   batchTotal = 0,
   onRemoveFromQueue = () => {},
+  onCancelActive = null,
+  onCancelAll = null,
 }) {
   // Read store queue array directly (not via getter methods to avoid re-render loops)
   const storeQueue = useImportQueueStore((state) => state.queue);
 
-  // Compute store-derived values in component body (stable references)
-  const storeHasActive = storeQueue.some(
-    (item) => item.status === 'processing' || item.status === 'queued'
+  // Filter store items: only active statuses AND not stale (< 30 min old)
+  const now = Date.now();
+  const activeStoreItems = storeQueue.filter(
+    (item) =>
+      (item.status === 'processing' || item.status === 'queued') &&
+      item.addedAt &&
+      (now - item.addedAt) < STALE_THRESHOLD_MS
   );
-  const storeProcessingItem = storeQueue.find((item) => item.status === 'processing');
-  const storeQueuedCount = storeQueue.filter((item) => item.status === 'queued').length;
+
+  // Compute store-derived values from filtered items
+  const storeHasActive = activeStoreItems.length > 0;
+  const storeProcessingItem = activeStoreItems.find((item) => item.status === 'processing');
+  const storeQueuedCount = activeStoreItems.filter((item) => item.status === 'queued').length;
   const storeCompletedCount = storeQueue.filter((item) => item.status === 'complete').length;
 
   // Prefer props (accurate) but fall back to store (survives navigation)
   const propsHaveData = isProcessing || (batchQueue && batchQueue.length > 0);
   const effectiveIsProcessing = propsHaveData ? isProcessing : storeHasActive;
   const effectiveQueueCount = propsHaveData ? (batchQueue?.length || 0) : storeQueuedCount;
-  const effectiveTotal = propsHaveData ? batchTotal : storeQueue.length;
+  const effectiveTotal = propsHaveData ? batchTotal : activeStoreItems.length;
   const effectiveIndex = propsHaveData ? batchIndex : (storeCompletedCount + (storeProcessingItem ? 1 : 0));
   const effectiveProgress = propsHaveData ? progress : (storeProcessingItem ? {
     stage: storeProcessingItem.phase,
@@ -79,6 +93,8 @@ export function ImportQueuePanel({
     return null;
   }
 
+  const showCancelAll = onCancelAll && (effectiveIsProcessing || effectiveQueueCount > 0);
+
   return (
     <div className="border-2 border-[var(--primary)]/50 rounded-xl mb-6 bg-[var(--bg-tertiary)] overflow-hidden">
       {/* Header with counter */}
@@ -90,9 +106,22 @@ export function ImportQueuePanel({
               Processing {currentItem} of {totalItems}
             </span>
           </div>
-          <span className="text-xs text-[var(--text-dim)]">
-            {effectiveQueueCount} queued
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-[var(--text-dim)]">
+              {effectiveQueueCount} queued
+            </span>
+            {showCancelAll && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCancelAll();
+                }}
+                className="text-xs text-[var(--danger)] hover:underline"
+              >
+                Cancel All
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -123,6 +152,19 @@ export function ImportQueuePanel({
               </div>
               {effectiveProgress?.details && (
                 <p className="text-xs text-[var(--text-dim)] mt-2">{effectiveProgress.details}</p>
+              )}
+              {/* Cancel active import button */}
+              {onCancelActive && propsHaveData && effectiveIsProcessing && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancelActive();
+                  }}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-[var(--danger)] bg-[var(--danger-light)] hover:bg-[var(--danger)]/20 rounded-md transition-colors"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  Cancel Import
+                </button>
               )}
             </div>
           </div>
@@ -158,6 +200,15 @@ export function ImportQueuePanel({
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Show store-based items when props not available (navigated away and back) */}
+      {!propsHaveData && activeStoreItems.length > 0 && (
+        <div className="border-t border-[var(--border)] px-4 py-3 bg-[var(--bg-elevated)]/30">
+          <p className="text-xs text-[var(--text-dim)] text-center">
+            Import running in background. Return to continue monitoring.
+          </p>
         </div>
       )}
     </div>

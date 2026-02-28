@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useMeasureStore } from './stores/measureStore';
 import { useComponentLibraryStore } from './stores/componentLibraryStore';
+import { useImportQueueStore } from './stores/importQueueStore';
 import { Sidebar } from './components/layout/Sidebar';
 import { MeasureLibrary } from './components/measure/MeasureLibrary';
 import { UMSEditor } from './components/measure/UMSEditor';
@@ -51,6 +52,11 @@ function AppContent() {
     const tabFromRoute = ROUTE_TO_TAB[location.pathname] || 'library';
     setActiveTab(tabFromRoute);
   }, [location.pathname, setActiveTab]);
+
+  // Reset import queue store on fresh page load (imports don't survive refresh)
+  useEffect(() => {
+    useImportQueueStore.getState().reset();
+  }, []);
 
   // Load measures and components on mount
   const initializeStores = useCallback(async () => {
