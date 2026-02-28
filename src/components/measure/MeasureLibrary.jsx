@@ -8,6 +8,7 @@ import { useNotificationStore } from '../../stores/notificationStore';
 import { useImportQueueStore } from '../../stores/importQueueStore';
 import { ingestMeasureFiles } from '../../services/measureIngestion';
 import { MeasureCreator } from './MeasureCreator';
+import { ImportQueuePanel } from './ImportQueuePanel';
 
 const PROGRAM_LABELS                                 = {
   'MIPS_CQM': 'MIPS CQM',
@@ -718,69 +719,8 @@ export function MeasureLibrary() {
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-auto p-6">
-        {/* Processing indicator */}
-        {(isProcessing || batchQueue.length > 0) && (
-          <div className="border-2 border-[var(--primary)]/50 rounded-xl mb-6 bg-[var(--bg-tertiary)] overflow-hidden">
-            <div className="p-6 text-center">
-              {progress?.stage === 'complete' ? (
-                <div className="space-y-2">
-                  <CheckCircle className="w-8 h-8 mx-auto text-[var(--success)]" />
-                  <p className="text-[var(--success)] font-medium">{progress.message}</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex justify-center">
-                    <div className="relative">
-                      <Brain className="w-10 h-10 text-[var(--accent)]" />
-                      <Zap className="w-4 h-4 text-[var(--warning)] absolute -right-1 -bottom-1 animate-pulse" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[var(--text)] font-medium mb-2">{progress?.message || 'Processing...'}</p>
-                    <div className="w-64 mx-auto h-2 bg-[var(--border)] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[var(--accent)] transition-all duration-500"
-                        style={{ width: `${progress?.progress || 0}%` }}
-                      />
-                    </div>
-                    {progress?.details && (
-                      <p className="text-xs text-[var(--text-dim)] mt-2">{progress.details}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Queued items */}
-            {batchQueue.length > 0 && (
-              <div className="border-t border-[var(--border)]">
-                {batchQueue.map((files, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)] last:border-b-0 bg-[var(--bg-elevated)]/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-4 h-4 text-[var(--text-dim)]" />
-                      <span className="text-sm text-[var(--text)]">
-                        Queued: {files.map(f => f.name).join(', ')}
-                      </span>
-                      <span className="text-xs text-[var(--text-dim)]">
-                        ({files.length} file{files.length !== 1 ? 's' : ''})
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => removeFromQueue(idx)}
-                      className="p-1 text-[var(--text-dim)] hover:text-[var(--danger)] hover:bg-[var(--danger-light)] rounded transition-colors"
-                      title="Remove from queue"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Import Queue Panel - reads from importQueueStore */}
+        <ImportQueuePanel />
 
         {/* Error display */}
         {error && (
