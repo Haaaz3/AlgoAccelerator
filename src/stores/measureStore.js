@@ -238,8 +238,26 @@ export const useMeasureStore = create              ()(
             }
           }
 
+          // Deduplicate by measureId - keep the first occurrence (which is the local/enriched version)
+          const seenMeasureIds = new Set();
+          const deduplicatedMeasures = validMeasures.filter(m => {
+            const measureId = m.metadata?.measureId;
+            if (!measureId || seenMeasureIds.has(measureId)) {
+              if (measureId) {
+                console.log(`[measureStore] Removing duplicate measure: ${measureId}`);
+              }
+              return false;
+            }
+            seenMeasureIds.add(measureId);
+            return true;
+          });
+
+          if (deduplicatedMeasures.length !== validMeasures.length) {
+            console.log(`[measureStore] Deduplicated ${validMeasures.length - deduplicatedMeasures.length} measures`);
+          }
+
           set({
-            measures: validMeasures,
+            measures: deduplicatedMeasures,
             isLoadingFromApi: false,
             lastLoadedAt: new Date().toISOString(),
           });
