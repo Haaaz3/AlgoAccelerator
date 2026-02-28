@@ -301,6 +301,31 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px var(--primary-light);
 }
 
+/* Toast animations */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(234, 88, 12, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(234, 88, 12, 0.7);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
 /* Co-pilot Panel Animations */
 @keyframes copilot-slide-up {
   from {

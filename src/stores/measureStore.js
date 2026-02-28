@@ -114,6 +114,25 @@ import { getAllStandardValueSets } from '../constants/standardValueSets';
                                                              
  
 
+// Helper to load persisted viewed measures from localStorage
+const loadViewedMeasures = () => {
+  try {
+    const stored = localStorage.getItem('viewed-measures');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+// Helper to save viewed measures to localStorage
+const saveViewedMeasures = (viewedMeasures) => {
+  try {
+    localStorage.setItem('viewed-measures', JSON.stringify(viewedMeasures));
+  } catch {
+    // Ignore storage errors
+  }
+};
+
 export const useMeasureStore = create              ()(
     (set, get) => ({
       measures: [],
@@ -130,6 +149,19 @@ export const useMeasureStore = create              ()(
       activeTraceId: null,
       lastGeneratedCode: { cql: null, sql: null, measureId: null },
       measureCodeOverrides: {}, // Keyed by `${measureId}::${format}`
+
+      // Track viewed measures for "New" badge (persisted to localStorage)
+      viewedMeasures: loadViewedMeasures(),
+
+      // Mark a measure as viewed (clears the "New" badge)
+      markMeasureViewed: (measureId) => {
+        const { viewedMeasures } = get();
+        if (!viewedMeasures.includes(measureId)) {
+          const newViewedMeasures = [...viewedMeasures, measureId];
+          saveViewedMeasures(newViewedMeasures);
+          set({ viewedMeasures: newViewedMeasures });
+        }
+      },
 
       // Load measures from backend API
       loadFromApi: async () => {
@@ -307,25 +339,28 @@ export const useMeasureStore = create              ()(
 
         // Replace existing measure with same measureId, or append if new
         // Also set as active and navigate to editor
+        // Mark new imports with isNew flag for "New" badge
+        const measureWithNew = { ...fhirMeasure, isNew: true };
+
         set((state) => {
-          const measureId = fhirMeasure.metadata.measureId;
+          const measureId = measureWithNew.metadata.measureId;
           const existingIndex = state.measures.findIndex(m => m.metadata.measureId === measureId);
 
           if (existingIndex >= 0) {
             // Replace existing measure with new version
             console.log(`[importMeasure] Replacing existing measure ${measureId} at index ${existingIndex}`);
             const updatedMeasures = [...state.measures];
-            updatedMeasures[existingIndex] = fhirMeasure;
+            updatedMeasures[existingIndex] = measureWithNew;
             return {
               measures: updatedMeasures,
-              activeMeasureId: fhirMeasure.id,
+              activeMeasureId: measureWithNew.id,
               activeTab: 'editor',
             };
           } else {
             // Append new measure
             return {
-              measures: [...state.measures, fhirMeasure],
-              activeMeasureId: fhirMeasure.id,
+              measures: [...state.measures, measureWithNew],
+              activeMeasureId: measureWithNew.id,
               activeTab: 'editor',
             };
           }
@@ -334,8 +369,8 @@ export const useMeasureStore = create              ()(
         // Save to localStorage for persistence (backend 403 workaround)
         // This ensures the enriched measure survives page refresh
         try {
-          const measureId = fhirMeasure.metadata.measureId;
-          localStorage.setItem(`measure-local-${measureId}`, JSON.stringify(fhirMeasure));
+          const measureId = measureWithNew.metadata.measureId;
+          localStorage.setItem(`measure-local-${measureId}`, JSON.stringify(measureWithNew));
           // Clear any deleted flag for this measure
           localStorage.removeItem(`measure-deleted-${measureId}`);
           console.log(`[importMeasure] Saved measure ${measureId} to localStorage`);

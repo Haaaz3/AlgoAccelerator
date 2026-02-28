@@ -1,7 +1,8 @@
-import { FileText, CheckCircle, Code, Library, Database, Settings, X, ChevronRight, Layers } from 'lucide-react';
+import { FileText, CheckCircle, Code, Library, Database, Settings, X, ChevronRight, Layers, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMeasureStore } from '../../stores/measureStore';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
+import { useImportQueueStore } from '../../stores/importQueueStore';
 
 // Component Library categories (shared with LibraryBrowser)
 const COMPONENT_CATEGORIES = [
@@ -32,6 +33,7 @@ export function Sidebar() {
   const navigate = useNavigate();
   const { activeTab, activeMeasureId, setActiveMeasure, measures } = useMeasureStore();
   const { components, selectedCategory, setSelectedCategory } = useComponentLibraryStore();
+  const importActiveCount = useImportQueueStore((state) => state.getActiveCount());
   const activeMeasure = measures.find(m => m.id === activeMeasureId);
 
   // Count measures
@@ -46,7 +48,7 @@ export function Sidebar() {
 
   // Main navigation - always accessible
   const mainNavItems = [
-    { id: 'library', icon: Library, label: 'Measure Library', badge: measureCount > 0 ? measureCount : undefined },
+    { id: 'library', icon: Library, label: 'Measure Library', badge: measureCount > 0 ? measureCount : undefined, importCount: importActiveCount > 0 ? importActiveCount : undefined },
     { id: 'components', icon: Layers, label: 'Component Library', badge: activeComponentCount > 0 ? activeComponentCount : undefined },
     { id: 'valuesets', icon: Database, label: 'Value Set Library', badge: uniqueValueSetCount > 0 ? uniqueValueSetCount : undefined },
     { id: 'settings', icon: Settings, label: 'Settings' },
@@ -95,7 +97,13 @@ export function Sidebar() {
               >
                 <item.icon className="w-4 h-4" />
                 <span className="flex-1 text-left">{item.label}</span>
-                {item.badge && (
+                {item.importCount && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-orange-500 text-white rounded-full animate-pulse-glow">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    {item.importCount}
+                  </span>
+                )}
+                {item.badge && !item.importCount && (
                   <span className="px-2 py-0.5 text-[10px] font-semibold bg-[var(--accent)] text-white rounded-full">
                     {item.badge}
                   </span>

@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, Trash2, Clock, CheckCircle, AlertTriangle, Lock, Unlock, Shield, Brain, Zap, ChevronDown, Send, Edit3, Plus, Copy, X, ArrowUp, ArrowDown, Building2, Download } from 'lucide-react';
+import { Upload, FileText, Trash2, Clock, CheckCircle, AlertTriangle, Lock, Unlock, Shield, Brain, Zap, ChevronDown, Send, Edit3, Plus, Copy, X, ArrowUp, ArrowDown, Building2, Download, Sparkles } from 'lucide-react';
 import { useMeasureStore } from '../../stores/measureStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
+import { useNotificationStore } from '../../stores/notificationStore';
 import { ingestMeasureFiles } from '../../services/measureIngestion';
 import { MeasureCreator } from './MeasureCreator';
 
@@ -28,8 +29,9 @@ function _resetReviewStatus(obj     )      {
 
 export function MeasureLibrary() {
   const navigate = useNavigate();
-  const { measures, addMeasure, importMeasure, deleteMeasure, setActiveMeasure, getReviewProgress, lockMeasure, unlockMeasure, setMeasureStatus, updateMeasure } = useMeasureStore();
+  const { measures, addMeasure, importMeasure, deleteMeasure, setActiveMeasure, getReviewProgress, lockMeasure, unlockMeasure, setMeasureStatus, updateMeasure, viewedMeasures, markMeasureViewed } = useMeasureStore();
   const { linkMeasureComponents, rebuildUsageIndex, getComponent } = useComponentLibraryStore();
+  const { addNotification } = useNotificationStore();
   const {
     selectedProvider,
     selectedModel,
@@ -210,8 +212,25 @@ export function MeasureLibrary() {
         const ct = batchCounterRef.current;
         const lbl = ct.total > 1 ? `[${ct.index}/${ct.total}] ` : '';
         setProgress({ stage: 'complete', message: `${lbl}Successfully imported "${result.ums.metadata.title}"`, progress: 100 });
+
+        // Show toast notification for successful import
+        addNotification({
+          type: 'success',
+          title: 'Import Complete',
+          message: `${result.ums.metadata.measureId} — ${result.ums.metadata.title}`,
+          measureId: result.ums.id,
+          cmsId: result.ums.metadata.measureId,
+          measureName: result.ums.metadata.title,
+        });
       } else {
         setError(result.error || 'Failed to extract measure specification');
+
+        // Show toast notification for failed import
+        addNotification({
+          type: 'error',
+          title: 'Import Failed',
+          message: result.error || 'Failed to extract measure specification',
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
@@ -734,7 +753,9 @@ export function MeasureLibrary() {
                 key={measure.id}
                 measure={measure}
                 reviewProgress={getReviewProgress(measure.id)}
+                isNew={measure.isNew && !viewedMeasures?.includes(measure.id)}
                 onSelect={() => {
+                  markMeasureViewed(measure.id);
                   setActiveMeasure(measure.id);
                   navigate('/editor');
                 }}
@@ -793,6 +814,7 @@ export function MeasureLibrary() {
 function MeasureCard({
   measure,
   reviewProgress,
+  isNew,
   onSelect,
   onDelete,
   onCopy,
@@ -823,16 +845,25 @@ function MeasureCard({
   return (
     <div
       className={`bg-[var(--bg-elevated)] border rounded-lg p-3 transition-all cursor-pointer group ${
-        isPublished
-          ? 'border-[var(--success)]/40'
-          : isLocked
-            ? 'border-[var(--success)]/50'
-            : 'border-[var(--border)] hover:border-[var(--primary)]/50'
+        isNew
+          ? 'border-l-4 border-l-orange-500 border-t-[var(--border)] border-r-[var(--border)] border-b-[var(--border)] bg-gradient-to-r from-orange-50 to-transparent'
+          : isPublished
+            ? 'border-[var(--success)]/40'
+            : isLocked
+              ? 'border-[var(--success)]/50'
+              : 'border-[var(--border)] hover:border-[var(--primary)]/50'
       }`}
       onClick={onSelect}
     >
       {/* Row 1: Tags */}
       <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+        {/* New badge - first in the row */}
+        {isNew && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-orange-500 text-white rounded-full">
+            <span className="w-1.5 h-1.5 bg-white rounded-full" />
+            New
+          </span>
+        )}
         {isPublished ? (
           <span className="px-2 py-0.5 text-xs font-medium rounded bg-[var(--success-light)] text-[var(--success)] flex items-center gap-1">
             <Send className="w-3 h-3" />

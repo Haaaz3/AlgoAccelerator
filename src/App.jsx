@@ -12,6 +12,7 @@ import { SettingsPage } from './components/settings/SettingsPage';
 import { LibraryBrowser } from './components/library/LibraryBrowser';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { CopilotPanel } from './components/copilot/CopilotPanel';
+import { ToastContainer } from './components/notifications/ToastContainer';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 // Map routes to tab names
@@ -186,6 +187,7 @@ function AppContent() {
         </main>
       </div>
       <CopilotPanel />
+      <ToastContainer />
     </div>
   );
 }
