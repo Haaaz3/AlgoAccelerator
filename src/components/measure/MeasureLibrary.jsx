@@ -434,6 +434,10 @@ export function MeasureLibrary() {
     const currentIndex = batchCounterRef.current.index;
     const currentQueueItemId = queueItemIdsRef.current[currentIndex - 1];
 
+    console.log('[cancelActive] currentIndex:', currentIndex,
+      'queueItemIds:', queueItemIdsRef.current,
+      'lookupId:', currentQueueItemId);
+
     if (currentQueueItemId) {
       // Mark as cancelled - pipeline will check this at breakpoints
       cancelledItemsRef.current.add(currentQueueItemId);
@@ -447,6 +451,9 @@ export function MeasureLibrary() {
 
   // Cancel all imports (active + queued)
   const cancelAllImports = useCallback(() => {
+    console.log('[cancelAll] fired, currentIndex:', batchCounterRef.current.index,
+      'queueLength:', batchQueueRef.current.length);
+
     // Cancel active import
     cancelActiveImport();
 
@@ -461,10 +468,15 @@ export function MeasureLibrary() {
       }
     });
 
+    // Immediate visual feedback - clear all state so panel disappears
     batchQueueRef.current = [];
     setBatchQueue([]);
-    batchCounterRef.current.total = batchCounterRef.current.index;
-    setBatchTotal(batchCounterRef.current.index);
+    processingRef.current = false;
+    setIsProcessing(false);
+    setProgress(null);
+    setBatchIndex(0);
+    setBatchTotal(0);
+    batchCounterRef.current = { index: 0, total: 0 };
   }, [cancelActiveImport]);
 
   const getConfidenceColor = (confidence        ) => {
