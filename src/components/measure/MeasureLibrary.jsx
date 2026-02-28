@@ -791,6 +791,7 @@ export function MeasureLibrary() {
       {/* Scrollable Content */}
       <div className="flex-1 overflow-auto p-6">
         {/* Import Queue Panel - receives real pipeline state as props */}
+        {console.log('[MeasureLibrary] ImportQueuePanel props:', { isProcessing, batchQueue: batchQueue.length, batchIndex, batchTotal, progress })}
         <ImportQueuePanel
           isProcessing={isProcessing}
           batchQueue={batchQueue}
