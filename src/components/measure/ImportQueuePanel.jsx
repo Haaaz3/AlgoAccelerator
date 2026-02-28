@@ -1,67 +1,68 @@
 /**
  * ImportQueuePanel Component
  *
- * Displays import queue status by reading from the importQueueStore.
- * This is a pure observer - it reads from the store which is updated
- * via fire-and-forget calls from the real import pipeline.
+ * Displays import queue status by reading DIRECTLY from the real pipeline state
+ * passed as props from MeasureLibrary. This ensures the UI always reflects
+ * the actual pipeline state, not a secondary observer.
+ *
+ * Props (from MeasureLibrary's real pipeline state):
+ * - isProcessing: boolean - whether the pipeline is actively processing
+ * - batchQueue: File[][] - array of file groups waiting to be processed
+ * - progress: { stage, message, progress, details } | null - current progress
+ * - onRemoveFromQueue: (index) => void - callback to remove item from queue
  *
  * Shows:
  * - Progress counter ("Processing 1 of N")
  * - Current processing phase
  * - Progress bar for current measure
  * - List of queued items with cancel buttons
- * - Completion/error states
  */
 
-import { CheckCircle, X, Loader2, AlertCircle, RotateCcw, Brain, Zap } from 'lucide-react';
-import { useImportQueueStore } from '../../stores/importQueueStore';
+import { CheckCircle, X, Brain, Zap, FileText } from 'lucide-react';
 
-export function ImportQueuePanel() {
-  const queue = useImportQueueStore((state) => state.queue);
-  const getActiveCount = useImportQueueStore((state) => state.getActiveCount);
-  const getCurrentItem = useImportQueueStore((state) => state.getCurrentItem);
-  const getQueuedItems = useImportQueueStore((state) => state.getQueuedItems);
-  const getStats = useImportQueueStore((state) => state.getStats);
-  const removeFromQueue = useImportQueueStore((state) => state.removeFromQueue);
-  const clearCompleted = useImportQueueStore((state) => state.clearCompleted);
-
-  const activeCount = getActiveCount();
-  const currentItem = getCurrentItem();
-  const queuedItems = getQueuedItems();
-  const stats = getStats();
-
-  // Don't render if queue is empty
-  if (queue.length === 0) {
+export function ImportQueuePanel({
+  isProcessing,
+  batchQueue,
+  progress,
+  batchIndex,
+  batchTotal,
+  onRemoveFromQueue,
+}) {
+  // Don't render if nothing is processing and queue is empty
+  if (!isProcessing && batchQueue.length === 0 && !progress) {
     return null;
   }
 
-  // Check if all items are complete
-  const allComplete = stats.total > 0 && stats.completed + stats.errored === stats.total;
-  const hasErrors = stats.errored > 0;
+  // Also hide if progress just completed and queue is empty (let it fade)
+  if (!isProcessing && batchQueue.length === 0 && progress?.stage === 'complete') {
+    // Show completion briefly
+    return (
+      <div className="border-2 border-[var(--success)]/50 rounded-xl mb-6 bg-[var(--success-light)] overflow-hidden">
+        <div className="p-6 text-center">
+          <div className="space-y-2">
+            <CheckCircle className="w-8 h-8 mx-auto text-[var(--success)]" />
+            <p className="text-[var(--success)] font-medium">{progress.message}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Nothing to show
+  if (!isProcessing && batchQueue.length === 0) {
+    return null;
+  }
 
   return (
     <div className="border-2 border-[var(--primary)]/50 rounded-xl mb-6 bg-[var(--bg-tertiary)] overflow-hidden">
       {/* Main progress area */}
       <div className="p-6 text-center">
-        {allComplete ? (
+        {progress?.stage === 'complete' ? (
           <div className="space-y-2">
             <CheckCircle className="w-8 h-8 mx-auto text-[var(--success)]" />
-            <p className="text-[var(--success)] font-medium">
-              {stats.completed} measure{stats.completed !== 1 ? 's' : ''} imported successfully
-              {hasErrors && (
-                <span className="text-[var(--danger)] ml-2">
-                  ({stats.errored} failed)
-                </span>
-              )}
-            </p>
-            <button
-              onClick={clearCompleted}
-              className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
-            >
-              Clear
-            </button>
+            <p className="text-[var(--success)] font-medium">{progress.message}</p>
           </div>
-        ) : currentItem ? (
+        ) : (
           <div className="space-y-3">
             <div className="flex justify-center">
               <div className="relative">
@@ -70,50 +71,45 @@ export function ImportQueuePanel() {
               </div>
             </div>
             <div>
-              <p className="text-[var(--text)] font-medium mb-1">
-                {stats.total > 1 && `[${stats.completed + 1}/${stats.total}] `}
-                {currentItem.phaseMessage || 'Processing...'}
+              <p className="text-[var(--text)] font-medium mb-2">
+                {progress?.message || 'Processing...'}
               </p>
-              {currentItem.filename && (
-                <p className="text-sm text-[var(--text-muted)] mb-2">
-                  {currentItem.filename}
-                </p>
-              )}
               <div className="w-64 mx-auto h-2 bg-[var(--border)] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-[var(--accent)] transition-all duration-500"
-                  style={{ width: `${currentItem.progress || 0}%` }}
+                  style={{ width: `${progress?.progress || 0}%` }}
                 />
               </div>
+              {progress?.details && (
+                <p className="text-xs text-[var(--text-dim)] mt-2">{progress.details}</p>
+              )}
             </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <Loader2 className="w-8 h-8 mx-auto text-[var(--accent)] animate-spin" />
-            <p className="text-[var(--text-muted)]">Waiting to process...</p>
           </div>
         )}
       </div>
 
       {/* Queued items list */}
-      {queuedItems.length > 0 && (
+      {batchQueue.length > 0 && (
         <div className="border-t border-[var(--border)]">
-          <div className="px-4 py-2 text-xs text-[var(--text-muted)] bg-[var(--bg-secondary)]">
-            Queued ({queuedItems.length})
-          </div>
-          {queuedItems.map((item) => (
+          {batchQueue.map((files, idx) => (
             <div
-              key={item.id}
+              key={idx}
               className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)] last:border-b-0 bg-[var(--bg-elevated)]/50"
             >
               <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-[var(--text-dim)]" />
+                <FileText className="w-4 h-4 text-[var(--text-dim)]" />
                 <span className="text-sm text-[var(--text)]">
-                  {item.filename}
+                  Queued: {files.map(f => f.name).join(', ')}
+                </span>
+                <span className="text-xs text-[var(--text-dim)]">
+                  ({files.length} file{files.length !== 1 ? 's' : ''})
                 </span>
               </div>
               <button
-                onClick={() => removeFromQueue(item.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveFromQueue(idx);
+                }}
                 className="p-1 text-[var(--text-dim)] hover:text-[var(--danger)] hover:bg-[var(--danger-light)] rounded transition-colors"
                 title="Remove from queue"
               >
@@ -121,58 +117,6 @@ export function ImportQueuePanel() {
               </button>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Error items */}
-      {stats.errored > 0 && (
-        <div className="border-t border-[var(--border)]">
-          <div className="px-4 py-2 text-xs text-[var(--danger)] bg-[var(--danger-light)]">
-            Failed ({stats.errored})
-          </div>
-          {queue
-            .filter((item) => item.status === 'error')
-            .map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)] last:border-b-0 bg-[var(--danger-light)]/30"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <AlertCircle className="w-4 h-4 text-[var(--danger)] flex-shrink-0" />
-                  <div className="min-w-0">
-                    <span className="text-sm text-[var(--text)] truncate block">
-                      {item.filename}
-                    </span>
-                    <span className="text-xs text-[var(--danger)] truncate block">
-                      {item.error}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-        </div>
-      )}
-
-      {/* Completed items (brief display before clear) */}
-      {stats.completed > 0 && !allComplete && (
-        <div className="border-t border-[var(--border)]">
-          <div className="px-4 py-2 text-xs text-[var(--success)] bg-[var(--success-light)]">
-            Completed ({stats.completed})
-          </div>
-          {queue
-            .filter((item) => item.status === 'complete')
-            .slice(-3) // Show only last 3 completed
-            .map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-3 px-4 py-2 border-b border-[var(--border)] last:border-b-0 bg-[var(--success-light)]/30"
-              >
-                <CheckCircle className="w-4 h-4 text-[var(--success)] flex-shrink-0" />
-                <span className="text-sm text-[var(--text)]">
-                  {item.cmsId || item.filename} — {item.measureName || 'Imported'}
-                </span>
-              </div>
-            ))}
         </div>
       )}
     </div>

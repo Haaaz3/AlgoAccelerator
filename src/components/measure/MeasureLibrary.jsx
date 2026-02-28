@@ -719,8 +719,13 @@ export function MeasureLibrary() {
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-auto p-6">
-        {/* Import Queue Panel - reads from importQueueStore */}
-        <ImportQueuePanel />
+        {/* Import Queue Panel - receives real pipeline state as props */}
+        <ImportQueuePanel
+          isProcessing={isProcessing}
+          batchQueue={batchQueue}
+          progress={progress}
+          onRemoveFromQueue={removeFromQueue}
+        />
 
         {/* Error display */}
         {error && (

@@ -526,7 +526,12 @@ export const useMeasureStore = create              ()(
           await deleteMeasureApi(id);
           console.log(`Deleted measure ${id} from backend`);
         } catch (error) {
-          console.error('Failed to delete measure from backend:', error);
+          // 404 means the resource is already gone - treat as success
+          if (error?.status === 404 || error?.message?.includes('404')) {
+            console.log(`Measure ${id} already deleted from backend (404)`);
+          } else {
+            console.error('Failed to delete measure from backend:', error);
+          }
           // Continue with local delete even if backend fails
         }
 
