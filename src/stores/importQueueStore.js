@@ -19,13 +19,6 @@ export const useImportQueueStore = create(
       // Queue state - purely for UI display
       queue: [], // Array of { id, filename, cmsId, measureName, status, progress, phase, error, addedAt }
 
-      // Batch counter state - for "Processing X of Y" display
-      batchIndex: 0,  // Current item being processed (1-based)
-      batchTotal: 0,  // Total items queued in this session
-
-      // Current progress state - for display when navigating back
-      currentProgress: null, // { stage, message, progress, details }
-
       // Get active count (items not yet complete or errored)
       getActiveCount: () => {
         const state = get();
@@ -82,7 +75,6 @@ export const useImportQueueStore = create(
 
         set((state) => ({
           queue: [...state.queue, item],
-          batchTotal: state.batchTotal + 1,
         }));
 
         return id;
@@ -99,8 +91,6 @@ export const useImportQueueStore = create(
               ? { ...item, status: 'processing', progress: 5, phase: 'starting', phaseMessage: 'Starting...' }
               : item
           ),
-          batchIndex: state.batchIndex + 1,
-          currentProgress: { stage: 'starting', message: 'Starting...', progress: 5, details: null },
         }));
       },
 
@@ -115,7 +105,6 @@ export const useImportQueueStore = create(
               ? { ...item, progress, phase, phaseMessage: phaseMessage || phase }
               : item
           ),
-          currentProgress: { stage: phase, message: phaseMessage || phase, progress, details: null },
         }));
       },
 
@@ -124,8 +113,8 @@ export const useImportQueueStore = create(
        * Called after importMeasure succeeds.
        */
       reportComplete: (itemId, metadata) => {
-        set((state) => {
-          const updatedQueue = state.queue.map((item) =>
+        set((state) => ({
+          queue: state.queue.map((item) =>
             item.id === itemId
               ? {
                   ...item,
@@ -137,18 +126,8 @@ export const useImportQueueStore = create(
                   measureName: metadata?.measureName || item.measureName,
                 }
               : item
-          );
-          // Check if all items are complete or errored
-          const stillActive = updatedQueue.some(
-            (item) => item.status === 'queued' || item.status === 'processing'
-          );
-          return {
-            queue: updatedQueue,
-            currentProgress: { stage: 'complete', message: 'Complete', progress: 100, details: null },
-            // Reset counters when all done
-            ...(stillActive ? {} : { batchIndex: 0, batchTotal: 0 }),
-          };
-        });
+          ),
+        }));
       },
 
       /**
@@ -156,8 +135,8 @@ export const useImportQueueStore = create(
        * Called when ingestMeasureFiles or importMeasure fails.
        */
       reportError: (itemId, errorMessage) => {
-        set((state) => {
-          const updatedQueue = state.queue.map((item) =>
+        set((state) => ({
+          queue: state.queue.map((item) =>
             item.id === itemId
               ? {
                   ...item,
@@ -167,17 +146,8 @@ export const useImportQueueStore = create(
                   error: errorMessage || 'Unknown error',
                 }
               : item
-          );
-          // Check if all items are complete or errored
-          const stillActive = updatedQueue.some(
-            (item) => item.status === 'queued' || item.status === 'processing'
-          );
-          return {
-            queue: updatedQueue,
-            // Reset counters when all done
-            ...(stillActive ? {} : { batchIndex: 0, batchTotal: 0, currentProgress: null }),
-          };
-        });
+          ),
+        }));
       },
 
       /**
@@ -202,33 +172,26 @@ export const useImportQueueStore = create(
     }),
     {
       name: 'import-queue-storage',
-      // Persist queue items that are still processing or queued, plus counters
+      // Only persist queue items that are still processing or queued
       partialize: (state) => ({
         queue: state.queue.filter(
           (item) => item.status === 'queued' || item.status === 'processing'
         ),
-        batchIndex: state.batchIndex,
-        batchTotal: state.batchTotal,
-        currentProgress: state.currentProgress,
       }),
       // On rehydrate, reset any 'processing' items back to 'queued'
       onRehydrate: () => (state) => {
-        if (state) {
-          if (state.queue) {
-            state.queue = state.queue.map((item) =>
-              item.status === 'processing'
-                ? {
-                    ...item,
-                    status: 'queued',
-                    progress: 0,
-                    phase: 'queued',
-                    phaseMessage: 'Queued',
-                  }
-                : item
-            );
-          }
-          // Reset progress since processing was interrupted
-          state.currentProgress = null;
+        if (state && state.queue) {
+          state.queue = state.queue.map((item) =>
+            item.status === 'processing'
+              ? {
+                  ...item,
+                  status: 'queued',
+                  progress: 0,
+                  phase: 'queued',
+                  phaseMessage: 'Queued',
+                }
+              : item
+          );
         }
       },
     }
