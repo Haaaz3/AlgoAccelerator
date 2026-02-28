@@ -223,10 +223,10 @@ export const useMeasureStore = create              ()(
           });
 
           // Also add any locally-imported measures that aren't in the backend yet
-          const backendMeasureIds = new Set(validMeasures.map(m => m.metadata.measureId));
+          const backendMeasureIds = new Set(validMeasures.map(m => m.metadata?.measureId?.trim()).filter(Boolean));
           const localMeasureKeys = Object.keys(localStorage).filter(k => k.startsWith('measure-local-'));
           for (const key of localMeasureKeys) {
-            const measureId = key.replace('measure-local-', '');
+            const measureId = key.replace('measure-local-', '').trim();
             if (!backendMeasureIds.has(measureId) && !localStorage.getItem(`measure-deleted-${measureId}`)) {
               try {
                 const localMeasure = JSON.parse(localStorage.getItem(key) || '');
@@ -239,13 +239,16 @@ export const useMeasureStore = create              ()(
           }
 
           // Deduplicate by measureId - keep the first occurrence (which is the local/enriched version)
+          // Normalize measureIds by trimming whitespace for robust comparison
           const seenMeasureIds = new Set();
           const deduplicatedMeasures = validMeasures.filter(m => {
-            const measureId = m.metadata?.measureId;
-            if (!measureId || seenMeasureIds.has(measureId)) {
-              if (measureId) {
-                console.log(`[measureStore] Removing duplicate measure: ${measureId}`);
-              }
+            const measureId = m.metadata?.measureId?.trim();
+            if (!measureId) {
+              console.log(`[measureStore] Removing measure with no measureId`);
+              return false;
+            }
+            if (seenMeasureIds.has(measureId)) {
+              console.log(`[measureStore] Removing duplicate measure: ${measureId} (keeping first occurrence)`);
               return false;
             }
             seenMeasureIds.add(measureId);

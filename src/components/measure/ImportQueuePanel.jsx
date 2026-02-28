@@ -9,6 +9,8 @@
  * - isProcessing: boolean - whether the pipeline is actively processing
  * - batchQueue: File[][] - array of file groups waiting to be processed
  * - progress: { stage, message, progress, details } | null - current progress
+ * - batchIndex: number - current item being processed (1-based)
+ * - batchTotal: number - total items in this batch
  * - onRemoveFromQueue: (index) => void - callback to remove item from queue
  *
  * Shows:
@@ -18,24 +20,27 @@
  * - List of queued items with cancel buttons
  */
 
-import { CheckCircle, X, Brain, Zap, FileText } from 'lucide-react';
+import { CheckCircle, X, Brain, Zap, FileText, Loader2 } from 'lucide-react';
 
 export function ImportQueuePanel({
-  isProcessing,
-  batchQueue,
-  progress,
-  batchIndex,
-  batchTotal,
-  onRemoveFromQueue,
+  isProcessing = false,
+  batchQueue = [],
+  progress = null,
+  batchIndex = 0,
+  batchTotal = 0,
+  onRemoveFromQueue = () => {},
 }) {
+  // Calculate total: current processing + queued items
+  const totalItems = batchTotal || (isProcessing ? 1 : 0) + (batchQueue?.length || 0);
+  const currentItem = batchIndex || (isProcessing ? 1 : 0);
+
   // Don't render if nothing is processing and queue is empty
-  if (!isProcessing && batchQueue.length === 0 && !progress) {
+  if (!isProcessing && (!batchQueue || batchQueue.length === 0) && !progress) {
     return null;
   }
 
-  // Also hide if progress just completed and queue is empty (let it fade)
-  if (!isProcessing && batchQueue.length === 0 && progress?.stage === 'complete') {
-    // Show completion briefly
+  // Show completion state briefly when done
+  if (!isProcessing && (!batchQueue || batchQueue.length === 0) && progress?.stage === 'complete') {
     return (
       <div className="border-2 border-[var(--success)]/50 rounded-xl mb-6 bg-[var(--success-light)] overflow-hidden">
         <div className="p-6 text-center">
@@ -49,12 +54,27 @@ export function ImportQueuePanel({
   }
 
   // Nothing to show
-  if (!isProcessing && batchQueue.length === 0) {
+  if (!isProcessing && (!batchQueue || batchQueue.length === 0)) {
     return null;
   }
 
   return (
     <div className="border-2 border-[var(--primary)]/50 rounded-xl mb-6 bg-[var(--bg-tertiary)] overflow-hidden">
+      {/* Header with counter */}
+      {totalItems > 0 && (
+        <div className="px-4 py-2 bg-[var(--primary)]/10 border-b border-[var(--primary)]/20 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 text-[var(--primary)] animate-spin" />
+            <span className="text-sm font-medium text-[var(--primary)]">
+              Processing {currentItem} of {totalItems}
+            </span>
+          </div>
+          <span className="text-xs text-[var(--text-dim)]">
+            {batchQueue?.length || 0} queued
+          </span>
+        </div>
+      )}
+
       {/* Main progress area */}
       <div className="p-6 text-center">
         {progress?.stage === 'complete' ? (
@@ -72,7 +92,7 @@ export function ImportQueuePanel({
             </div>
             <div>
               <p className="text-[var(--text)] font-medium mb-2">
-                {progress?.message || 'Processing...'}
+                {progress?.message || 'Starting import...'}
               </p>
               <div className="w-64 mx-auto h-2 bg-[var(--border)] rounded-full overflow-hidden">
                 <div
@@ -89,7 +109,7 @@ export function ImportQueuePanel({
       </div>
 
       {/* Queued items list */}
-      {batchQueue.length > 0 && (
+      {batchQueue && batchQueue.length > 0 && (
         <div className="border-t border-[var(--border)]">
           {batchQueue.map((files, idx) => (
             <div
@@ -99,10 +119,10 @@ export function ImportQueuePanel({
               <div className="flex items-center gap-3">
                 <FileText className="w-4 h-4 text-[var(--text-dim)]" />
                 <span className="text-sm text-[var(--text)]">
-                  Queued: {files.map(f => f.name).join(', ')}
+                  Queued: {files?.map(f => f.name).join(', ') || 'Unknown files'}
                 </span>
                 <span className="text-xs text-[var(--text-dim)]">
-                  ({files.length} file{files.length !== 1 ? 's' : ''})
+                  ({files?.length || 0} file{(files?.length || 0) !== 1 ? 's' : ''})
                 </span>
               </div>
               <button

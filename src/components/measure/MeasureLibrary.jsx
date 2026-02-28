@@ -51,8 +51,8 @@ export function MeasureLibrary() {
 
   // Batch queue state
   const [batchQueue, setBatchQueue] = useState          ([]);
-  const [_batchIndex, setBatchIndex] = useState(0);
-  const [_batchTotal, setBatchTotal] = useState(0);
+  const [batchIndex, setBatchIndex] = useState(0);
+  const [batchTotal, setBatchTotal] = useState(0);
   const [_queueDragActive, setQueueDragActive] = useState(false);
   const _queueInputRef = useRef                  (null);
   const fileInputRef = useRef                  (null);
@@ -73,6 +73,8 @@ export function MeasureLibrary() {
   // Close program dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e            ) => {
+      // Defensive check - ensure event and target exist
+      if (!e || !e.target) return;
       if (programDropdownRef.current && !programDropdownRef.current.contains(e.target        )) {
         setShowProgramDropdown(false);
       }
@@ -491,6 +493,8 @@ export function MeasureLibrary() {
   }, []);
 
   const handlePageDragLeave = useCallback((e) => {
+    // Defensive check - ensure event exists
+    if (!e || !e.currentTarget) return;
     // Only set drag inactive if leaving the page entirely
     if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget)) {
       setDragActive(false);
@@ -724,6 +728,8 @@ export function MeasureLibrary() {
           isProcessing={isProcessing}
           batchQueue={batchQueue}
           progress={progress}
+          batchIndex={batchIndex}
+          batchTotal={batchTotal}
           onRemoveFromQueue={removeFromQueue}
         />
 
