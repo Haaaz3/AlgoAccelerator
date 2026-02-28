@@ -5,6 +5,7 @@ import { useMeasureStore } from '../../stores/measureStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useComponentLibraryStore } from '../../stores/componentLibraryStore';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { useImportQueueStore } from '../../stores/importQueueStore';
 import { ingestMeasureFiles } from '../../services/measureIngestion';
 import { MeasureCreator } from './MeasureCreator';
 
@@ -57,6 +58,9 @@ export function MeasureLibrary() {
   const batchQueueRef = useRef          ([]);
   const processingRef = useRef(false);
   const batchCounterRef = useRef({ index: 0, total: 0 });
+
+  // Track import queue item IDs for status reporting (maps batch index to queue item ID)
+  const queueItemIdsRef = useRef          ([]);
 
   // Filtering and sorting state
   const [statusTab, setStatusTab] = useState           ('all');
@@ -120,6 +124,16 @@ export function MeasureLibrary() {
     counter.index++;
     setBatchIndex(counter.index);
 
+    // Get the queue item ID for this batch item (for status reporting)
+    const currentQueueItemId = queueItemIdsRef.current[counter.index - 1];
+
+    // Fire-and-forget: Report processing started
+    try {
+      if (currentQueueItemId) {
+        useImportQueueStore.getState().reportProcessing(currentQueueItemId);
+      }
+    } catch (e) { /* ignore - UI store error should never interrupt pipeline */ }
+
     const activeApiKey = getActiveApiKey();
     const customConfig = selectedProvider === 'custom' ? getCustomLlmConfig() : undefined;
 
@@ -130,6 +144,14 @@ export function MeasureLibrary() {
       const ct = batchCounterRef.current;
       const lbl = ct.total > 1 ? `[${ct.index}/${ct.total}] ` : '';
       setProgress({ ...p, message: `${lbl}${p.message}` });
+
+      // Fire-and-forget: Report progress to UI store
+      try {
+        const queueItemId = queueItemIdsRef.current[ct.index - 1];
+        if (queueItemId) {
+          useImportQueueStore.getState().reportProgress(queueItemId, p.progress || 0, p.stage || 'processing', p.message);
+        }
+      } catch (e) { /* ignore - UI store error should never interrupt pipeline */ }
     };
 
     try {
@@ -222,6 +244,18 @@ export function MeasureLibrary() {
           cmsId: result.ums.metadata.measureId,
           measureName: result.ums.metadata.title,
         });
+
+        // Fire-and-forget: Report completion to UI store
+        try {
+          const ct = batchCounterRef.current;
+          const queueItemId = queueItemIdsRef.current[ct.index - 1];
+          if (queueItemId) {
+            useImportQueueStore.getState().reportComplete(queueItemId, {
+              cmsId: result.ums.metadata.measureId,
+              measureName: result.ums.metadata.title,
+            });
+          }
+        } catch (e) { /* ignore - UI store error should never interrupt pipeline */ }
       } else {
         setError(result.error || 'Failed to extract measure specification');
 
@@ -231,9 +265,27 @@ export function MeasureLibrary() {
           title: 'Import Failed',
           message: result.error || 'Failed to extract measure specification',
         });
+
+        // Fire-and-forget: Report error to UI store
+        try {
+          const ct = batchCounterRef.current;
+          const queueItemId = queueItemIdsRef.current[ct.index - 1];
+          if (queueItemId) {
+            useImportQueueStore.getState().reportError(queueItemId, result.error || 'Failed to extract measure specification');
+          }
+        } catch (e) { /* ignore - UI store error should never interrupt pipeline */ }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
+
+      // Fire-and-forget: Report error to UI store
+      try {
+        const ct = batchCounterRef.current;
+        const queueItemId = queueItemIdsRef.current[ct.index - 1];
+        if (queueItemId) {
+          useImportQueueStore.getState().reportError(queueItemId, err instanceof Error ? err.message : 'Unknown error occurred');
+        }
+      } catch (e) { /* ignore - UI store error should never interrupt pipeline */ }
     }
 
     // Brief pause then process next
@@ -276,6 +328,16 @@ export function MeasureLibrary() {
     setBatchQueue([...batchQueueRef.current]);
     batchCounterRef.current.total++;
     setBatchTotal(batchCounterRef.current.total);
+
+    // Fire-and-forget: Report to UI store that files were queued
+    try {
+      const filename = supportedFiles.length === 1
+        ? supportedFiles[0].name
+        : `${supportedFiles.length} files`;
+      const queueItemId = useImportQueueStore.getState().reportQueued({ filename });
+      // Store the queue item ID so we can update it later
+      queueItemIdsRef.current.push(queueItemId);
+    } catch (e) { /* ignore - UI store error should never interrupt pipeline */ }
 
     if (!processingRef.current) {
       // Start processing
