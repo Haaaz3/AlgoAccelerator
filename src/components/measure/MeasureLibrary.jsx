@@ -434,10 +434,6 @@ export function MeasureLibrary() {
     const currentIndex = batchCounterRef.current.index;
     const currentQueueItemId = queueItemIdsRef.current[currentIndex - 1];
 
-    console.log('[cancelActive] currentIndex:', currentIndex,
-      'queueItemIds:', queueItemIdsRef.current,
-      'lookupId:', currentQueueItemId);
-
     if (currentQueueItemId) {
       // Mark as cancelled - pipeline will check this at breakpoints
       cancelledItemsRef.current.add(currentQueueItemId);
@@ -447,13 +443,18 @@ export function MeasureLibrary() {
         useImportQueueStore.getState().reportCancelled(currentQueueItemId);
       } catch (e) { /* ignore */ }
     }
+
+    // Immediate visual feedback - clear UI state so panel disappears
+    processingRef.current = false;
+    setIsProcessing(false);
+    setProgress(null);
+    setBatchIndex(0);
+    setBatchTotal(0);
+    batchCounterRef.current = { index: 0, total: 0 };
   }, []);
 
   // Cancel all imports (active + queued)
   const cancelAllImports = useCallback(() => {
-    console.log('[cancelAll] fired, currentIndex:', batchCounterRef.current.index,
-      'queueLength:', batchQueueRef.current.length);
-
     // Cancel active import
     cancelActiveImport();
 
@@ -803,7 +804,6 @@ export function MeasureLibrary() {
       {/* Scrollable Content */}
       <div className="flex-1 overflow-auto p-6">
         {/* Import Queue Panel - receives real pipeline state as props */}
-        {console.log('[MeasureLibrary] ImportQueuePanel props:', { isProcessing, batchQueue: batchQueue.length, batchIndex, batchTotal, progress })}
         <ImportQueuePanel
           isProcessing={isProcessing}
           batchQueue={batchQueue}
