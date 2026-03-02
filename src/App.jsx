@@ -12,7 +12,7 @@ import { ValueSetManager } from './components/valueset/ValueSetManager';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { LibraryBrowser } from './components/library/LibraryBrowser';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
-import { CopilotPanel } from './components/copilot/CopilotPanel';
+import { DraggableFAB } from './components/copilot/DraggableFAB';
 import { ToastContainer } from './components/notifications/ToastContainer';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
@@ -192,7 +192,7 @@ function AppContent() {
           </Routes>
         </main>
       </div>
-      <CopilotPanel />
+      <DraggableFAB />
       <ToastContainer />
     </div>
   );
