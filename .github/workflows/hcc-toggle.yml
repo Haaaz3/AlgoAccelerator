@@ -1,0 +1,42 @@
+name: Toggle HCC Module
+
+on:
+  workflow_dispatch:
+    inputs:
+      hcc_enabled:
+        description: 'Enable HCC module'
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  toggle-hcc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://railway.app/install.sh | sh
+
+      - name: Set HCC_ENABLED environment variable
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ "${{ inputs.hcc_enabled }}" == "true" ]; then
+            echo "Enabling HCC module..."
+            railway variables set HCC_ENABLED=true
+          else
+            echo "Disabling HCC module..."
+            railway variables set HCC_ENABLED=false
+          fi
+
+      - name: Trigger redeploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          echo "Triggering redeploy to apply changes..."
+          railway redeploy
+
+      - name: Confirm status
+        run: |
+          echo "HCC module has been set to: ${{ inputs.hcc_enabled }}"
+          echo "Railway will redeploy with the new configuration."

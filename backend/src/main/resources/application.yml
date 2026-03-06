@@ -95,3 +95,12 @@ logging:
     com.algoaccel: INFO
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
+
+# HCC Module Feature Flags
+hcc:
+  enabled: ${HCC_ENABLED:true}
+  features:
+    ckd-rules:
+      enabled: ${HCC_FEATURES_CKD_RULES_ENABLED:true}
+    resurfacing:
+      enabled: ${HCC_FEATURES_RESURFACING_ENABLED:true}
