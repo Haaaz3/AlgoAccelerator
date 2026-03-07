@@ -470,6 +470,7 @@ export const STANDARD_CODE_SYSTEMS                  = [
   { name: 'HCPCS', uri: 'https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets' },
   { name: 'RxNorm', uri: 'http://www.nlm.nih.gov/research/umls/rxnorm' },
   { name: 'CVX', uri: 'http://hl7.org/fhir/sid/cvx' },
+  { name: 'NDC', uri: 'http://hl7.org/fhir/sid/ndc' },
 ];
 
 /**

@@ -27,6 +27,7 @@ const CODE_SYSTEMS                                         = [
   { value: 'LOINC', label: 'LOINC' },
   { value: 'RxNorm', label: 'RxNorm' },
   { value: 'CVX', label: 'CVX' },
+  { value: 'NDC', label: 'NDC' },
 ];
 
 export function ComponentBuilder({

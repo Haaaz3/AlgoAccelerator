@@ -672,6 +672,7 @@ function ValueSetDetailPanel({
                 <option value="LOINC">LOINC</option>
                 <option value="RxNorm">RxNorm</option>
                 <option value="CVX">CVX</option>
+                <option value="NDC">NDC</option>
               </select>
               <button
                 onClick={() => {

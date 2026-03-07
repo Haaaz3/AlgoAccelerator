@@ -172,6 +172,15 @@ npm run build       # Output to dist/
   - Current measure's catalogue highlighted with accent border
   - Components with no catalogues show for all filters (universal)
 
+**Task 7 Complete: NDC code system recognition**
+- Added NDC to code system dropdowns in:
+  - `UMSEditor.jsx` (3 locations)
+  - `ValueSetManager.jsx`
+  - `ComponentEditor.jsx`
+  - `ComponentBuilder.jsx`
+- Added NDC to `STANDARD_CODE_SYSTEMS` in `cqlTemplates.js`
+- NDC URI: `http://hl7.org/fhir/sid/ndc` (already defined in fhir-measure.js)
+
 ### Feature 1b: Catalogue Auto-Detection (March 2026)
 - `src/utils/catalogueClassifier.js` - Signal-based document classifier
 - `src/components/ingestion/CatalogueConfirmationChip.jsx` - Confirmation UI
