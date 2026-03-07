@@ -74,6 +74,9 @@ public class ComponentMapper {
             // Catalogs
             parseStringList(entity.getCatalogs()),
 
+            // Catalogue defaults
+            parseCatalogueDefaults(entity.getCatalogueDefaults()),
+
             // Audit
             entity.getCreatedAt(),
             entity.getCreatedBy(),
@@ -179,6 +182,9 @@ public class ComponentMapper {
         // Catalogs
         entity.setCatalogs(serializeTags(request.catalogs()));
 
+        // Catalogue defaults
+        entity.setCatalogueDefaults(serializeCatalogueDefaults(request.catalogueDefaults()));
+
         return entity;
     }
 
@@ -208,6 +214,9 @@ public class ComponentMapper {
 
         // Catalogs
         entity.setCatalogs(serializeTags(request.catalogs()));
+
+        // Catalogue defaults
+        entity.setCatalogueDefaults(serializeCatalogueDefaults(request.catalogueDefaults()));
 
         return entity;
     }
@@ -286,6 +295,11 @@ public class ComponentMapper {
         // Catalogs updates
         if (request.catalogs() != null) {
             entity.setCatalogs(serializeTags(request.catalogs()));
+        }
+
+        // Catalogue defaults updates
+        if (request.catalogueDefaults() != null) {
+            entity.setCatalogueDefaults(serializeCatalogueDefaults(request.catalogueDefaults()));
         }
 
         // Note: category updates are handled by the service layer for re-inference logic
@@ -505,9 +519,31 @@ public class ComponentMapper {
         return 0;
     }
 
+    private Map<String, Object> parseCatalogueDefaults(String json) {
+        if (json == null || json.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+        } catch (JsonProcessingException e) {
+            return Collections.emptyMap();
+        }
+    }
+
     // ========================================================================
     // Private Helpers: JSON Serialization
     // ========================================================================
+
+    private String serializeCatalogueDefaults(Map<String, Object> catalogueDefaults) {
+        if (catalogueDefaults == null || catalogueDefaults.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(catalogueDefaults);
+        } catch (JsonProcessingException e) {
+            return null;
+        }
+    }
 
     private String serializeCodes(List<CreateAtomicComponentRequest.CodeRequest> codes) {
         if (codes == null || codes.isEmpty()) {

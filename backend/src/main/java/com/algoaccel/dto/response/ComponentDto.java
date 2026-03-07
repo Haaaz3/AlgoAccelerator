@@ -3,6 +3,7 @@ package com.algoaccel.dto.response;
 import com.algoaccel.model.enums.*;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Response DTO for library components.
@@ -40,6 +41,9 @@ public record ComponentDto(
 
     // Catalogue tags
     List<String> catalogs,
+
+    // Catalogue defaults (e.g., HEDIS collection type defaults)
+    Map<String, Object> catalogueDefaults,
 
     // Audit
     LocalDateTime createdAt,

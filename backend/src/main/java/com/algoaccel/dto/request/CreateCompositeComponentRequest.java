@@ -3,6 +3,7 @@ package com.algoaccel.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Request DTO for creating a composite component.
@@ -26,7 +27,10 @@ public record CreateCompositeComponentRequest(
     List<String> tags,
 
     // Catalogue tags
-    List<String> catalogs
+    List<String> catalogs,
+
+    // Catalogue defaults (e.g., HEDIS collection type defaults)
+    Map<String, Object> catalogueDefaults
 ) {
 
     public record ComponentReferenceRequest(

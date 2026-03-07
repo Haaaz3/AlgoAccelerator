@@ -2,6 +2,7 @@ package com.algoaccel.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Request DTO for creating an atomic component.
@@ -48,7 +49,10 @@ public record CreateAtomicComponentRequest(
     List<String> tags,
 
     // Catalogue tags
-    List<String> catalogs
+    List<String> catalogs,
+
+    // Catalogue defaults (e.g., HEDIS collection type defaults)
+    Map<String, Object> catalogueDefaults
 ) {
 
     public record CodeRequest(

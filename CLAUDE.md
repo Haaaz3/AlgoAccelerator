@@ -126,6 +126,17 @@ npm run build       # Output to dist/
 
 ## Recent Features
 
+### Feature 1c: Easy HEDIS — NDC, Collection Type, Hybrid Source (March 2026)
+**Task 1 Complete: V22 Migration + catalogueDefaults**
+- `V22__add_catalogue_defaults_to_components.sql` - Adds `catalogue_defaults TEXT` column to `library_component`
+- `LibraryComponent.java` - Added `catalogueDefaults` field (JSON string)
+- `ComponentDto.java` - Added `catalogueDefaults` as `Map<String, Object>`
+- `CreateAtomicComponentRequest.java`, `CreateCompositeComponentRequest.java`, `UpdateComponentRequest.java` - Added `catalogueDefaults`
+- `ComponentMapper.java` - Added `parseCatalogueDefaults()` and `serializeCatalogueDefaults()` methods
+- `ComponentLibraryService.java` - Updated `mergeUpdates()` to handle `catalogueDefaults`
+
+**Design decision:** `catalogueDefaults` stores suggested defaults (e.g., `{"hedis": {"collectionType": "administrative", "hybridSourceFlag": false}}`). The actual HEDIS fields live on data elements within the measure's UMS, not on the library component.
+
 ### Feature 1b: Catalogue Auto-Detection (March 2026)
 - `src/utils/catalogueClassifier.js` - Signal-based document classifier
 - `src/components/ingestion/CatalogueConfirmationChip.jsx` - Confirmation UI

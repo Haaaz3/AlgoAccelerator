@@ -1,6 +1,7 @@
 package com.algoaccel.dto.request;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Request DTO for updating a component.
@@ -30,7 +31,10 @@ public record UpdateComponentRequest(
     List<String> tags,
 
     // Catalogue tags
-    List<String> catalogs
+    List<String> catalogs,
+
+    // Catalogue defaults (e.g., HEDIS collection type defaults)
+    Map<String, Object> catalogueDefaults
 ) {
 
     public record CodeRequest(

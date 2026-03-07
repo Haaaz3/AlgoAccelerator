@@ -55,6 +55,14 @@ public abstract class LibraryComponent extends AuditableEntity {
     private String catalogs;
 
     /**
+     * JSON object with catalogue-specific defaults for this component.
+     * Example: {"hedis": {"collectionType": "administrative", "hybridSourceFlag": false}}
+     * These defaults are used as initial values when adding components to measures.
+     */
+    @Column(name = "catalogue_defaults", columnDefinition = "TEXT")
+    private String catalogueDefaults;
+
+    /**
      * Get the discriminator value for this component type.
      */
     public abstract String getType();

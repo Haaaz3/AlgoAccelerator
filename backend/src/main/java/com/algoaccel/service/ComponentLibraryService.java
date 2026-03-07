@@ -399,6 +399,11 @@ public class ComponentLibraryService {
         if (updates.getCatalogs() != null) {
             existing.setCatalogs(updates.getCatalogs());
         }
+
+        // Merge catalogue defaults
+        if (updates.getCatalogueDefaults() != null) {
+            existing.setCatalogueDefaults(updates.getCatalogueDefaults());
+        }
     }
 
     private void calculateAndSetComplexity(LibraryComponent component) {
