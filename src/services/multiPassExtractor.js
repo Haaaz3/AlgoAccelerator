@@ -645,7 +645,13 @@ function buildLogicalClause(criteria     )                {
   };
 }
 
+const HEDIS_APPLICABLE_TYPES = ['encounter', 'procedure', 'laboratory', 'medication', 'diagnosis', 'condition'];
+
 function buildDataElement(raw     )              {
+  const elementType = (raw.type || 'observation').toLowerCase();
+  const hasHedisData = raw.collectionType !== undefined;
+  const isHedisApplicable = HEDIS_APPLICABLE_TYPES.includes(elementType);
+
   return {
     id: raw.id || `elem_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
     type: raw.type || 'observation',
@@ -661,6 +667,12 @@ function buildDataElement(raw     )              {
     negation: raw.negation || false,
     confidence: raw.confidence || 'medium',
     reviewStatus: 'pending',
+    ...(hasHedisData && isHedisApplicable ? {
+      hedis: {
+        collectionType: raw.collectionType || null,
+        hybridSourceFlag: raw.hybridSourceFlag || false,
+      }
+    } : {}),
   };
 }
 
