@@ -320,7 +320,7 @@ function computeSimilarity(incoming                 , existing                  
   }
 
   const incomingOid = incoming.valueSetOid ?? '';
-  const existingOid = existing.valueSet.oid;
+  const existingOid = existing.valueSet?.oid ?? '';
 
   // Different OID = completely different concept = 0 similarity
   if (!incomingOid || !existingOid || incomingOid !== existingOid) {
@@ -416,12 +416,13 @@ export function computeComponentDiff(
   if (existing.type === 'atomic') {
     // Compare value set OID
     const incomingOid = incoming.valueSetOid ?? '';
-    if (existing.valueSet.oid !== incomingOid) {
+    const existingVsOid = existing.valueSet?.oid ?? '';
+    if (existingVsOid !== incomingOid) {
       diffs.push({
         field: 'valueSet',
-        expected: existing.valueSet.oid,
+        expected: existingVsOid,
         actual: incomingOid,
-        description: `Value set OID differs: library has "${existing.valueSet.oid}", incoming has "${incomingOid}"`,
+        description: `Value set OID differs: library has "${existingVsOid}", incoming has "${incomingOid}"`,
       });
     }
 
@@ -554,11 +555,11 @@ export function areComponentsIdentical(a                  , b                  )
 export function getReadableIdentity(component                  )         {
   if (component.type === 'atomic') {
     const negPrefix = component.negation ? 'NOT ' : '';
-    const vsName = component.valueSet.name;
-    const oid = component.valueSet.oid;
-    const timingStr = component.timing.displayExpression || formatTiming(component.timing);
+    const vsName = component.valueSet?.name || component.name || 'Unknown';
+    const oid = component.valueSet?.oid || '';
+    const timingStr = component.timing?.displayExpression || formatTiming(component.timing) || '';
 
-    return `${negPrefix}${vsName} (${oid}) ${timingStr}`;
+    return `${negPrefix}${vsName}${oid ? ` (${oid})` : ''} ${timingStr}`.trim();
   } else {
     const childNames = component.children.map((c) => c.displayName).join(', ');
     return `${component.operator}(${childNames})`;
@@ -788,8 +789,8 @@ function findApprovedAlternative(
 
   for (const component of Object.values(library)) {
     if (component.type !== 'atomic') continue;
-    if (component.versionInfo.status !== 'approved') continue;
-    if (component.valueSet.oid === incoming.valueSetOid) {
+    if (component.versionInfo?.status !== 'approved') continue;
+    if (component.valueSet?.oid === incoming.valueSetOid) {
       return component;
     }
   }
@@ -830,8 +831,8 @@ export function validateMeasureComponents(
           // Check if there's an approved alternative
           const approvedAlt = Object.values(library).find(
             c => c.type === 'atomic' &&
-                 c.versionInfo.status === 'approved' &&
-                 (c                   ).valueSet.oid === element.valueSet?.oid
+                 c.versionInfo?.status === 'approved' &&
+                 (c                   ).valueSet?.oid === element.valueSet?.oid
           );
 
           if (approvedAlt) {
@@ -866,8 +867,8 @@ export function validateMeasureComponents(
       // Check if there's an approved component that should be used
       const approvedMatch = Object.values(library).find(
         c => c.type === 'atomic' &&
-             c.versionInfo.status === 'approved' &&
-             (c                   ).valueSet.oid === element.valueSet?.oid
+             c.versionInfo?.status === 'approved' &&
+             (c                   ).valueSet?.oid === element.valueSet?.oid
       );
 
       if (approvedMatch) {
