@@ -3508,61 +3508,69 @@ function NodeDetailPanel({
         )}
 
         {/* Editable Patient Sex (if demographic type with genderValue or sex-related description) */}
-        {(node.genderValue || node.type === 'demographic' && /sex|gender|male|female/i.test(node.description || '')) && (
-          <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Patient Sex</h4>
-              {editingField !== 'genderValue' && (
-                <button
-                  onClick={() => setEditingField('genderValue')}
-                  className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-            {editingField === 'genderValue' ? (
-              <div className="space-y-3">
-                <div className="flex gap-2">
+        {(() => {
+          // Get effective gender value from element or linked component
+          const effectiveGenderValue = node.genderValue || linkedComp?.genderValue || null;
+          const showGenderSection = effectiveGenderValue || (node.type === 'demographic' && /sex|gender|male|female/i.test(node.description || ''));
+
+          if (!showGenderSection) return null;
+
+          return (
+            <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border)]">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Patient Sex</h4>
+                {editingField !== 'genderValue' && (
                   <button
-                    type="button"
-                    onClick={() => saveGenderValue('male')}
-                    className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors border ${
-                      node.genderValue === 'male'
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border)] hover:border-blue-500/50'
-                    }`}
+                    onClick={() => setEditingField('genderValue')}
+                    className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors"
                   >
-                    Male
+                    <Edit3 className="w-3.5 h-3.5" />
                   </button>
+                )}
+              </div>
+              {editingField === 'genderValue' ? (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => saveGenderValue('male')}
+                      className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors border ${
+                        effectiveGenderValue === 'male'
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border)] hover:border-blue-500/50'
+                      }`}
+                    >
+                      Male
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveGenderValue('female')}
+                      className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors border ${
+                        effectiveGenderValue === 'female'
+                          ? 'bg-pink-500 text-white border-pink-500'
+                          : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border)] hover:border-pink-500/50'
+                      }`}
+                    >
+                      Female
+                    </button>
+                  </div>
                   <button
-                    type="button"
-                    onClick={() => saveGenderValue('female')}
-                    className={`flex-1 px-3 py-2 rounded-lg font-medium transition-colors border ${
-                      node.genderValue === 'female'
-                        ? 'bg-pink-500 text-white border-pink-500'
-                        : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] border-[var(--border)] hover:border-pink-500/50'
-                    }`}
+                    onClick={() => setEditingField(null)}
+                    className="w-full px-3 py-1.5 text-xs bg-[var(--bg-secondary)] text-[var(--text-muted)] rounded hover:text-[var(--text)]"
                   >
-                    Female
+                    Cancel
                   </button>
                 </div>
-                <button
-                  onClick={() => setEditingField(null)}
-                  className="w-full px-3 py-1.5 text-xs bg-[var(--bg-secondary)] text-[var(--text-muted)] rounded hover:text-[var(--text)]"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className={`text-lg font-bold ${node.genderValue === 'male' ? 'text-blue-400' : node.genderValue === 'female' ? 'text-pink-400' : 'text-[var(--text-muted)]'}`}>
-                  {node.genderValue ? node.genderValue.charAt(0).toUpperCase() + node.genderValue.slice(1) : 'Not specified'}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className={`text-lg font-bold ${effectiveGenderValue === 'male' ? 'text-blue-400' : effectiveGenderValue === 'female' ? 'text-pink-400' : 'text-[var(--text-muted)]'}`}>
+                    {effectiveGenderValue ? effectiveGenderValue.charAt(0).toUpperCase() + effectiveGenderValue.slice(1) : 'Not specified'}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ═══ VALUE SET & CLINICAL CODES ═══ */}
         {(() => {

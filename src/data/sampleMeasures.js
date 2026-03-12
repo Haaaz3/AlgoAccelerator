@@ -384,9 +384,9 @@ export function createSampleBreastCancerMeasure()                       {
             {
               id: 'ip-elem-0-sex',
               type: 'demographic',
-              description: 'Patient Sex: Female',
+              description: 'Patient sex: Female',
               genderValue: 'female',
-              libraryComponentId: 'patient-sex-female',
+              libraryComponentId: 'patient-sex-female-generic',
               confidence: 'high',
               source: 'Sample',
               reviewStatus: 'approved',
@@ -630,9 +630,9 @@ export function createSampleCervicalCancerMeasure()                       {
             {
               id: 'ip-elem-0-sex',
               type: 'demographic',
-              description: 'Patient Sex: Female',
+              description: 'Patient sex: Female',
               genderValue: 'female',
-              libraryComponentId: 'patient-sex-female',
+              libraryComponentId: 'patient-sex-female-generic',
               confidence: 'high',
               source: 'Sample',
               reviewStatus: 'approved',
