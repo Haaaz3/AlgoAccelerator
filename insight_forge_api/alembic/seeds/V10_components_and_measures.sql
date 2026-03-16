@@ -1171,112 +1171,112 @@ VALUES ('cms165-num', 'cms165-v12', 'NUMERATOR', 'Blood pressure adequately cont
 -- ============================================================================
 
 -- CMS2 Data Elements
-INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, display_order, created_at, created_by, updated_at, updated_by)
+INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, negation, display_order, created_at, created_by, updated_at, updated_by)
 VALUES
-('cms2-ip-age', 'cms2-ip-root', 'DEMOGRAPHIC', 'Patient age 12 or older', 'age-12-plus', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms2-ip-enc', 'cms2-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms2-denex-bipolar', 'cms2-denex-root', 'DIAGNOSIS', 'Bipolar disorder diagnosis', 'cms2-bipolar-diagnosis', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms2-num-neg', 'cms2-num-root', 'OBSERVATION', 'Negative depression screening', 'cms2-negative-depression-finding', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms2-num-pos', 'cms2-num-root', 'OBSERVATION', 'Positive depression screening with follow-up', 'cms2-positive-depression-finding', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms2-denexcep-medical', 'cms2-denexcep-root', 'OBSERVATION', 'Screening not done - medical reason', 'cms2-not-done-medical', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms2-denexcep-patient', 'cms2-denexcep-root', 'OBSERVATION', 'Screening not done - patient reason', 'cms2-not-done-patient', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
+('cms2-ip-age', 'cms2-ip-root', 'DEMOGRAPHIC', 'Patient age 12 or older', 'age-12-plus', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms2-ip-enc', 'cms2-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms2-denex-bipolar', 'cms2-denex-root', 'DIAGNOSIS', 'Bipolar disorder diagnosis', 'cms2-bipolar-diagnosis', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms2-num-neg', 'cms2-num-root', 'OBSERVATION', 'Negative depression screening', 'cms2-negative-depression-finding', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms2-num-pos', 'cms2-num-root', 'OBSERVATION', 'Positive depression screening with follow-up', 'cms2-positive-depression-finding', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms2-denexcep-medical', 'cms2-denexcep-root', 'OBSERVATION', 'Screening not done - medical reason', 'cms2-not-done-medical', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms2-denexcep-patient', 'cms2-denexcep-root', 'OBSERVATION', 'Screening not done - patient reason', 'cms2-not-done-patient', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
 
 -- CMS69 Data Elements
-INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, display_order, created_at, created_by, updated_at, updated_by)
+INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, negation, display_order, created_at, created_by, updated_at, updated_by)
 VALUES
-('cms69-ip-age', 'cms69-ip-root', 'DEMOGRAPHIC', 'Patient age 18 or older', 'age-18-plus', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms69-ip-enc', 'cms69-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms69-denex-preg', 'cms69-denex-root', 'DIAGNOSIS', 'Pregnancy diagnosis', 'excl-pregnancy', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms69-denex-pall', 'cms69-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms69-num-bmi', 'cms69-num-root', 'OBSERVATION', 'BMI measurement documented', 'cms69-bmi-measurement', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms69-num-followup', 'cms69-num-root', 'PROCEDURE', 'Follow-up plan for abnormal BMI', 'cms69-followup-plan', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms69-denexcep-medical', 'cms69-denexcep-root', 'OBSERVATION', 'BMI not done - medical reason', 'cms69-not-done-medical', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms69-denexcep-patient', 'cms69-denexcep-root', 'OBSERVATION', 'BMI not done - patient reason', 'cms69-not-done-patient', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
+('cms69-ip-age', 'cms69-ip-root', 'DEMOGRAPHIC', 'Patient age 18 or older', 'age-18-plus', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms69-ip-enc', 'cms69-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms69-denex-preg', 'cms69-denex-root', 'DIAGNOSIS', 'Pregnancy diagnosis', 'excl-pregnancy', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms69-denex-pall', 'cms69-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms69-num-bmi', 'cms69-num-root', 'OBSERVATION', 'BMI measurement documented', 'cms69-bmi-measurement', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms69-num-followup', 'cms69-num-root', 'PROCEDURE', 'Follow-up plan for abnormal BMI', 'cms69-followup-plan', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms69-denexcep-medical', 'cms69-denexcep-root', 'OBSERVATION', 'BMI not done - medical reason', 'cms69-not-done-medical', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms69-denexcep-patient', 'cms69-denexcep-root', 'OBSERVATION', 'BMI not done - patient reason', 'cms69-not-done-patient', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
 
 -- CMS122 Data Elements
-INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, display_order, created_at, created_by, updated_at, updated_by)
+INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, negation, display_order, created_at, created_by, updated_at, updated_by)
 VALUES
-('cms122-ip-age', 'cms122-ip-root', 'DEMOGRAPHIC', 'Patient age 18-75', 'age-18-75', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms122-ip-dm', 'cms122-ip-root', 'DIAGNOSIS', 'Diabetes diagnosis', 'cms122-diabetes-dx', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms122-ip-enc', 'cms122-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms122-denex-hospice', 'cms122-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms122-denex-pall', 'cms122-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms122-denex-adv', 'cms122-denex-root', 'DIAGNOSIS', 'Advanced illness', 'excl-advanced-illness', 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms122-num-hba1c', 'cms122-num-root', 'OBSERVATION', 'HbA1c > 9% or no test', 'cms122-hba1c-poor-control', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
+('cms122-ip-age', 'cms122-ip-root', 'DEMOGRAPHIC', 'Patient age 18-75', 'age-18-75', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms122-ip-dm', 'cms122-ip-root', 'DIAGNOSIS', 'Diabetes diagnosis', 'cms122-diabetes-dx', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms122-ip-enc', 'cms122-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 0, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms122-denex-hospice', 'cms122-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms122-denex-pall', 'cms122-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms122-denex-adv', 'cms122-denex-root', 'DIAGNOSIS', 'Advanced illness', 'excl-advanced-illness', 0, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms122-num-hba1c', 'cms122-num-root', 'OBSERVATION', 'HbA1c > 9% or no test', 'cms122-hba1c-poor-control', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
 
 -- CMS124 Data Elements
-INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, gender_value, display_order, created_at, created_by, updated_at, updated_by)
+INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, negation, gender_value, display_order, created_at, created_by, updated_at, updated_by)
 VALUES
-('cms124-ip-sex', 'cms124-ip-root', 'DEMOGRAPHIC', 'Patient sex: Female', 'patient-sex-female', 'FEMALE', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms124-ip-age', 'cms124-ip-root', 'DEMOGRAPHIC', 'Patient age 21-64', 'age-21-64', NULL, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms124-ip-enc', 'cms124-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', NULL, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms124-denex-hyst', 'cms124-denex-root', 'PROCEDURE', 'Hysterectomy with no residual cervix', 'cms124-hysterectomy', NULL, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms124-denex-hospice', 'cms124-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', NULL, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms124-denex-pall', 'cms124-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', NULL, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms124-num-pap', 'cms124-num-root', 'PROCEDURE', 'Pap test within 3 years', 'cms124-pap-test', NULL, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms124-num-hpv', 'cms124-num-root', 'PROCEDURE', 'HPV test within 5 years (age 30+)', 'cms124-hpv-test', NULL, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
+('cms124-ip-sex', 'cms124-ip-root', 'DEMOGRAPHIC', 'Patient sex: Female', 'patient-sex-female', 0, 'FEMALE', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms124-ip-age', 'cms124-ip-root', 'DEMOGRAPHIC', 'Patient age 21-64', 'age-21-64', 0, NULL, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms124-ip-enc', 'cms124-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 0, NULL, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms124-denex-hyst', 'cms124-denex-root', 'PROCEDURE', 'Hysterectomy with no residual cervix', 'cms124-hysterectomy', 0, NULL, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms124-denex-hospice', 'cms124-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', 0, NULL, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms124-denex-pall', 'cms124-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', 0, NULL, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms124-num-pap', 'cms124-num-root', 'PROCEDURE', 'Pap test within 3 years', 'cms124-pap-test', 0, NULL, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms124-num-hpv', 'cms124-num-root', 'PROCEDURE', 'HPV test within 5 years (age 30+)', 'cms124-hpv-test', 0, NULL, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
 
 -- CMS125 Data Elements
-INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, gender_value, display_order, created_at, created_by, updated_at, updated_by)
+INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, negation, gender_value, display_order, created_at, created_by, updated_at, updated_by)
 VALUES
-('cms125-ip-sex', 'cms125-ip-root', 'DEMOGRAPHIC', 'Patient sex: Female', 'patient-sex-female', 'FEMALE', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms125-ip-age', 'cms125-ip-root', 'DEMOGRAPHIC', 'Patient age 52-74', 'age-52-74', NULL, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms125-ip-enc', 'cms125-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', NULL, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms125-denex-bilat', 'cms125-denex-root', 'PROCEDURE', 'Bilateral mastectomy', 'cms125-bilateral-mastectomy', NULL, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms125-denex-unilat', 'cms125-denex-root', 'PROCEDURE', 'Unilateral mastectomy (both sides)', 'cms125-unilateral-mastectomy', NULL, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms125-denex-hospice', 'cms125-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', NULL, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms125-denex-pall', 'cms125-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', NULL, 3, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms125-denex-adv', 'cms125-denex-root', 'DIAGNOSIS', 'Advanced illness', 'excl-advanced-illness', NULL, 4, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms125-num-mammo', 'cms125-num-root', 'PROCEDURE', 'Mammography within 27 months', 'cms125-mammography', NULL, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
+('cms125-ip-sex', 'cms125-ip-root', 'DEMOGRAPHIC', 'Patient sex: Female', 'patient-sex-female', 0, 'FEMALE', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms125-ip-age', 'cms125-ip-root', 'DEMOGRAPHIC', 'Patient age 52-74', 'age-52-74', 0, NULL, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms125-ip-enc', 'cms125-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 0, NULL, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms125-denex-bilat', 'cms125-denex-root', 'PROCEDURE', 'Bilateral mastectomy', 'cms125-bilateral-mastectomy', 0, NULL, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms125-denex-unilat', 'cms125-denex-root', 'PROCEDURE', 'Unilateral mastectomy (both sides)', 'cms125-unilateral-mastectomy', 0, NULL, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms125-denex-hospice', 'cms125-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', 0, NULL, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms125-denex-pall', 'cms125-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', 0, NULL, 3, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms125-denex-adv', 'cms125-denex-root', 'DIAGNOSIS', 'Advanced illness', 'excl-advanced-illness', 0, NULL, 4, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms125-num-mammo', 'cms125-num-root', 'PROCEDURE', 'Mammography within 27 months', 'cms125-mammography', 0, NULL, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
 
 -- CMS127 Data Elements
-INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, display_order, created_at, created_by, updated_at, updated_by)
+INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, negation, display_order, created_at, created_by, updated_at, updated_by)
 VALUES
-('cms127-ip-age', 'cms127-ip-root', 'DEMOGRAPHIC', 'Patient age 65 or older', 'age-65-plus', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms127-ip-enc', 'cms127-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms127-denex-hospice', 'cms127-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms127-denex-immuno', 'cms127-denex-root', 'DIAGNOSIS', 'Immunocompromised conditions', 'cms127-immunocompromised', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms127-num-vaccine', 'cms127-num-root', 'IMMUNIZATION', 'Pneumococcal vaccine administered', 'cms127-pneumo-vaccine', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms127-num-history', 'cms127-num-root', 'OBSERVATION', 'Pneumococcal vaccination history', 'cms127-pneumo-history', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
+('cms127-ip-age', 'cms127-ip-root', 'DEMOGRAPHIC', 'Patient age 65 or older', 'age-65-plus', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms127-ip-enc', 'cms127-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms127-denex-hospice', 'cms127-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms127-denex-immuno', 'cms127-denex-root', 'DIAGNOSIS', 'Immunocompromised conditions', 'cms127-immunocompromised', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms127-num-vaccine', 'cms127-num-root', 'IMMUNIZATION', 'Pneumococcal vaccine administered', 'cms127-pneumo-vaccine', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms127-num-history', 'cms127-num-root', 'OBSERVATION', 'Pneumococcal vaccination history', 'cms127-pneumo-history', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
 
 -- CMS130 Data Elements
-INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, display_order, created_at, created_by, updated_at, updated_by)
+INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, negation, display_order, created_at, created_by, updated_at, updated_by)
 VALUES
-('cms130-ip-age', 'cms130-ip-root', 'DEMOGRAPHIC', 'Patient age 45-75', 'age-45-75', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms130-ip-enc', 'cms130-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms130-denex-crc', 'cms130-denex-root', 'DIAGNOSIS', 'Colorectal cancer diagnosis', 'cms130-crc-diagnosis', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms130-denex-colect', 'cms130-denex-root', 'PROCEDURE', 'Total colectomy', 'cms130-total-colectomy', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms130-denex-hospice', 'cms130-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms130-denex-pall', 'cms130-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', 3, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms130-num-colon', 'cms130-num-root', 'PROCEDURE', 'Colonoscopy within 10 years', 'cms130-colonoscopy', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms130-num-fobt', 'cms130-num-root', 'OBSERVATION', 'FIT/FOBT within 1 year', 'cms130-fobt', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms130-num-sig', 'cms130-num-root', 'PROCEDURE', 'Flexible sigmoidoscopy within 5 years', 'cms130-sigmoidoscopy', 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms130-num-fitdna', 'cms130-num-root', 'OBSERVATION', 'FIT-DNA within 3 years', 'cms130-fitdna', 3, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
+('cms130-ip-age', 'cms130-ip-root', 'DEMOGRAPHIC', 'Patient age 45-75', 'age-45-75', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms130-ip-enc', 'cms130-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms130-denex-crc', 'cms130-denex-root', 'DIAGNOSIS', 'Colorectal cancer diagnosis', 'cms130-crc-diagnosis', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms130-denex-colect', 'cms130-denex-root', 'PROCEDURE', 'Total colectomy', 'cms130-total-colectomy', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms130-denex-hospice', 'cms130-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', 0, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms130-denex-pall', 'cms130-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', 0, 3, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms130-num-colon', 'cms130-num-root', 'PROCEDURE', 'Colonoscopy within 10 years', 'cms130-colonoscopy', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms130-num-fobt', 'cms130-num-root', 'OBSERVATION', 'FIT/FOBT within 1 year', 'cms130-fobt', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms130-num-sig', 'cms130-num-root', 'PROCEDURE', 'Flexible sigmoidoscopy within 5 years', 'cms130-sigmoidoscopy', 0, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms130-num-fitdna', 'cms130-num-root', 'OBSERVATION', 'FIT-DNA within 3 years', 'cms130-fitdna', 0, 3, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
 
 -- CMS138 Data Elements
-INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, display_order, created_at, created_by, updated_at, updated_by)
+INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, negation, display_order, created_at, created_by, updated_at, updated_by)
 VALUES
-('cms138-ip-age', 'cms138-ip-root', 'DEMOGRAPHIC', 'Patient age 18 or older', 'age-18-plus', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms138-ip-enc', 'cms138-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms138-denexcep-medical', 'cms138-denexcep-root', 'OBSERVATION', 'Tobacco screening not done - medical reason', 'cms138-not-done-medical', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms138-denexcep-life', 'cms138-denexcep-root', 'DIAGNOSIS', 'Limited life expectancy', 'cms138-limited-life', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms138-num-screen', 'cms138-num-root', 'OBSERVATION', 'Tobacco use screening', 'cms138-tobacco-screening', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms138-num-counsel', 'cms138-num-root', 'PROCEDURE', 'Tobacco cessation counseling', 'cms138-cessation-counseling', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms138-num-med', 'cms138-num-root', 'MEDICATION', 'Tobacco cessation medication', 'cms138-cessation-medication', 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
+('cms138-ip-age', 'cms138-ip-root', 'DEMOGRAPHIC', 'Patient age 18 or older', 'age-18-plus', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms138-ip-enc', 'cms138-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms138-denexcep-medical', 'cms138-denexcep-root', 'OBSERVATION', 'Tobacco screening not done - medical reason', 'cms138-not-done-medical', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms138-denexcep-life', 'cms138-denexcep-root', 'DIAGNOSIS', 'Limited life expectancy', 'cms138-limited-life', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms138-num-screen', 'cms138-num-root', 'OBSERVATION', 'Tobacco use screening', 'cms138-tobacco-screening', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms138-num-counsel', 'cms138-num-root', 'PROCEDURE', 'Tobacco cessation counseling', 'cms138-cessation-counseling', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms138-num-med', 'cms138-num-root', 'MEDICATION', 'Tobacco cessation medication', 'cms138-cessation-medication', 0, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
 
 -- CMS165 Data Elements
-INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, display_order, created_at, created_by, updated_at, updated_by)
+INSERT INTO data_element (id, clause_id, element_type, description, library_component_id, negation, display_order, created_at, created_by, updated_at, updated_by)
 VALUES
-('cms165-ip-age', 'cms165-ip-root', 'DEMOGRAPHIC', 'Patient age 18-85', 'age-18-85', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms165-ip-htn', 'cms165-ip-root', 'DIAGNOSIS', 'Essential hypertension diagnosis', 'cms165-hypertension-dx', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms165-ip-enc', 'cms165-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms165-denex-preg', 'cms165-denex-root', 'DIAGNOSIS', 'Pregnancy', 'excl-pregnancy', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms165-denex-esrd', 'cms165-denex-root', 'DIAGNOSIS', 'ESRD diagnosis', 'cms165-esrd', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms165-denex-transplant', 'cms165-denex-root', 'PROCEDURE', 'Kidney transplant', 'cms165-kidney-transplant', 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms165-denex-hospice', 'cms165-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', 3, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms165-denex-pall', 'cms165-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', 4, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms165-num-sys', 'cms165-num-root', 'OBSERVATION', 'Systolic BP < 140', 'cms165-systolic-controlled', 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
-('cms165-num-dia', 'cms165-num-root', 'OBSERVATION', 'Diastolic BP < 90', 'cms165-diastolic-controlled', 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
+('cms165-ip-age', 'cms165-ip-root', 'DEMOGRAPHIC', 'Patient age 18-85', 'age-18-85', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms165-ip-htn', 'cms165-ip-root', 'DIAGNOSIS', 'Essential hypertension diagnosis', 'cms165-hypertension-dx', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms165-ip-enc', 'cms165-ip-root', 'ENCOUNTER', 'Qualifying encounter during measurement period', 'enc-office-visit', 0, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms165-denex-preg', 'cms165-denex-root', 'DIAGNOSIS', 'Pregnancy', 'excl-pregnancy', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms165-denex-esrd', 'cms165-denex-root', 'DIAGNOSIS', 'ESRD diagnosis', 'cms165-esrd', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms165-denex-transplant', 'cms165-denex-root', 'PROCEDURE', 'Kidney transplant', 'cms165-kidney-transplant', 0, 2, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms165-denex-hospice', 'cms165-denex-root', 'ENCOUNTER', 'Hospice care', 'excl-hospice', 0, 3, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms165-denex-pall', 'cms165-denex-root', 'ENCOUNTER', 'Palliative care', 'excl-palliative', 0, 4, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms165-num-sys', 'cms165-num-root', 'OBSERVATION', 'Systolic BP < 140', 'cms165-systolic-controlled', 0, 0, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system'),
+('cms165-num-dia', 'cms165-num-root', 'OBSERVATION', 'Diastolic BP < 90', 'cms165-diastolic-controlled', 0, 1, CURRENT_TIMESTAMP, 'system', CURRENT_TIMESTAMP, 'system');
 
 -- ============================================================================
 -- SECTION 5: VALUE SETS (Representative codes for key value sets)
@@ -1308,7 +1308,7 @@ CROSS JOIN (
     UNION ALL SELECT '99214', 'CPT', 'Office visit, established patient, high complexity'
     UNION ALL SELECT '99215', 'CPT', 'Office visit, established patient, comprehensive'
 ) c
-WHERE m.id = 'cms130-v12';  -- Just create codes for one measure as reference
+WHERE m.id = 'cms130-v12';
 
 -- Hospice Value Set
 INSERT INTO measure_value_set (id, measure_id, oid, name, version, publisher, verified)

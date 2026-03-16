@@ -166,8 +166,15 @@ async def seed_database(session: AsyncSession) -> None:
                 await session.execute(text(stmt))
                 executed += 1
             except Exception as e:
-                # Log but continue - some statements might fail due to duplicates
-                logger.warning(f"Statement failed (may be duplicate): {str(e)[:100]}")
+                error_str = str(e)
+                # Skip duplicate key errors (idempotent seeding)
+                if "UNIQUE constraint failed" in error_str or "duplicate key" in error_str.lower():
+                    logger.debug(f"Skipping duplicate: {stmt[:80]}...")
+                else:
+                    # Log other errors clearly
+                    logger.error(f"Seed statement failed: {error_str}")
+                    logger.error(f"Failed SQL: {stmt[:200]}...")
+                    raise
 
         await session.commit()
         logger.info(f"V10 seed data committed ({executed} statements executed)")
