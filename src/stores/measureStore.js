@@ -203,18 +203,35 @@ export const useMeasureStore = create              ()(
             return true;
           });
 
-          // Replace backend measures with local versions if they exist (backend 403 workaround)
-          // Local versions have enriched data from successful imports
+          // Only use localStorage if backend data has no criteria
+          // Backend now returns full population trees, so prefer backend data
           validMeasures = validMeasures.map(m => {
+            // Check if backend measure has populated criteria
+            const hasBackendCriteria = m.populations?.some(p =>
+              p.criteria?.children?.length > 0
+            );
+
+            if (hasBackendCriteria) {
+              // Backend has data - use it, clear stale localStorage
+              const localKey = `measure-local-${m.metadata.measureId}`;
+              if (localStorage.getItem(localKey)) {
+                console.log(`[measureStore] Backend has data for ${m.metadata.measureId}, clearing stale localStorage`);
+                localStorage.removeItem(localKey);
+              }
+              return m;
+            }
+
+            // Backend has no criteria - fall back to localStorage if available
             const localVersionJson = localStorage.getItem(`measure-local-${m.metadata.measureId}`);
             if (localVersionJson) {
               try {
                 const localMeasure = JSON.parse(localVersionJson);
-                // Debug: log numerator criteria count to help diagnose stale cache issues
                 const numeratorPop = localMeasure.populations?.find(p => p.type === 'numerator');
                 const criteriaCount = numeratorPop?.criteria?.children?.length || 0;
-                console.log(`[measureStore] Using local version of ${m.metadata.measureId} (numerator has ${criteriaCount} criteria)`);
-                return localMeasure                        ;
+                if (criteriaCount > 0) {
+                  console.log(`[measureStore] Using local version of ${m.metadata.measureId} (numerator has ${criteriaCount} criteria)`);
+                  return localMeasure;
+                }
               } catch (e) {
                 console.error(`[measureStore] Failed to parse local measure ${m.metadata.measureId}:`, e);
               }
