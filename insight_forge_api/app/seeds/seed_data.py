@@ -3,30 +3,27 @@ Seed initial data for Insight Forge.
 Ported from Spring Boot Flyway migrations V9 and V10.
 """
 import logging
-from datetime import date, datetime
-from typing import Optional
+import os
+from datetime import date
+from pathlib import Path
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.component import LibraryComponent
-from app.models.measure import (
-    DataElement,
-    LogicalClause,
-    Measure,
-    MeasureValueSet,
-    Population,
-    ValueSetCode,
-)
 from app.models.validation import TestPatient
 
 logger = logging.getLogger(__name__)
+
+# Path to the V10 SQL seed file
+SEEDS_DIR = Path(__file__).parent.parent.parent / "alembic" / "seeds"
+V10_SQL_FILE = SEEDS_DIR / "V10_components_and_measures.sql"
 
 
 async def check_seeds_needed(session: AsyncSession) -> bool:
     """Check if seeds have already been applied."""
     result = await session.execute(
-        select(LibraryComponent).where(LibraryComponent.id == "age-65-plus")
+        select(LibraryComponent).where(LibraryComponent.id == "age-12-plus")
     )
     return result.scalar_one_or_none() is None
 
@@ -41,10 +38,10 @@ async def seed_database(session: AsyncSession) -> None:
     logger.info("Seeding database with initial data...")
 
     # =========================================================================
-    # V9: Basic components and test patient
+    # V9: Basic patient sex components and test patient
     # =========================================================================
 
-    # Patient Sex components
+    # Patient Sex components (from V9, not in V10)
     session.add(LibraryComponent(
         id="patient-sex-female",
         component_type="atomic",
@@ -132,128 +129,49 @@ async def seed_database(session: AsyncSession) -> None:
         immunizations="[]",
     ))
 
-    # =========================================================================
-    # V10: Age components
-    # =========================================================================
-
-    age_components = [
-        ("age-12-plus", "Age 12 and Older", "Patient age is 12 years or older during the measurement period", 1),
-        ("age-18-plus", "Age 18 and Older", "Patient age is 18 years or older during the measurement period", 4),
-        ("age-18-64", "Age 18-64 Years", "Patient age is between 18 and 64 years during the measurement period", 1),
-        ("age-18-75", "Age 18-75 Years", "Patient age is between 18 and 75 years during the measurement period", 1),
-        ("age-18-85", "Age 18-85 Years", "Patient age is between 18 and 85 years during the measurement period", 1),
-        ("age-21-64", "Age 21-64 Years", "Patient age is between 21 and 64 years during the measurement period", 1),
-        ("age-45-75", "Age 45-75 Years", "Patient age is between 45 and 75 years during the measurement period", 1),
-        ("age-52-74", "Age 52-74 Years", "Patient age is between 52 and 74 years during the measurement period", 1),
-    ]
-
-    for comp_id, name, desc, usage in age_components:
-        session.add(LibraryComponent(
-            id=comp_id,
-            component_type="atomic",
-            name=name,
-            description=desc,
-            complexity_level="LOW",
-            complexity_score=1,
-            version_id="1.0",
-            version_status="APPROVED",
-            category="DEMOGRAPHICS",
-            category_auto_assigned=False,
-            source_origin="ecqi",
-            negation=False,
-            resource_type="Patient",
-            usage_count=usage,
-            created_by="system",
-            updated_by="system",
-        ))
-
-    # =========================================================================
-    # V10: Encounter components
-    # =========================================================================
-
-    encounter_components = [
-        ("enc-office-visit", "Qualifying Encounter: Office Visit", "Office visit encounter during the measurement period",
-         "2.16.840.1.113883.3.464.1003.101.12.1001", "Office Visit", "Encounter", 9),
-        ("enc-preventive-care", "Qualifying Encounter: Preventive Care", "Preventive care services encounter during the measurement period",
-         "2.16.840.1.113883.3.464.1003.101.12.1027", "Preventive Care Services - Established Office Visit, 18 and Up", "Encounter", 6),
-        ("enc-telehealth", "Qualifying Encounter: Telehealth", "Telehealth or virtual encounter during the measurement period",
-         "2.16.840.1.113883.3.464.1003.101.12.1089", "Online Assessments", "Encounter", 3),
-        ("enc-psych-visit", "Qualifying Encounter: Psych Visit", "Psychiatric or mental health encounter during the measurement period",
-         "2.16.840.1.113883.3.526.3.1492", "Outpatient Consultation", "Encounter", 1),
-        ("enc-annual-wellness", "Annual Wellness Visit", "Annual wellness visit during the measurement period",
-         "2.16.840.1.113883.3.526.3.1240", "Annual Wellness Visit", "Encounter", 6),
-    ]
-
-    for comp_id, name, desc, oid, vs_name, resource, usage in encounter_components:
-        session.add(LibraryComponent(
-            id=comp_id,
-            component_type="atomic",
-            name=name,
-            description=desc,
-            complexity_level="LOW",
-            complexity_score=1,
-            version_id="1.0",
-            version_status="APPROVED",
-            category="ENCOUNTERS",
-            category_auto_assigned=False,
-            source_origin="ecqi",
-            value_set_oid=oid,
-            value_set_name=vs_name,
-            value_set_version="20240101",
-            timing_operator="DURING",
-            timing_reference="Measurement Period",
-            timing_display="during Measurement Period",
-            negation=False,
-            resource_type=resource,
-            usage_count=usage,
-            created_by="system",
-            updated_by="system",
-        ))
-
-    # =========================================================================
-    # V10: Exclusion components
-    # =========================================================================
-
-    exclusion_components = [
-        ("excl-hospice", "Hospice Care Exclusion", "Patient receiving hospice care services - common exclusion across quality measures",
-         "2.16.840.1.113883.3.526.3.1584", "Hospice Care Ambulatory", "Encounter", 6, "LOW", 1),
-        ("excl-palliative", "Palliative Care Exclusion", "Patient receiving palliative care services",
-         "2.16.840.1.113883.3.464.1003.101.12.1090", "Palliative Care Encounter", "Encounter", 5, "LOW", 1),
-        ("excl-advanced-illness", "Advanced Illness Exclusion", "Patient with advanced illness and frailty",
-         "2.16.840.1.113883.3.464.1003.111.12.1059", "Advanced Illness", "Condition", 2, "MEDIUM", 2),
-        ("excl-pregnancy", "Pregnancy Exclusion", "Patient with active pregnancy diagnosis",
-         "2.16.840.1.113883.3.526.3.378", "Pregnancy", "Condition", 2, "LOW", 1),
-    ]
-
-    for comp_id, name, desc, oid, vs_name, resource, usage, complexity, score in exclusion_components:
-        session.add(LibraryComponent(
-            id=comp_id,
-            component_type="atomic",
-            name=name,
-            description=desc,
-            complexity_level=complexity,
-            complexity_score=score,
-            version_id="1.0",
-            version_status="APPROVED",
-            category="EXCLUSIONS",
-            category_auto_assigned=False,
-            source_origin="ecqi",
-            value_set_oid=oid,
-            value_set_name=vs_name,
-            value_set_version="20240101",
-            timing_operator="DURING",
-            timing_reference="Measurement Period",
-            timing_display="during Measurement Period",
-            negation=False,
-            resource_type=resource,
-            usage_count=usage,
-            created_by="system",
-            updated_by="system",
-        ))
-
+    # Commit V9 data first
     await session.commit()
-    logger.info("Initial seed data committed successfully")
+    logger.info("V9 seed data (patient sex components and test patient) committed")
 
-    # Note: The full V10 with all 9 measures, populations, clauses, and data elements
-    # is very large (1300+ lines of SQL). For the full seed, run the SQL file directly
-    # or import measures via the UI. The above seeds the core component library.
+    # =========================================================================
+    # V10: Full component library and 9 measures via SQL file
+    # =========================================================================
+
+    if V10_SQL_FILE.exists():
+        logger.info(f"Loading V10 seeds from {V10_SQL_FILE}")
+        sql_content = V10_SQL_FILE.read_text()
+
+        # Split into individual statements and execute
+        # Filter out comments and empty lines
+        statements = []
+        current_stmt = []
+
+        for line in sql_content.split('\n'):
+            stripped = line.strip()
+            # Skip comment-only lines
+            if stripped.startswith('--') or not stripped:
+                continue
+            current_stmt.append(line)
+            # Check if this line ends a statement
+            if stripped.endswith(';'):
+                full_stmt = '\n'.join(current_stmt)
+                statements.append(full_stmt)
+                current_stmt = []
+
+        logger.info(f"Executing {len(statements)} SQL statements from V10")
+
+        executed = 0
+        for stmt in statements:
+            try:
+                await session.execute(text(stmt))
+                executed += 1
+            except Exception as e:
+                # Log but continue - some statements might fail due to duplicates
+                logger.warning(f"Statement failed (may be duplicate): {str(e)[:100]}")
+
+        await session.commit()
+        logger.info(f"V10 seed data committed ({executed} statements executed)")
+    else:
+        logger.warning(f"V10 SQL file not found at {V10_SQL_FILE}")
+
+    logger.info("Database seeding complete")
