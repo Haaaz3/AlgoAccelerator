@@ -12,13 +12,13 @@ This document provides essential context for Claude Code sessions working on Ins
 
 ```bash
 # Frontend (React + Vite)
-npm install
-npm run dev
+npm install && npm run dev
 # Runs at http://localhost:5173
 
-# Backend (FastAPI)
+# Backend (FastAPI — replaces Spring Boot)
 cd insight_forge_api
-source venv/bin/activate
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 # Runs at http://localhost:8000
 ```
@@ -27,49 +27,67 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 18, TypeScript, Vite 7, Tailwind CSS 4, Zustand 5 |
-| Backend | FastAPI, Python 3.9+, SQLAlchemy 2.0 async, SQLite (dev) / Oracle (prod) |
+| Frontend | React 18, JavaScript (JSX), Vite, Zustand 5, Tailwind CSS 4 |
+| Backend | FastAPI, Python 3.9+, SQLAlchemy 2.0 async, Alembic, aiosqlite (dev) / Oracle (prod) |
 | AI Providers | Anthropic Claude, OpenAI GPT, Google Gemini |
 | Deployment | Frontend: Vercel, Backend: Railway |
 
 ## Project Structure
 
 ```
-src/
-├── components/           # React UI components
-│   ├── copilot/         # AND/OR.ai Co-Pilot chat interface
-│   ├── ingestion/       # Document import UI (CatalogueConfirmationChip)
-│   ├── layout/          # App shell (Sidebar)
-│   ├── library/         # Component Library UI
-│   ├── measure/         # UMS Editor, MeasureLibrary, CodeGeneration
-│   ├── settings/        # Settings page with feedback dashboard
-│   ├── validation/      # Test patient validation
-│   └── valueset/        # Value set management
-├── services/            # Business logic and generators
-│   ├── measureIngestion.ts   # Document parsing
-│   ├── cqlGenerator.ts       # CQL code generation
-│   ├── hdiSqlGenerator.ts    # SQL code generation
-│   ├── copilotService.ts     # AI Co-Pilot context
-│   └── extractionService.js  # AI extraction with feedback
-├── stores/              # Zustand state management
-│   ├── measureStore.js       # Measures, active tab, code overrides
-│   ├── componentLibraryStore.js  # Reusable components
-│   ├── feedbackStore.js      # Extraction corrections
-│   └── settingsStore.js      # User preferences, API keys
-├── utils/               # Utility functions
-│   └── catalogueClassifier.js # Document type detection
-├── api/                 # Backend API clients
-│   └── classifierFeedback.js  # Classifier feedback API
-└── types/               # TypeScript definitions
+insight_forge_api/          # FastAPI backend
+├── app/
+│   ├── main.py             # FastAPI app, CORS, lifespan, router includes
+│   ├── config.py           # Settings (pydantic-settings, reads .env)
+│   ├── database.py         # SQLAlchemy async engine, session factory
+│   ├── dependencies.py     # Auth dependency injection
+│   ├── deps.py             # DB session dependency (DbSession type)
+│   ├── models/             # SQLAlchemy ORM models
+│   ├── schemas/            # Pydantic request/response models
+│   ├── routers/            # FastAPI route handlers
+│   ├── services/           # Business logic
+│   └── seeds/
+│       └── seed_data.py    # Runs on startup: 9 measures + 66 components
+├── alembic/                # Database migrations
+│   ├── versions/           # Migration files
+│   └── seeds/
+│       ├── V10_components_and_measures.sql  # eCQM seed SQL
+│       └── hcc_archived/   # HCC module SQL + Java source for Oracle team
+├── data/
+│   └── insightforge.db     # SQLite database (dev, gitignored)
+├── requirements.txt
+└── .env.example
 
-backend/
-├── src/main/java/com/algoaccel/
-│   ├── controller/      # REST endpoints
-│   ├── service/         # Business logic
-│   ├── model/           # JPA entities
-│   └── repository/      # Spring Data repositories
-└── src/main/resources/
-    └── db/migration/    # Flyway migrations
+src/                        # React frontend
+├── components/             # React UI components
+│   ├── copilot/           # AND/OR.ai Co-Pilot chat interface
+│   ├── ingestion/         # Document import UI (CatalogueConfirmationChip)
+│   ├── layout/            # App shell (Sidebar)
+│   ├── library/           # Component Library UI
+│   ├── measure/           # UMS Editor, MeasureLibrary, CodeGeneration
+│   ├── settings/          # Settings page with feedback dashboard
+│   ├── validation/        # Test patient validation
+│   └── valueset/          # Value set management
+├── services/              # Business logic and generators
+│   ├── measureIngestion.ts    # Document parsing
+│   ├── cqlGenerator.ts        # CQL code generation
+│   ├── hdiSqlGenerator.ts     # SQL code generation
+│   ├── copilotService.ts      # AI Co-Pilot context
+│   └── extractionService.js   # AI extraction with feedback
+├── stores/                # Zustand state management
+│   ├── measureStore.js        # Measures, active tab, code overrides
+│   ├── componentLibraryStore.js  # Reusable components
+│   ├── feedbackStore.js       # Extraction corrections
+│   └── settingsStore.js       # User preferences
+├── api/                   # Backend API clients
+│   ├── measures.js            # Measure CRUD
+│   ├── components.js          # Component CRUD
+│   ├── validation.js          # Test patient validation
+│   ├── import.js              # Import endpoint
+│   └── classifierFeedback.js  # Classifier feedback API
+├── utils/                 # Utility functions
+│   └── catalogueClassifier.js # Document type detection
+└── types/                 # TypeScript definitions
 ```
 
 ## Key Concepts
@@ -103,180 +121,147 @@ Reusable building blocks:
 | `docs/TECHNICAL_ARCHITECTURE.md` | Code structure and patterns |
 | `docs/PRODUCT_OVERVIEW.md` | High-level product description |
 
-## Common Tasks
+**Note:** HCC module archived at `insight_forge_api/alembic/seeds/hcc_archived/` for Oracle team to port separately.
 
-### Run the Application
-```bash
-# Terminal 1: Backend
-cd backend && ./mvnw spring-boot:run
+## API Endpoints
 
-# Terminal 2: Frontend
-npm run dev
-```
+### Measures
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/measures` | GET | List all measures (summary) |
+| `/api/measures/full` | GET | List all measures (full tree) |
+| `/api/measures/{id}` | GET/PUT/DELETE | Measure CRUD |
+| `/api/measures/by-measure-id/{cms_id}` | GET | Get by CMS measure ID |
+| `/api/measures/{id}/lock` | POST | Lock measure for editing |
+| `/api/measures/{id}/unlock` | POST | Unlock measure |
+| `/api/measures/{id}/validate` | GET | Get validation traces |
+| `/api/measures/{id}/validate/summary` | GET | Validation summary |
 
-### Run Tests
-```bash
-npm run test        # Run once
-npm run test:watch  # Watch mode
-```
+### Components
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/components` | GET | List all components |
+| `/api/components/stats` | GET | Component statistics |
+| `/api/components/{id}` | GET/PUT/DELETE | Component CRUD |
+| `/api/components/atomic` | POST | Create atomic component |
+| `/api/components/composite` | POST | Create composite component |
+| `/api/components/{id}/approve` | POST | Approve component |
+| `/api/components/{id}/archive` | POST | Archive component |
+| `/api/components/{id}/versions` | POST | Create new version |
+| `/api/components/{id}/category` | PUT | Set category |
 
-### Build for Production
-```bash
-npm run build       # Output to dist/
-```
+### Code Generation
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/measures/{id}/cql` | GET | Generate CQL |
+| `/api/measures/{id}/cql/preview` | POST | Preview CQL |
+| `/api/measures/{id}/sql` | GET | Generate HDI SQL |
+| `/api/measures/{id}/sql/preview` | POST | Preview SQL |
+| `/api/measures/{id}/code` | GET | Generate both CQL and SQL |
+
+### Validation
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/validation/patients` | GET/POST | List/create test patients |
+| `/api/validation/patients/{id}` | GET/PUT/DELETE | Patient CRUD |
+| `/api/validation/patients/for-measure/{id}` | GET | Patients for measure |
+| `/api/validation/evaluate/{measure_id}` | GET | Evaluate all patients |
+| `/api/validation/evaluate/{measure_id}/{patient_id}` | GET | Evaluate single patient |
+| `/api/validation/summary/{measure_id}` | GET | Validation summary |
+
+### LLM
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/llm/providers` | GET | List available providers |
+| `/api/llm/complete` | POST | General completion |
+| `/api/llm/extract` | POST | Document extraction |
+| `/api/llm/assist` | POST | Co-pilot assistance |
+
+### Other
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/import` | POST | Import measures/components |
+| `/api/import/export` | GET | Export all data |
+| `/api/classifier/feedback` | POST/GET | Classifier feedback CRUD |
+| `/api/auth/register` | POST | Register user |
+| `/api/auth/login` | POST | Login |
+| `/api/auth/me` | GET/PUT | Current user |
+| `/api/auth/refresh` | POST | Refresh token |
+| `/health` | GET | Health check |
 
 ## Recent Features
 
+### Backend Migration to FastAPI (March 2026)
+Full replacement of Spring Boot backend with FastAPI + SQLAlchemy async.
+- `insight_forge_api/` — full Python backend
+- SQLite (dev) / Oracle (prod) via oracledb driver
+- Alembic replaces Flyway for schema migrations
+- Seed data: 9 eCQM measures + 66 components loaded on startup
+- JWT auth via python-jose + passlib[bcrypt] (off by default, toggle AUTH_ENABLED)
+- HCC module archived at `insight_forge_api/alembic/seeds/hcc_archived/` for Oracle team
+
 ### Feature 1c: Easy HEDIS — NDC, Collection Type, Hybrid Source (March 2026)
-**Task 1 Complete: V22 Migration + catalogueDefaults**
-- `V22__add_catalogue_defaults_to_components.sql` - Adds `catalogue_defaults TEXT` column to `library_component`
-- `LibraryComponent.java` - Added `catalogueDefaults` field (JSON string)
-- `ComponentDto.java` - Added `catalogueDefaults` as `Map<String, Object>`
-- `CreateAtomicComponentRequest.java`, `CreateCompositeComponentRequest.java`, `UpdateComponentRequest.java` - Added `catalogueDefaults`
-- `ComponentMapper.java` - Added `parseCatalogueDefaults()` and `serializeCatalogueDefaults()` methods
-- `ComponentLibraryService.java` - Updated `mergeUpdates()` to handle `catalogueDefaults`
-
-**Design decision:** `catalogueDefaults` stores suggested defaults (e.g., `{"hedis": {"collectionType": "administrative", "hybridSourceFlag": false}}`). The actual HEDIS fields live on data elements within the measure's UMS, not on the library component.
-
-**Task 2 Complete: hedis block on data elements**
-- `extractionService.js` - Added `isHedisApplicableType()` helper and hedis block population in `convertCriteria()`
-- `transformers.js` - Added hedis block preservation in `transformDataElement()`
-- `measureStore.js` - Updated both `importMeasure` and `addMeasure` to populate hedis block from component's catalogueDefaults when linking
-
-**HEDIS-applicable element types:** encounter, procedure, laboratory, medication, condition (diagnosis)
-**hedis block structure:** `{ collectionType: "administrative"|"hybrid"|"ecd"|"ecds"|null, hybridSourceFlag: boolean }`
-
-**Task 3 Complete: AI infers collection type at HEDIS ingest**
-- `extractionService.js` - Added HEDIS-specific LLM prompt instructions for collectionType/hybridSourceFlag inference
-- `multiPassExtractor.js` - Added HEDIS guidance and JSON schema extension in `getPopulationDetailPrompt()`
-
-**LLM guidance:** When catalogue is HEDIS, the prompt instructs the AI to:
-- Infer collectionType from spec (administrative, hybrid, ecd, ecds)
-- Default to "administrative" if uncertain
-- Set hybridSourceFlag=true only for medical record review elements
-
-**Task 4 Complete: HEDIS fields in UMS editor**
-- `UMSEditor.jsx` - Added HEDIS Collection section to `NodeDetailPanel` with:
-  - Collection Type dropdown (administrative, hybrid, ecd, ecds)
-  - Hybrid Source Flag checkbox
-  - Only visible for HEDIS measures on applicable element types
-
-**Task 5 Complete: HEDIS defaults in component editor**
-- `ComponentEditor.jsx` - Added HEDIS Defaults section (visible when hedis catalogue selected):
-  - Default Collection Type dropdown
-  - Medical Record Review Element checkbox (hybridSourceFlag)
-  - catalogueDefaults state and persistence to component
-
-**Task 6 Complete: Catalogue filter on add-component widget**
-- `AddComponentModal.jsx` - Added catalogue filter pills (HEDIS, eCQM, MIPS, QOF):
-  - Toggle pills to filter by catalogue
-  - Current measure's catalogue highlighted with accent border
-  - Components with no catalogues show for all filters (universal)
-
-**Task 7 Complete: NDC code system recognition**
-- Added NDC to code system dropdowns in:
-  - `UMSEditor.jsx` (3 locations)
-  - `ValueSetManager.jsx`
-  - `ComponentEditor.jsx`
-  - `ComponentBuilder.jsx`
-- Added NDC to `STANDARD_CODE_SYSTEMS` in `cqlTemplates.js`
-- NDC URI: `http://hl7.org/fhir/sid/ndc` (already defined in fhir-measure.js)
-
-**Task 8 Complete: HEDIS export validation warning**
-- `CodeGeneration.jsx` - Added `validateHedisFields()` function that:
-  - Checks HEDIS measures for data elements missing `collectionType`
-  - Returns warnings listing affected elements
-  - Validates in all generation paths (CQL component-aware, CQL standard, Synapse SQL)
-
-**Task 9 Complete: Code generator reads hedis block**
-- `cqlGenerator.js` - Added `generateHedisComment()` helper and HEDIS comments in CQL output:
-  - Prepends `/* HEDIS Collection: <type>, Hybrid Source */` comments to data element expressions
-  - Only adds comments when `hedis.collectionType` is present
-- `hdiSqlGenerator.js` - Updated `dataElementToPredicate()` to extract and pass hedis metadata to all predicate types
-- `hdiSqlTemplates.js` - Added `generateHedisComment()` helper and updated all predicate CTE generators:
-  - `generateConditionPredicateCTE`
-  - `generateResultPredicateCTE`
-  - `generateProcedurePredicateCTE`
-  - `generateMedicationPredicateCTE`
-  - `generateImmunizationPredicateCTE`
-  - `generateEncounterPredicateCTE`
-  - Prepends `-- HEDIS Collection: <type>, Hybrid Source` SQL comments to CTEs
-
-**HEDIS comment format:**
-- CQL: `/* HEDIS Collection: administrative */` or `/* HEDIS Collection: hybrid, Hybrid Source */`
-- SQL: `-- HEDIS Collection: administrative` or `-- HEDIS Collection: hybrid, Hybrid Source`
+- `catalogueDefaults` on components for HEDIS-specific defaults
+- `hedis` block on data elements: `{ collectionType, hybridSourceFlag }`
+- AI infers collection type at HEDIS ingest
+- HEDIS Collection section in UMS editor
+- NDC code system recognition
+- HEDIS export validation warnings
+- HEDIS comments in generated CQL/SQL
 
 ### Feature 1b: Catalogue Auto-Detection (March 2026)
-- `src/utils/catalogueClassifier.js` - Signal-based document classifier
-- `src/components/ingestion/CatalogueConfirmationChip.jsx` - Confirmation UI
-- `src/api/classifierFeedback.js` - Feedback API client
-- Backend: `ClassifierFeedbackController.java`, `V21__create_classifier_feedback_table.sql`
+- `src/utils/catalogueClassifier.js` — Signal-based document classifier
+- `src/components/ingestion/CatalogueConfirmationChip.jsx` — Confirmation UI
+- Backend: `/api/classifier/feedback` endpoint
 
 ### Feature 1a: Catalogue Tagging (February 2026)
 - Standardized "Catalogue" spelling in user-facing strings
 - Added catalogue type badges to component library
 
 ### Extraction Feedback System (February 2026)
-- `src/stores/feedbackStore.js` - Captures user corrections
+- `src/stores/feedbackStore.js` — Captures user corrections
 - Prompt injection into AI extraction prompts
 - Feedback dashboard in Settings
 
 ## State Management
 
 Zustand stores with localStorage persistence:
-- `measure-storage` - Measures and selections
-- `component-library-storage` - Library components
-- `settings-storage` - API keys and preferences
-- `feedback-storage` - Extraction corrections
+- `settings-storage` — LLM provider preference, VSAC API key
+- `feedback-storage` — Extraction corrections and feedback settings
+- `component-code-storage` — Code override state
 
-## API Endpoints
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/measures` | GET/POST | List/create measures |
-| `/api/measures/{id}` | GET/PUT/DELETE | Measure CRUD |
-| `/api/components` | GET/POST | List/create components |
-| `/api/import` | POST | Import with auto-component creation |
-| `/api/classifier/feedback` | POST | Record catalogue classification feedback |
-
-## Code Patterns
-
-### Stale Closure Fix (useRef)
-Used in MeasureLibrary.jsx to prevent stale closures in useCallback:
-```javascript
-const continueIngestionRef = useRef(null);
-useEffect(() => {
-  continueIngestionRef.current = continueIngestion;
-}, [continueIngestion]);
-```
-
-### Store Key Pattern
-Code overrides keyed by `measureId::elementId`:
-```javascript
-const storeKey = getStoreKey(measureId, elementId);
-// Returns: "measure-123::element-456"
-```
+**Note:** Measures and components are now persisted in the backend database, not localStorage.
 
 ## Development Notes
 
-- API keys stored in localStorage (Settings page)
-- Direct LLM API calls when frontend key configured (faster)
-- Backend proxy as fallback for extraction
+- Backend database: SQLite file at `insight_forge_api/data/insightforge.db`
+- Database seeded automatically on first startup via `app/seeds/seed_data.py`
+- LLM API keys live server-side in `.env` — not in browser localStorage
 - All component IDs use `comp-` or `composite-` prefix
-- Flyway migrations in `backend/src/main/resources/db/migration/`
+- Swagger UI available at http://localhost:8000/docs
 
 ## Helpful Commands
 
 ```bash
-# Kill processes on port 8080
-lsof -ti:8080 | xargs kill -9
+# Check database (SQLite)
+sqlite3 insight_forge_api/data/insightforge.db ".tables"
+sqlite3 insight_forge_api/data/insightforge.db "SELECT COUNT(*) FROM library_component;"
 
-# Check backend logs
-tail -f backend/target/logs/application.log
+# Reset database (re-seeds on next startup)
+rm insight_forge_api/data/insightforge.db
 
-# Database console (H2)
-# Open http://localhost:8080/h2-console
-# JDBC URL: jdbc:h2:file:./data/algoaccel
+# Run with reload (dev)
+cd insight_forge_api && uvicorn app.main:app --reload --port 8000
+
+# Kill processes on port 8000
+lsof -ti:8000 | xargs kill -9
+
+# Run frontend tests
+npm run test        # Run once
+npm run test:watch  # Watch mode
+
+# Build frontend for production
+npm run build       # Output to dist/
 ```
 
 ## Git Workflow

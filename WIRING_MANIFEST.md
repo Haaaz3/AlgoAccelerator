@@ -6,11 +6,185 @@ A comprehensive map of how components, stores, and services connect and communic
 
 ## Table of Contents
 
+0. [Frontend ↔ Backend API Wiring](#0-frontend--backend-api-wiring)
 1. [Store-to-Component Map](#1-store-to-component-map)
 2. [Service Call Graph](#2-service-call-graph)
 3. [Event and Data Flow Sequences](#3-event-and-data-flow-sequences)
 4. [Orphan Report](#4-orphan-report)
 5. [Cross-Store Dependencies](#5-cross-store-dependencies)
+
+---
+
+## 0. Frontend ↔ Backend API Wiring
+
+This section documents how the React frontend communicates with the FastAPI backend.
+
+### Frontend API Client → Backend Endpoint Map
+
+| Frontend File | Function | HTTP | Backend Endpoint | FastAPI Router |
+|---------------|----------|------|------------------|----------------|
+| `src/api/measures.js` | `getMeasures()` | GET | `/api/measures` | `measures.py` |
+| `src/api/measures.js` | `getMeasuresFull()` | GET | `/api/measures/full` | `measures.py` |
+| `src/api/measures.js` | `getMeasure(id)` | GET | `/api/measures/{id}` | `measures.py` |
+| `src/api/measures.js` | `getMeasureByMeasureId()` | GET | `/api/measures/by-measure-id/{id}` | `measures.py` |
+| `src/api/measures.js` | `createMeasure()` | POST | `/api/measures` | `measures.py` |
+| `src/api/measures.js` | `updateMeasure()` | PUT | `/api/measures/{id}` | `measures.py` |
+| `src/api/measures.js` | `deleteMeasure()` | DELETE | `/api/measures/{id}` | `measures.py` |
+| `src/api/measures.js` | `lockMeasure()` | POST | `/api/measures/{id}/lock` | `measures.py` |
+| `src/api/measures.js` | `unlockMeasure()` | POST | `/api/measures/{id}/unlock` | `measures.py` |
+| `src/api/measures.js` | `generateCql()` | GET | `/api/measures/{id}/cql` | `code_generation.py` |
+| `src/api/measures.js` | `generateSql()` | GET | `/api/measures/{id}/sql` | `code_generation.py` |
+| `src/api/measures.js` | `generateCode()` | GET | `/api/measures/{id}/code` | `code_generation.py` |
+| `src/api/components.js` | `getComponents()` | GET | `/api/components` | `components.py` |
+| `src/api/components.js` | `getComponent()` | GET | `/api/components/{id}` | `components.py` |
+| `src/api/components.js` | `createAtomicComponent()` | POST | `/api/components/atomic` | `components.py` |
+| `src/api/components.js` | `createCompositeComponent()` | POST | `/api/components/composite` | `components.py` |
+| `src/api/components.js` | `updateComponent()` | PUT | `/api/components/{id}` | `components.py` |
+| `src/api/components.js` | `deleteComponent()` | DELETE | `/api/components/{id}` | `components.py` |
+| `src/api/components.js` | `setComponentCategory()` | PUT | `/api/components/{id}/category` | `components.py` |
+| `src/api/components.js` | `approveComponent()` | POST | `/api/components/{id}/approve` | `components.py` |
+| `src/api/components.js` | `archiveComponent()` | POST | `/api/components/{id}/archive` | `components.py` |
+| `src/api/components.js` | `getComponentStats()` | GET | `/api/components/stats` | `components.py` |
+| `src/api/validation.js` | `getAllTestPatients()` | GET | `/api/validation/patients` | `validation.py` |
+| `src/api/validation.js` | `getTestPatientsForMeasure()` | GET | `/api/validation/patients/for-measure/{id}` | `validation.py` |
+| `src/api/validation.js` | `getTestPatient()` | GET | `/api/validation/patients/{id}` | `validation.py` |
+| `src/api/validation.js` | `evaluatePatient()` | GET | `/api/validation/evaluate/{mid}/{pid}` | `validation.py` |
+| `src/api/validation.js` | `evaluateAllPatients()` | GET | `/api/validation/evaluate/{id}` | `validation.py` |
+| `src/api/validation.js` | `getValidationSummary()` | GET | `/api/validation/summary/{id}` | `validation.py` |
+| `src/api/import.js` | `importData()` | POST | `/api/import` | `import_router.py` |
+| `src/api/import.js` | `exportData()` | GET | `/api/import/export` | `import_router.py` |
+| `src/api/classifierFeedback.js` | `recordClassifierFeedback()` | POST | `/api/classifier/feedback` | `classifier_feedback.py` |
+| `src/services/extractionService.js` | LLM extract | POST | `/api/llm/extract` | `llm.py` |
+| `src/services/copilotService.js` | LLM assist | POST | `/api/llm/assist` | `llm.py` |
+
+---
+
+### Data Flow: Startup Sequence
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         APPLICATION STARTUP                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. App.jsx mounts                                                           │
+│         │                                                                    │
+│         ├──▶ measureStore.loadFromApi()                                      │
+│         │         │                                                          │
+│         │         └──▶ GET /api/measures/full                                │
+│         │                   │                                                │
+│         │                   └──▶ FastAPI measures.py::get_all_measures_full()│
+│         │                             │                                      │
+│         │                             └──▶ measure_service.get_all_full()    │
+│         │                                       │                            │
+│         │                                       └──▶ SQLAlchemy eager load   │
+│         │                                                                    │
+│         └──▶ componentLibraryStore.loadFromApi()                             │
+│                   │                                                          │
+│                   └──▶ GET /api/components                                   │
+│                             │                                                │
+│                             └──▶ FastAPI components.py::get_all_components() │
+│                                       │                                      │
+│                                       └──▶ component_service.get_all()       │
+│                                                                              │
+│  2. User navigates to Measure Library                                        │
+│         │                                                                    │
+│         └──▶ Measures displayed from store (already loaded)                  │
+│                                                                              │
+│  3. User imports a document                                                  │
+│         │                                                                    │
+│         ├──▶ extractionService.js → POST /api/llm/extract                    │
+│         │         │                                                          │
+│         │         └──▶ FastAPI llm.py → llm_service.extract()                │
+│         │                   │                                                │
+│         │                   └──▶ Anthropic/OpenAI/Google API                 │
+│         │                                                                    │
+│         └──▶ measureStore.syncToApi() → POST /api/measures                   │
+│                                                                              │
+│  4. User generates code                                                      │
+│         │                                                                    │
+│         └──▶ CodeGeneration.jsx                                              │
+│                   │                                                          │
+│                   ├──▶ GET /api/measures/{id}/cql                            │
+│                   │         │                                                │
+│                   │         └──▶ cql_generator_service.generate_cql()        │
+│                   │                                                          │
+│                   └──▶ GET /api/measures/{id}/sql                            │
+│                             │                                                │
+│                             └──▶ hdi_sql_generator_service.generate_sql()    │
+│                                                                              │
+│  5. User validates measure                                                   │
+│         │                                                                    │
+│         └──▶ ValidationTraceViewer.jsx                                       │
+│                   │                                                          │
+│                   └──▶ GET /api/validation/evaluate/{measureId}              │
+│                             │                                                │
+│                             └──▶ validation_service.evaluate_all()           │
+│                                                                              │
+│  6. User confirms catalogue type                                             │
+│         │                                                                    │
+│         └──▶ CatalogueConfirmationChip.jsx                                   │
+│                   │                                                          │
+│                   └──▶ POST /api/classifier/feedback                         │
+│                             │                                                │
+│                             └──▶ classifier_feedback_service.record()        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Backend Service Dependency Graph
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      BACKEND SERVICE DEPENDENCIES                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  cql_generator_service.py                                                    │
+│         │                                                                    │
+│         └──▶ measure_service.get_measure()  (loads measure tree)             │
+│                                                                              │
+│  hdi_sql_generator_service.py                                                │
+│         │                                                                    │
+│         └──▶ measure_service.get_measure()  (loads measure tree)             │
+│                                                                              │
+│  validation_service.py                                                       │
+│         │                                                                    │
+│         ├──▶ measure_service.get_measure()                                   │
+│         └──▶ test_patient_service.get_patient()                              │
+│                                                                              │
+│  import_service.py                                                           │
+│         │                                                                    │
+│         ├──▶ component_service.create_atomic_component()                     │
+│         ├──▶ component_service.create_composite_component()                  │
+│         └──▶ measure_service.create_measure()                                │
+│                                                                              │
+│  llm_service.py                                                              │
+│         │                                                                    │
+│         └──▶ External APIs (Anthropic, OpenAI, Google)                       │
+│                                                                              │
+│  auth_service.py                                                             │
+│         │                                                                    │
+│         └──▶ (standalone - no service dependencies)                          │
+│                                                                              │
+│  measure_service.py                                                          │
+│         │                                                                    │
+│         └──▶ SQLAlchemy ORM (Measure, Population, LogicalClause, DataElement)│
+│                                                                              │
+│  component_service.py                                                        │
+│         │                                                                    │
+│         └──▶ SQLAlchemy ORM (LibraryComponent)                               │
+│                                                                              │
+│  test_patient_service.py                                                     │
+│         │                                                                    │
+│         └──▶ SQLAlchemy ORM (TestPatient, FhirTestPatient)                   │
+│                                                                              │
+│  classifier_feedback_service.py                                              │
+│         │                                                                    │
+│         └──▶ SQLAlchemy ORM (ClassifierFeedback)                             │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 

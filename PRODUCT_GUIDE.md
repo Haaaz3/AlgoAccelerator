@@ -461,14 +461,22 @@ Configure the AI provider for document ingestion and AND/OR.ai Co-Pilot:
 - **Google (Gemini)** - Alternative provider
 - **Custom LLM** - Self-hosted or custom endpoint (OpenAI-compatible API)
 
-#### API Key Configuration
+#### LLM Provider Configuration
 
-1. Navigate to **Settings** tab
-2. Select your preferred LLM provider
-3. Enter your API key in the secure field
-4. Click **Save**
+The backend handles all LLM API calls. API keys are configured server-side
+in the backend's .env file — they are never stored in your browser.
 
-Your API key is stored locally in your browser and never sent to our servers. All AI calls are made directly from your browser to the LLM provider.
+For local development, add your keys to `insight_forge_api/.env`:
+```
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
+
+For production deployment, set these as environment variables in your
+hosting platform (Railway, etc.).
+
+The Settings page still lets you choose your preferred LLM provider and
+model. The backend will use whichever provider's key is configured.
 
 #### Custom LLM Configuration
 
@@ -513,6 +521,19 @@ For self-hosted models (Ollama, LM Studio, vLLM, etc.):
 
 ## Troubleshooting
 
+### Backend Not Running
+
+If you see "Unable to Connect to Backend", the FastAPI server is not running.
+
+Start it with:
+```bash
+cd insight_forge_api
+source venv/bin/activate
+uvicorn app.main:app --port 8000
+```
+
+The frontend at localhost:5173 proxies all /api requests to localhost:8000.
+
 ### Common Issues
 
 **Document import fails**
@@ -533,6 +554,18 @@ For self-hosted models (Ollama, LM Studio, vLLM, etc.):
 - Check all value sets have valid OIDs
 - Verify timing expressions are complete
 - Ensure all required fields are populated
+
+**Measures/components showing as empty after restart**
+- The backend database may have been reset. Run:
+  `cd insight_forge_api && uvicorn app.main:app --port 8000`
+  The database seeds automatically on startup.
+- If data is still missing, check the server logs for seed errors.
+
+**localStorage data not matching backend**
+- Your browser may have older data in localStorage from before the migration.
+- Go to Settings → Export to download your local data.
+- POST it to /api/import to migrate it to the backend database.
+- Then clear localStorage in browser DevTools (Application → Local Storage).
 
 ### Getting Help
 
@@ -580,3 +613,4 @@ For self-hosted models (Ollama, LM Studio, vLLM, etc.):
 | 1.8 | Feb 2026 | UMS Editor parity: full value set editing (OID, name, add/delete codes, inline VSAC fetch) |
 | 1.9 | Feb 2026 | Extraction Feedback System: correction capture, prompt injection, feedback dashboard |
 | 1.10 | Mar 2026 | Catalogue Auto-Detection: automatic catalogue type classification during import with confirmation chip for medium/low confidence detections, user feedback recording for classifier improvement |
+| 2.0 | Mar 2026 | Backend migration: Spring Boot → FastAPI. LLM API keys moved server-side. SQLite/Oracle database replaces localStorage as source of truth for measures and components. |
