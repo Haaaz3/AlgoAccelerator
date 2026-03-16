@@ -59,7 +59,20 @@ class MeasureService:
         result = await self.db.execute(
             select(Measure)
             .options(
-                selectinload(Measure.populations).selectinload(Population.root_clause),
+                # Load populations with root clause and recursive children
+                selectinload(Measure.populations)
+                    .selectinload(Population.root_clause)
+                    .selectinload(LogicalClause.child_clauses, recursion_depth=-1)
+                    .selectinload(LogicalClause.data_elements)
+                    .selectinload(DataElement.value_sets)
+                    .selectinload(MeasureValueSet.codes),
+                # Also load data_elements for root clause directly
+                selectinload(Measure.populations)
+                    .selectinload(Population.root_clause)
+                    .selectinload(LogicalClause.data_elements)
+                    .selectinload(DataElement.value_sets)
+                    .selectinload(MeasureValueSet.codes),
+                # Load measure-level value sets
                 selectinload(Measure.value_sets).selectinload(MeasureValueSet.codes),
                 selectinload(Measure.corrections),
             )
@@ -103,7 +116,20 @@ class MeasureService:
             select(Measure)
             .where(Measure.id == measure_id)
             .options(
-                selectinload(Measure.populations).selectinload(Population.root_clause),
+                # Load populations with root clause and recursive children
+                selectinload(Measure.populations)
+                    .selectinload(Population.root_clause)
+                    .selectinload(LogicalClause.child_clauses, recursion_depth=-1)
+                    .selectinload(LogicalClause.data_elements)
+                    .selectinload(DataElement.value_sets)
+                    .selectinload(MeasureValueSet.codes),
+                # Also load data_elements for root clause directly
+                selectinload(Measure.populations)
+                    .selectinload(Population.root_clause)
+                    .selectinload(LogicalClause.data_elements)
+                    .selectinload(DataElement.value_sets)
+                    .selectinload(MeasureValueSet.codes),
+                # Load measure-level value sets
                 selectinload(Measure.value_sets).selectinload(MeasureValueSet.codes),
                 selectinload(Measure.corrections),
             )
@@ -119,7 +145,20 @@ class MeasureService:
             select(Measure)
             .where(Measure.measure_id == cms_measure_id)
             .options(
-                selectinload(Measure.populations).selectinload(Population.root_clause),
+                # Load populations with root clause and recursive children
+                selectinload(Measure.populations)
+                    .selectinload(Population.root_clause)
+                    .selectinload(LogicalClause.child_clauses, recursion_depth=-1)
+                    .selectinload(LogicalClause.data_elements)
+                    .selectinload(DataElement.value_sets)
+                    .selectinload(MeasureValueSet.codes),
+                # Also load data_elements for root clause directly
+                selectinload(Measure.populations)
+                    .selectinload(Population.root_clause)
+                    .selectinload(LogicalClause.data_elements)
+                    .selectinload(DataElement.value_sets)
+                    .selectinload(MeasureValueSet.codes),
+                # Load measure-level value sets
                 selectinload(Measure.value_sets).selectinload(MeasureValueSet.codes),
                 selectinload(Measure.corrections),
             )
